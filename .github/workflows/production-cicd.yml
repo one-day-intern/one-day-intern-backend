@@ -1,0 +1,54 @@
+name: Production
+on:
+  push:
+    branches:
+      - 'master'
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup Python 3.8.10
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.8.10
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Collect Static Files
+        run: python manage.py collectstatic --no-input
+      - name: Run Test
+        run: python manage.py test
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/master'
+    name: Deploy to Cloud Run
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_NAME: gcr.io/${{ secrets.PRODUCTION_GCP_PROJECT_ID }}/${{ secrets.PRODUCTION_GCP_APP_NAME }}
+    steps:
+      - name: Login
+        uses: google-github-actions/setup-gcloud@v0
+        with:
+          project_id: ${{ secrets.PRODUCTION_GCP_PROJECT_ID }}
+          service_account_email: ${{ secrets.PRODUCTION_GCP_EMAIL }}
+          service_account_key: ${{ secrets.PRODUCTION_GCP_CREDENTIALS }}
+
+      - name: Configure Docker
+        run: gcloud auth configure-docker --quiet
+
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Build Docker image
+        run: docker build -t $IMAGE_NAME --build-arg arg_database_url=${{ secrets.PRODUCTION_DATABASE_URL }} .
+
+      - name: Push Docker image
+        run: docker push $IMAGE_NAME
+
+      - name: Deploy Docker image
+        run: gcloud run deploy ${{ secrets.PRODUCTION_GCP_PROJECT_ID }} --image $IMAGE_NAME --region us-central1 --platform managed
