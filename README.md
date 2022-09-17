@@ -57,7 +57,7 @@ Once your local machine is set, you can start by following the steps below.
 
 	  You may do this by adding environment variables directly through the ```CLI (Command Line Interface)``` or through a ```.env``` file.
     
-	  To add the environment variables through the windows CMD, type the following command in your CLI.
+	To add the environment variables through the windows CMD, type the following command in your CLI.
 	```sh
     export DATABASE_URL = <your_database_url>
 	```
@@ -67,7 +67,7 @@ Once your local machine is set, you can start by following the steps below.
     export DATABASE_URL = postgres://postgres:postgres@localhost:5432/my_database
 	```
     
-	  To add the environment variables through the mac or linux CLI, type the following command in your CLI.
+	To add the environment variables through the mac or linux CLI, type the following command in your CLI.
 	```sh
 	set DATABASE_URL = <your_database_url>
 	```
@@ -77,7 +77,7 @@ Once your local machine is set, you can start by following the steps below.
     set DATABASE_URL = postgres://postgres:postgres@localhost:5432/my_database
 	```    
 	
-	  To add the environment variable through the ```.env``` file, you may create a ```.env``` file in the root project directory and add the following line 	modified with your database credentials.
+	To add the environment variable through the ```.env``` file, you may create a ```.env``` file in the root project directory and add the following line 	modified with your database credentials.
 	```sh
 	DATABASE_URL = <your_database_url>
 	```
@@ -96,7 +96,7 @@ Once your local machine is set, you can start by following the steps below.
     python manage.py runserver
     ```
 
-	  Now, you can open ```http://localhost:8000``` to see the application in the browser.
+	Now, you can open ```http://localhost:8000``` to see the application in the browser.
 
 The application also comes with pre-configured test cases. To run the test locally, you can run ```python manage.py test``` 
 
@@ -105,25 +105,25 @@ The client-side codebase consists of two separate repositories: ```odi-assessee-
 
 1.  First, clone the repository you wish to contribute:
 
-	  The following is used to clone the assessee frontend:
+	The following is used to clone the assessee frontend:
 	```sh
     git clone https://github.com/one-day-intern/odi-assessee-fe.git
     ```
-	  The following is used to clone the assessor frontend:
+	The following is used to clone the assessor frontend:
 	```sh
     git clone https://github.com/one-day-intern/odi-assessor-fe.git
     ```
 
 2.  Note that this project is configured using ```npm```. If ```npm``` is not configured on your machine, you can download node.js from the following [website](https://nodejs.org/en/), which comes bundled with ```npm```. 
 
-	  The steps for ```yarn``` users will be further specified below.
+	The steps for ```yarn``` users will be further specified below.
 
 3.  After configuring ```npm``` in your machine, you can initialize the project by installing the dependencies as follows:
     ```sh
     npm i
     ```
 
-	  However, for those using ```yarn```, you can initialize the project by installing the dependencies as follows:
+	However, for those using ```yarn```, you can initialize the project by installing the dependencies as follows:
     ```sh
     yarn install
 	```
