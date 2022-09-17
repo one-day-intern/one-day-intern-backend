@@ -15,9 +15,16 @@ SECRET_KEY = 'django-insecure-m!=vw$!g^85#yna0&*sgn^9c9881f*9dk5w!7h-c(s!ja38um%
 
 ALLOWED_HOSTS = ['*']
 CORS_ALLOW_ALL_ORIGINS = True
+CLOUDRUN_SERVICE_URL = os.getenv('CLOUDRUN_SERVICE_URL')
+
+if CLOUDRUN_SERVICE_URL:
+    ALLOWED_HOSTS.append(urlparse(CLOUDRUN_SERVICE_URL))
+    CSRF_TRUSTED_ORIGINS = [CLOUDRUN_SERVICE_URL]
+    SECURE_SSL_REDIRECT = True
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = not CLOUDRUN_SERVICE_URL
 
 # Application definition
 
