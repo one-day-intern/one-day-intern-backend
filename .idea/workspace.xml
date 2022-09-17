@@ -4,7 +4,13 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="e2156b0c-3e0e-4b00-b0af-bb331cb30b5a" name="Changes" comment="" />
+    <list default="true" id="e2156b0c-3e0e-4b00-b0af-bb331cb30b5a" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/.github/workflows/development-ci.yml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.github/workflows/production-cicd.yml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.github/workflows/staging-cicd.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/one_day_intern/settings.py" beforeDir="false" afterPath="$PROJECT_DIR$/one_day_intern/settings.py" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -123,7 +129,7 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1663388012109</updated>
-      <workItem from="1663388013422" duration="1322000" />
+      <workItem from="1663388013422" duration="1605000" />
     </task>
     <servers />
   </component>
