@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from unittest.mock import patch
 from .models import OdiUser
+from .services.utils import validate_password
 
 
 class OdiUserTestCase(TestCase):
@@ -53,3 +54,44 @@ class OdiSuperUserTestCase(TestCase):
                 self.assertTrue(new_superuser.is_admin)
                 self.assertTrue(new_superuser.is_superuser)
                 mocked_save.assert_called_once()
+
+
+class UtilityTestCase(TestCase):
+    def test_validate_password_when_valid(self):
+        password = 'Pass1234'
+        validation_result = validate_password(password)
+
+        self.assertTrue(validation_result['is_valid'])
+        self.assertIsNone(validation_result['message'])
+
+    def test_validate_password_when_length_is_less(self):
+        password = '123'
+        error_message = 'Password length must be at least 8 characters'
+        validation_result = validate_password(password)
+
+        self.assertFalse(validation_result['is_valid'])
+        self.assertEqual(validation_result['message'], error_message)
+
+    def test_validate_password_when_no_uppercase(self):
+        password = 'abcdefgh'
+        error_message = 'Password length must contain at least 1 uppercase character'
+        validation_result = validate_password(password)
+
+        self.assertFalse(validation_result['is_valid'])
+        self.assertEqual(validation_result['message'], error_message)
+
+    def test_validate_password_when_no_lowercase(self):
+        password = 'A12345678'
+        error_message = 'Password length must contain at least 1 lowercase character'
+        validation_result = validate_password(password)
+
+        self.assertFalse(validation_result['is_valid'])
+        self.assertEqual(validation_result['message'], error_message)
+
+    def test_validate_password_when_no_number(self):
+        password = 'Password'
+        error_message = 'Password length must contain at least 1 number character'
+        validation_result = validate_password(password)
+
+        self.assertFalse(validation_result['is_valid'])
+        self.assertEqual(validation_result['message'], error_message)
