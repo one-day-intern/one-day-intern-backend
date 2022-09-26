@@ -19,7 +19,7 @@ jobs:
       - name: Collect Static Files
         run: python manage.py collectstatic --no-input
       - name: Run Test
-        run: python manage.py test
+        run: python manage.py test --no-input
         env:
           DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
 
