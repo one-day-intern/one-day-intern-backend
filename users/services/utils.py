@@ -3,3 +3,7 @@ def validate_password(password) -> dict:
         'is_valid': False,
         'message': None
     }
+
+
+def validate_email(email) -> bool:
+    return False
