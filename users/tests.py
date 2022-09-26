@@ -107,3 +107,25 @@ class UtilityTestCase(TestCase):
     def test_validate_email_when_invalid(self):
         email = 'email@email'
         self.assertFalse(utils.validate_email(email))
+
+    def test_validate_date_format_when_valid(self):
+        date_str = '2022-09-26T15:29:30.506Z'
+        self.assertTrue(utils.validate_date_format(date_str))
+
+        date_str = '2022-09-26'
+        self.assertTrue(utils.validate_date_format(date_str))
+
+    def test_validate_date_format_when_invalid(self):
+        date_str = ''
+        self.assertFalse(utils.validate_date_format(date_str))
+
+        date_str = '2022-26'
+        self.assertFalse(utils.validate_date_format(date_str))
+
+    def test_get_date_from_valid_date_string(self):
+        date_str = '2021-08-16T15:29:30.506Z'
+        date = utils.get_date_from_string(date_str)
+
+        self.assertEqual(date.day, 26)
+        self.assertEqual(date.month, 9)
+        self.assertEqual(date.year, 2022)
