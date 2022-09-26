@@ -62,40 +62,35 @@ class OdiSuperUserTestCase(TestCase):
 
 class UtilityTestCase(TestCase):
     def test_validate_password_when_valid(self):
-        valid_password = 'Pass1234'
-        validation_result = utils.validate_password(valid_password)
+        validation_result = utils.validate_password('Pass1234')
 
         self.assertTrue(validation_result['is_valid'])
         self.assertIsNone(validation_result['message'])
 
     def test_validate_password_when_length_is_less(self):
-        too_short_password = '123'
         error_message = 'Password length must be at least 8 characters'
-        validation_result = utils.validate_password(too_short_password)
+        validation_result = utils.validate_password('123')
 
         self.assertFalse(validation_result['is_valid'])
         self.assertEqual(validation_result['message'], error_message)
 
     def test_validate_password_when_no_uppercase(self):
-        no_uppercase_password = 'abcdefgh'
         error_message = 'Password length must contain at least 1 uppercase character'
-        validation_result = utils.validate_password(no_uppercase_password)
+        validation_result = utils.validate_password('abcdefgh')
 
         self.assertFalse(validation_result['is_valid'])
         self.assertEqual(validation_result['message'], error_message)
 
     def test_validate_password_when_no_lowercase(self):
-        no_lowercase_password = 'A12345678'
         error_message = 'Password length must contain at least 1 lowercase character'
-        validation_result = utils.validate_password(no_lowercase_password)
+        validation_result = utils.validate_password('A12345678')
 
         self.assertFalse(validation_result['is_valid'])
         self.assertEqual(validation_result['message'], error_message)
 
     def test_validate_password_when_no_number(self):
-        no_number_password = 'Password'
         error_message = 'Password length must contain at least 1 number character'
-        validation_result = utils.validate_password(no_number_password)
+        validation_result = utils.validate_password('Password')
 
         self.assertFalse(validation_result['is_valid'])
         self.assertEqual(validation_result['message'], error_message)
