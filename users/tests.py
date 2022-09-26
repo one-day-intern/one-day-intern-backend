@@ -126,6 +126,6 @@ class UtilityTestCase(TestCase):
         date_str = '2021-08-16T15:29:30.506Z'
         date = utils.get_date_from_string(date_str)
 
-        self.assertEqual(date.day, 26)
-        self.assertEqual(date.month, 9)
-        self.assertEqual(date.year, 2022)
+        self.assertEqual(date.day, 16)
+        self.assertEqual(date.month, 8)
+        self.assertEqual(date.year, 2021)
