@@ -2,6 +2,8 @@ from pathlib import Path
 from urllib.parse import urlparse
 import dj_database_url
 import os
+from dotenv import load_dotenv
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -40,6 +42,7 @@ INSTALLED_APPS = [
     'rest_framework',
 
     'main',
+    'assessee',
 ]
 
 MIDDLEWARE = [
