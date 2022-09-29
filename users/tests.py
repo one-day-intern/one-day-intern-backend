@@ -258,6 +258,29 @@ class UserRegistrationTest(TestCase):
         except InvalidRegistrationException as exception:
             self.assertEqual(str(exception), expected_error_message)
 
+    @patch.object(OdiUser.objects, 'filter')
+    @patch.object(utils, 'validate_password')
+    @patch.object(utils, 'validate_email')
+    def test_validate_user_registration_when_user_is_already_registered(self,
+                                                                        mocked_validate_email,
+                                                                        mocked_validate_password,
+                                                                        mocked_filter):
+        request_data = self.base_request_data.copy()
+        mocked_validate_email.return_value = True
+        mocked_validate_password.return_value = {
+                'is_valid': True,
+                'message': None
+            }
+
+        OdiUser.objects.create_user(email=request_data['email'], password=request_data['password'])
+        mocked_filter.return_value = OdiUser.objects.all()
+
+        try:
+            registration.validate_user_registration_data(request_data)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidRegistrationException as exception:
+            self.assertEqual(str(exception), f'Email {request_data["email"]} is already registered')
+
 
 class CompanyRegistrationTest(TestCase):
     def setUp(self) -> None:
@@ -286,10 +309,9 @@ class CompanyRegistrationTest(TestCase):
             self.fail(f'{exception} is raised.')
 
     def test_validate_user_company_registration_data_when_company_name_is_not_valid(self):
-        exception_error_message = 'Company name must be more than 3 characters'
+        exception_error_message = 'Company name must be of minimum 3 characters and maximum of 50 characters'
         request_data_missing_name = self.base_request_data.copy()
         request_data_missing_name['company_name'] = ''
-
         try:
             registration.validate_user_company_registration_data(request_data_missing_name)
             self.fail(EXCEPTION_NOT_RAISED)
@@ -298,7 +320,14 @@ class CompanyRegistrationTest(TestCase):
 
         request_data_short_name = self.base_request_data.copy()
         request_data_short_name['company_name'] = 'PT'
+        try:
+            registration.validate_user_company_registration_data(request_data_short_name)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidRegistrationException as exception:
+            self.assertEqual(str(exception), exception_error_message)
 
+        request_data_long_name = self.base_request_data.copy()
+        request_data_long_name['company_name'] = 'abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz'
         try:
             registration.validate_user_company_registration_data(request_data_short_name)
             self.fail(EXCEPTION_NOT_RAISED)
@@ -441,7 +470,7 @@ class ViewsTestCase(TestCase):
         registration_data = self.registration_base_data.copy()
         registration_data['company_name'] = ''
         response = self.fetch_with_data(registration_data, REGISTER_COMPANY_URL)
-        expected_message = 'Company name must be more than 3 characters'
+        expected_message = 'Company name must be of minimum 3 characters and maximum of 50 characters'
         self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
         response_content = json.loads(response.content)
         self.assertEqual(response_content['message'], expected_message)

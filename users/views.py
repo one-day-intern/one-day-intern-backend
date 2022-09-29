@@ -1,10 +1,12 @@
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
+from django.views.decorators.http import require_POST
 from .services.registration import register_company
 from .models import CompanySerializer
 import json
 
 
+@require_POST
 @api_view(['POST'])
 def serve_register_company(request):
     """
