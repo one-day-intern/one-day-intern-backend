@@ -4,7 +4,14 @@ from unittest.mock import patch
 from .services import registration, utils
 from .exceptions.exceptions import InvalidRegistrationException
 from .models import OdiUser, Company
+import json
 
+EMAIL_IS_INVALID = 'Email is invalid'
+EMAIL_MUST_NOT_BE_NULL = 'Email must not be null'
+PASSWORD_MUST_NOT_BE_NULL = 'Password must not be null'
+OK_REQUEST_STATUS_CODE = 200
+BAD_REQUEST_STATUS_CODE = 400
+REGISTER_COMPANY_URL = '/users/register-company/'
 EXCEPTION_NOT_RAISED = 'Exception not raised'
 
 
@@ -157,7 +164,6 @@ class UserRegistrationTest(TestCase):
     @patch.object(utils, 'validate_password')
     @patch.object(utils, 'validate_email')
     def test_validate_user_registration_when_email_is_missing(self, mocked_validate_email, mocked_validate_password):
-        expected_error_message = 'Email must not be null'
         mocked_validate_email.return_value = True
         mocked_validate_password.return_value = {
             'is_valid': True,
@@ -171,7 +177,7 @@ class UserRegistrationTest(TestCase):
             registration.validate_user_registration_data(request_data)
             self.fail(EXCEPTION_NOT_RAISED)
         except InvalidRegistrationException as exception:
-            self.assertEqual(str(exception), expected_error_message)
+            self.assertEqual(str(exception), EMAIL_MUST_NOT_BE_NULL)
 
     @patch.object(utils, 'validate_password')
     @patch.object(utils, 'validate_email')
@@ -217,7 +223,6 @@ class UserRegistrationTest(TestCase):
     @patch.object(utils, 'validate_password')
     @patch.object(utils, 'validate_email')
     def test_validate_user_registration_when_email_is_invalid(self, mocked_validate_email, mocked_validate_password):
-        expected_error_message = 'Email is invalid'
         mocked_validate_email.return_value = False
         mocked_validate_password.return_value = {
             'is_valid': True,
@@ -231,7 +236,7 @@ class UserRegistrationTest(TestCase):
             registration.validate_user_registration_data(request_data)
             self.fail('Exception not raised')
         except InvalidRegistrationException as exception:
-            self.assertEqual(str(exception), expected_error_message)
+            self.assertEqual(str(exception), EMAIL_IS_INVALID)
 
     @patch.object(utils, 'validate_password')
     @patch.object(utils, 'validate_email')
@@ -368,3 +373,93 @@ class CompanyRegistrationTest(TestCase):
         mocked_validate_user_company_registration_data.assert_called_once()
         mocked_save_company_from_request_data.assert_called_once()
         self.assertEqual(dummy_company, self.expected_company)
+
+
+class ViewsTestCase(TestCase):
+    def setUp(self) -> None:
+        self.registration_base_data = {
+            'email': 'test_email@gmail.com',
+            'password': 'Password1234',
+            'confirmed_password': 'Password1234',
+            'company_name': 'Dummy Company Name',
+            'company_description': 'Dummy company description',
+            'company_address': 'Dummy company address'
+        }
+
+    def fetch_with_data(self, registration_data, url_to_fetch):
+        response = self.client.post(
+            url_to_fetch,
+            data=json.dumps(registration_data),
+            content_type='application/json'
+        )
+        return response
+
+    def test_register_company_when_complete(self):
+        registration_data = self.registration_base_data.copy()
+        response = self.fetch_with_data(registration_data, REGISTER_COMPANY_URL)
+        self.assertEqual(response.status_code, OK_REQUEST_STATUS_CODE)
+
+        response_content = json.loads(response.content)
+        self.assertTrue(len(response_content) > 0)
+        self.assertEqual(response_content['email'], registration_data['email'])
+        self.assertEqual(response_content['company_name'], registration_data['company_name'])
+        self.assertEqual(response_content['description'], registration_data['company_description'])
+        self.assertEqual(response_content['address'], registration_data['company_address'])
+
+    def test_register_company_when_email_is_invalid(self):
+        registration_data = self.registration_base_data.copy()
+        registration_data['email'] = ''
+        response = self.fetch_with_data(registration_data, REGISTER_COMPANY_URL)
+        self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content['message'], EMAIL_MUST_NOT_BE_NULL)
+
+        registration_data = self.registration_base_data.copy()
+        registration_data['email'] = 'email@email'
+        response = self.fetch_with_data(registration_data, REGISTER_COMPANY_URL)
+        self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content['message'], EMAIL_IS_INVALID)
+
+    def test_register_company_when_password_is_invalid(self):
+        registration_data = self.registration_base_data.copy()
+        registration_data['password'] = ''
+        response = self.fetch_with_data(registration_data, REGISTER_COMPANY_URL)
+        self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content['message'], PASSWORD_MUST_NOT_BE_NULL)
+
+        registration_data = self.registration_base_data.copy()
+        registration_data['password'] = 'password'
+        expected_message = 'Password length must contain at least 1 uppercase character'
+        response = self.fetch_with_data(registration_data, REGISTER_COMPANY_URL)
+        self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content['message'], expected_message)
+
+    def test_register_company_with_invalid_company_name(self):
+        registration_data = self.registration_base_data.copy()
+        registration_data['company_name'] = ''
+        response = self.fetch_with_data(registration_data, REGISTER_COMPANY_URL)
+        expected_message = 'Company name must be more than 3 characters'
+        self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content['message'], expected_message)
+
+    def test_register_company_with_invalid_company_description(self):
+        registration_data = self.registration_base_data.copy()
+        registration_data['company_description'] = ''
+        response = self.fetch_with_data(registration_data, REGISTER_COMPANY_URL)
+        expected_message = 'Company description must be more than 3 characters'
+        self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content['message'], expected_message)
+
+    def test_register_company_with_invalid_company_address(self):
+        registration_data = self.registration_base_data.copy()
+        registration_data['company_address'] = 'JL'
+        response = self.fetch_with_data(registration_data, REGISTER_COMPANY_URL)
+        expected_message = 'Company address must be more than 3 characters'
+        self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content['message'], expected_message)
