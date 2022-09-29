@@ -46,5 +46,5 @@ def get_date_from_string(date_text):
 
 def sanitize_request_data(request_data):
     for key, value in request_data.items():
-        if type(request_data[key]) == str:
-            request_data[key] = request_data[key].strip()
+        if isinstance(value, str):
+            request_data[key] = value.strip()
