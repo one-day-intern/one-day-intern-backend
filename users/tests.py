@@ -312,6 +312,7 @@ class CompanyRegistrationTest(TestCase):
         exception_error_message = 'Company name must be of minimum 3 characters and maximum of 50 characters'
         request_data_missing_name = self.base_request_data.copy()
         request_data_missing_name['company_name'] = ''
+
         try:
             registration.validate_user_company_registration_data(request_data_missing_name)
             self.fail(EXCEPTION_NOT_RAISED)
@@ -320,6 +321,7 @@ class CompanyRegistrationTest(TestCase):
 
         request_data_short_name = self.base_request_data.copy()
         request_data_short_name['company_name'] = 'PT'
+
         try:
             registration.validate_user_company_registration_data(request_data_short_name)
             self.fail(EXCEPTION_NOT_RAISED)
@@ -328,6 +330,7 @@ class CompanyRegistrationTest(TestCase):
 
         request_data_long_name = self.base_request_data.copy()
         request_data_long_name['company_name'] = 'abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz'
+
         try:
             registration.validate_user_company_registration_data(request_data_short_name)
             self.fail(EXCEPTION_NOT_RAISED)
