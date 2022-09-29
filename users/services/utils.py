@@ -42,3 +42,7 @@ def get_date_from_string(date_text):
     date_text = date_text.split('T')[0]
     date_text_datetime = datetime.strptime(date_text, DATETIME_FORMAT)
     return date_text_datetime.date()
+
+
+def sanitize_request_data(request_data):
+    return request_data

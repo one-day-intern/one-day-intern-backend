@@ -135,6 +135,18 @@ class UtilityTestCase(TestCase):
         self.assertEqual(date.month, 8)
         self.assertEqual(date.year, 2021)
 
+    def test_sanitize_request_data_when_not_empty(self):
+        expected_result = {'name': 'Sample Name', 'age': 27}
+        request_data = {'name': 'Sample Name     ', 'age': 27}
+        utils.sanitize_request_data(request_data)
+        self.assertDictEqual(request_data, expected_result)
+
+    def test_sanitize_request_data_when_empty(self):
+        expected_result = {}
+        request_data = {}
+        utils.sanitize_request_data(request_data)
+        self.assertDictEqual(request_data, expected_result)
+
 
 class UserRegistrationTest(TestCase):
     def setUp(self) -> None:
