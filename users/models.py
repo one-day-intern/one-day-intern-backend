@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.utils.translation import gettext_lazy as _
+from rest_framework import serializers
 from .managers import OdiUserManager
 import uuid
 
@@ -28,3 +29,10 @@ class Company(OdiUser):
     company_name = models.CharField(max_length=50, null=False)
     description = models.TextField()
     address = models.TextField(null=False)
+
+
+class CompanySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Company
+        fields = ['company_id', 'email', 'company_name', 'description', 'address']
+
