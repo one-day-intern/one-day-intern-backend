@@ -19,12 +19,26 @@ jobs:
       - name: Collect Static Files
         run: python manage.py collectstatic --no-input
       - name: Run Test
-        run: python manage.py test
+        run: python manage.py test --no-input
         env:
           DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
 
-  staging:
+  sonarcloud:
+    name: SonarCloud
+    runs-on: ubuntu-latest
     needs: test
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}  # Needed to get PR information, if any
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  staging:
+    needs: sonarcloud
     if: github.ref == 'refs/heads/staging'
     name: Staging to Cloud Run
     runs-on: ubuntu-latest
