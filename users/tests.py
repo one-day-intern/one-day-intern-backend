@@ -10,7 +10,7 @@ from .exceptions.exceptions import (
     InvalidGoogleIDTokenException,
     InvalidGoogleAuthCodeException
 )
-from .models import OdiUser, Company, OdiUser, Assessee, Assessor, Company, AuthenticationService
+from .models import OdiUser, Assessee, Assessor, Company, AuthenticationService
 import json
 import requests
 

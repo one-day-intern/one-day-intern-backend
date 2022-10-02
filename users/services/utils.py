@@ -51,4 +51,11 @@ def sanitize_request_data(request_data):
 
 
 def parameterize_url(base_url, parameter_arguments):
-    return None
+    parameterized_url = base_url
+    for param, argument in parameter_arguments.items():
+        if argument:
+            search_param = param + '=' + str(argument)
+        else:
+            search_param = param
+        parameterized_url += search_param + '&'
+    return parameterized_url
