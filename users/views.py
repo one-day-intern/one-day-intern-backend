@@ -1,6 +1,6 @@
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_GET
 from django.shortcuts import redirect
 from .services.registration import register_company
 from .services.google_login import (
@@ -37,6 +37,7 @@ def serve_register_company(request):
     return Response(data=response_data)
 
 
+@require_GET
 @api_view(['GET'])
 def serve_google_login_callback(request):
     auth_code = request.GET.get('code')
@@ -51,6 +52,7 @@ def serve_google_login_callback(request):
     return response
 
 
+@require_GET
 @api_view(['GET'])
 def serve_google_register_assessee(request):
     auth_code = request.GET.get('code')
