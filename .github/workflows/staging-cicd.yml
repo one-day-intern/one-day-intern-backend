@@ -22,6 +22,11 @@ jobs:
         run: python manage.py test --no-input
         env:
           DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          GOOGLE_AUTH_CLIENT_ID: ${{ secrets.GOOGLE_AUTH_CLIENT_ID }}
+          GOOGLE_AUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_AUTH_CLIENT_SECRET }}
+          GOOGLE_AUTH_LOGIN_REDIRECT_URI: ${{ secrets.GOOGLE_AUTH_LOGIN_REDIRECT_URI }}
+          GOOGLE_AUTH_REGISTER_ASSESSEE_REDIRECT_URI: ${{ secrets.GOOGLE_AUTH_REGISTER_ASSESSEE_REDIRECT_URI }}
+          GOOGLE_AUTH_CLIENT_CALLBACK_URL: ${{ secrets.GOOGLE_AUTH_CLIENT_CALLBACK_URL }}
 
   sonarcloud:
     name: SonarCloud
