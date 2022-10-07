@@ -3,11 +3,11 @@ def get_assessor_or_raise_exception(user):
 
 
 def validate_assessment_tool(request_data):
-    pass
+    raise Exception
 
 
 def validate_assignment(request_data):
-    pass
+    raise Exception
 
 
 def save_assignment_to_database(request_data, assessor):
