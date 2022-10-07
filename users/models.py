@@ -51,8 +51,8 @@ class Assessor(OdiUser):
     associated_company = models.ForeignKey('Company', on_delete=models.CASCADE)
     authentication_service = models.CharField(
         max_length=120,
-        choices=[(tag, tag.value) for tag in AuthenticationService],
-        default=AuthenticationService.DEFAULT
+        choices=[(tag.value, tag.value) for tag in AuthenticationService],
+        default=AuthenticationService.DEFAULT.value
     )
 
 
@@ -72,6 +72,6 @@ class Assessee(OdiUser):
     authentication_service = models.CharField(
         max_length=120,
         choices=[(tag.value, tag.value) for tag in AuthenticationService],
-        default=AuthenticationService.DEFAULT
+        default=AuthenticationService.DEFAULT.value
     )
 
