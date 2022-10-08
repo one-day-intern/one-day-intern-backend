@@ -48,3 +48,14 @@ def sanitize_request_data(request_data):
     for key, value in request_data.items():
         if isinstance(value, str):
             request_data[key] = value.strip()
+
+
+def parameterize_url(base_url, parameter_arguments):
+    parameterized_url = base_url
+    for param, argument in parameter_arguments.items():
+        if argument:
+            search_param = param + '=' + str(argument)
+        else:
+            search_param = param
+        parameterized_url += search_param + '&'
+    return parameterized_url
