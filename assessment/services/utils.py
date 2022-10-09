@@ -1,3 +1,4 @@
 def sanitize_file_format(file_format: str):
-    return None
+    if file_format:
+        return file_format.strip('.')
 
