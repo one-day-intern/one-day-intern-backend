@@ -10,6 +10,7 @@ from .exceptions.exceptions import (
     InvalidGoogleIDTokenException,
     InvalidGoogleAuthCodeException
 )
+from rest_framework.test import APIClient
 from .models import OdiUser, Assessee, Assessor, Company, AuthenticationService
 import json
 import requests
@@ -288,9 +289,9 @@ class UserRegistrationTest(TestCase):
         request_data = self.base_request_data.copy()
         mocked_validate_email.return_value = True
         mocked_validate_password.return_value = {
-                'is_valid': True,
-                'message': None
-            }
+            'is_valid': True,
+            'message': None
+        }
 
         OdiUser.objects.create_user(email=request_data['email'], password=request_data['password'])
         mocked_filter.return_value = OdiUser.objects.all()
@@ -515,6 +516,154 @@ class ViewsTestCase(TestCase):
         self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
         response_content = json.loads(response.content)
         self.assertEqual(response_content['message'], expected_message)
+
+
+class AssessorRegistrationTest(TestCase):
+    def setUp(self) -> None:
+        base_company_data = {
+            'email': 'test_email@gmail.com',
+            'password': 'Password1234',
+            'confirmed_password': 'Password1234',
+            'company_name': 'Dummy Company Name',
+            'company_description': 'Dummy company description',
+            'company_address': 'Dummy company address'
+        }
+
+        response = self.client.post(
+            REGISTER_COMPANY_URL,
+            data=base_company_data,
+            content_type='application/json'
+        )
+
+        self.company = Company.objects.get(email="test_email@gmail.com")
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.company)
+
+        response = self.client.post(
+            '/users/generate-code/',
+            content_type='application/json'
+        )
+
+        response_content = json.loads(response.content)
+        self.one_time_code = response_content['code']
+
+        self.base_request_data = {
+            'email': 'assessor@gmail.com',
+            'password': 'testPassword1234',
+            'confirmed_password': 'testPassword1234',
+            'first_name': 'Abdul',
+            'last_name': 'Jonathan',
+            'phone_number': '+6281275725231',
+            'employee_id': 'AWZ123',
+            'one_time_code': self.one_time_code,
+        }
+
+        self.expected_assessor = Assessor(
+            email=self.base_request_data.get('email'),
+            password=self.base_request_data.get('password'),
+            first_name=self.base_request_data.get('first_name'),
+            last_name=self.base_request_data.get('last_name'),
+            phone_number=self.base_request_data.get('phone_number'),
+            employee_id=self.base_request_data.get('employee_id'),
+            associated_company=self.company,
+        )
+
+    def test_validate_user_assessor_registration_data_when_assessor_is_valid(self):
+        request_data = self.base_request_data.copy()
+
+        try:
+            registration.validate_user_assessor_registration_data(request_data)
+        except InvalidRegistrationException as exception:
+            self.fail(f'{exception} is raised.')
+
+    def test_validate_assessor_registration_data_with_invalid_first_name(self):
+        exception_error_message = 'Assessor first name must not be null'
+        request_data_missing_name = dict(self.base_request_data.copy())
+        request_data_missing_name['first_name'] = ''
+
+        try:
+            validate_user_assessor_registration_data(request_data_missing_name)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidRegistrationException as exception:
+            self.assertEqual(str(exception), exception_error_message)
+
+    def test_validate_user_assessor_registration_data_with_invalid_phone_number(self):
+        exception_error_message = 'Assessor phone number must not be null'
+        request_data_missing_phone_number = dict(self.base_request_data.copy())
+        request_data_missing_phone_number['phone_number'] = ''
+
+        try:
+            validate_user_assessor_registration_data(request_data_missing_phone_number)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidRegistrationException as exception:
+            self.assertEqual(str(exception), exception_error_message)
+
+    def test_validate_user_assessor_registration_data_with_invalid_one_time_code(self):
+        exception_error_message = 'Registration code must not be null'
+        request_data_missing_code = dict(self.base_request_data.copy())
+        request_data_missing_code['one_time_code'] = ''
+
+        try:
+            validate_user_assessor_registration_data(request_data_missing_code)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidRegistrationException as exception:
+            self.assertEqual(str(exception), exception_error_message)
+
+        exception_error_message = 'Registration code is invalid'
+        request_data_invalid_code = dict(self.base_request_data.copy())
+
+        invalid_code = request_data_invalid_code['one_time_code']
+        request_data_invalid_code['one_time_code'] = invalid_code[:-1] + invalid_code[0]
+
+        try:
+            validate_user_assessor_registration_data(request_data_invalid_code)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidRegistrationException as exception:
+            self.assertEqual(str(exception), exception_error_message)
+
+        exception_error_message = 'Registration code is expired'
+        request_data_expired_code = dict(self.base_request_data.copy())
+
+        response = self.client.post(
+            '/users/register-assessor/',
+            data=json.dumps(request_data_expired_code),
+            content_type='application/json'
+        )
+
+        try:
+            validate_user_assessor_registration_data(request_data_expired_code)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidRegistrationException as exception:
+            self.assertEqual(str(exception), exception_error_message)
+
+    @patch.object(Assessor.objects, 'create_user')
+    def test_save_assessor_from_request_data(self, mocked_create_user):
+        request_data = self.base_request_data.copy()
+        mocked_create_user.return_value = self.expected_assessor
+
+        saved_assessor = registration.save_assessor_from_request_data(request_data)
+
+        mocked_create_user.assert_called_once()
+        self.assertEqual(saved_assessor, self.expected_assessor)
+
+    @patch.object(registration, 'save_assessor_from_request_data')
+    @patch.object(registration, 'validate_user_assessor_registration_data')
+    @patch.object(registration, 'validate_user_registration_data')
+    def test_register_company(self, mocked_validate_user_registration_data,
+                              mocked_validate_user_assessor_registration_data,
+                              mocked_save_assessor_from_request_data):
+
+        request_data = self.base_request_data.copy()
+        mocked_validate_user_registration_data.return_value = None
+        mocked_validate_user_assessor_registration_data.return_value = None
+        mocked_save_assessor_from_request_data.return_value = self.expected_assessor
+
+        dummy_assessor = registration.register_assessor(request_data)
+
+        mocked_validate_user_registration_data.assert_called_once()
+        mocked_validate_user_assessor_registration_data.assert_called_once()
+        mocked_save_assessor_from_request_data.assert_called_once()
+        self.assertEqual(dummy_assessor, self.expected_assessor)
 
 
 class GoogleAuthTest(TestCase):
