@@ -627,7 +627,7 @@ class AssessorRegistrationTest(TestCase):
         exception_error_message = 'Registration code is expired'
         request_data_expired_code = dict(self.base_request_data.copy())
 
-        response = self.client.post(
+        self.client.post(
             '/users/register-assessor/',
             data=json.dumps(request_data_expired_code),
             content_type='application/json'
