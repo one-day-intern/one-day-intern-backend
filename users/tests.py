@@ -11,9 +11,11 @@ from .exceptions.exceptions import (
     InvalidGoogleAuthCodeException
 )
 from rest_framework.test import APIClient
-from .models import OdiUser, Assessee, Assessor, Company, AuthenticationService
+from .models import OdiUser, Assessee, Assessor, Company, AuthenticationService, CompanyOneTimeLinkCode
 import json
 import requests
+
+from .services.registration import validate_user_assessor_registration_data, generate_one_time_code
 
 EMAIL_IS_INVALID = 'Email is invalid'
 EMAIL_MUST_NOT_BE_NULL = 'Email must not be null'
@@ -804,6 +806,82 @@ class AssessorViewsTestCase(TestCase):
         response_content = json.loads(response.content)
         self.assertEqual(response_content['message'], expected_message)
 
+
+class GenerateOneTimeCodeTest(TestCase):
+    def setUp(self) -> None:
+        base_company_data = {
+            'email': 'test_email@gmail.com',
+            'password': 'Password1234',
+            'confirmed_password': 'Password1234',
+            'company_name': 'Dummy Company Name',
+            'company_description': 'Dummy company description',
+            'company_address': 'Dummy company address'
+        }
+
+        response = self.client.post(
+            REGISTER_COMPANY_URL,
+            data=base_company_data,
+            content_type='application/json'
+        )
+
+        self.company = Company.objects.get(email="test_email@gmail.com")
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.company)
+
+    def test_generate_one_time_code_when_company_is_valid(self):
+        company_email = self.company.email
+
+        try:
+            generate_one_time_code(company_email)
+        except InvalidRegistrationException as exception:
+            self.fail(f'{exception} is raised.')
+
+    def test_generate_one_time_code_when_company_is_invalid(self):
+        company_email = "fakeemail@gmail.co"
+        exception_error_message = 'Company with email fakeemail@gmail.co is not found'
+
+        try:
+            generate_one_time_code(company_email)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except EmailNotFoundException as exception:
+            self.assertEqual(str(exception), exception_error_message)
+
+
+class OneTimeCodeViewsTestCase(TestCase):
+    def setUp(self) -> None:
+        registration_data = {
+            'email': 'test_email@gmail.com',
+            'password': 'Password1234',
+            'confirmed_password': 'Password1234',
+            'company_name': 'Dummy Company Name',
+            'company_description': 'Dummy company description',
+            'company_address': 'Dummy company address'
+        }
+
+        response = self.client.post(
+            '/users/register-company/',
+            data=json.dumps(registration_data),
+            content_type='application/json'
+        )
+
+    def test_generate_assessor_one_time_code_when_complete_status_200(self):
+        self.company = Company.objects.get(email="test_email@gmail.com")
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.company)
+
+        response = self.client.post(
+            '/users/generate-code/',
+            content_type='application/json'
+        )
+
+        self.assertTrue(response.status_code == OK_REQUEST_STATUS_CODE)
+
+        response_content = json.loads(response.content)
+        one_time_code = CompanyOneTimeLinkCode.objects.get(code=response_content['code'])
+        associated_company = one_time_code.associated_company
+
+        self.assertTrue(len(response_content) > 0)
+        self.assertEqual(associated_company, self.company)
 
 class GoogleAuthTest(TestCase):
     def setUp(self) -> None:
