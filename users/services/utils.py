@@ -1,4 +1,5 @@
 from datetime import datetime
+import phonenumbers
 import re
 
 DATETIME_FORMAT = '%Y-%m-%d'
@@ -36,6 +37,11 @@ def validate_date_format(date_text) -> bool:
         return True
     except ValueError:
         return False
+
+
+def validate_phone_number(phone_number_string) -> bool:
+    phone_number = phonenumbers.parse(phone_number_string)
+    return phonenumbers.is_possible_number(phone_number)
 
 
 def get_date_from_string(date_text):
