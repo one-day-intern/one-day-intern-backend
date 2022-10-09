@@ -532,7 +532,7 @@ class AssessorRegistrationTest(TestCase):
             'company_address': 'Dummy company address'
         }
 
-        response = self.client.post(
+        self.client.post(
             REGISTER_COMPANY_URL,
             data=base_company_data,
             content_type='application/json'
@@ -680,7 +680,7 @@ class AssessorViewsTestCase(TestCase):
             'company_address': 'Dummy company address'
         }
 
-        response = self.client.post(
+        self.client.post(
             REGISTER_COMPANY_URL,
             data=base_company_data,
             content_type='application/json'
@@ -798,7 +798,7 @@ class AssessorViewsTestCase(TestCase):
         self.assertEqual(response_content['message'], expected_message)
 
         registration_data = self.base_registration_data.copy()
-        response = self.fetch_with_data(registration_data, REGISTER_ASSESSOR_URL)
+        self.fetch_with_data(registration_data, REGISTER_ASSESSOR_URL)
 
         response = self.fetch_with_data(registration_data, REGISTER_ASSESSOR_URL)
         expected_message = 'Email assessor@gmail.com is already registered'
@@ -818,7 +818,7 @@ class GenerateOneTimeCodeTest(TestCase):
             'company_address': 'Dummy company address'
         }
 
-        response = self.client.post(
+        self.client.post(
             REGISTER_COMPANY_URL,
             data=base_company_data,
             content_type='application/json'
@@ -858,7 +858,7 @@ class OneTimeCodeViewsTestCase(TestCase):
             'company_address': 'Dummy company address'
         }
 
-        response = self.client.post(
+        self.client.post(
             '/users/register-company/',
             data=json.dumps(registration_data),
             content_type='application/json'
