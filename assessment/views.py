@@ -11,6 +11,13 @@ import json
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def serve_create_assignment(request):
+    """
+    request_data must contain
+    assignment_name (string),
+    description (string),
+    duration_in_minutes (integer),
+    expected_file_format (string, without leading .)
+    """
     request_data = json.loads(request.body.decode('utf-8'))
     assignment = create_assignment(request_data, request.user)
     response_data = AssignmentSerializer(assignment).data
