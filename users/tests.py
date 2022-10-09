@@ -21,6 +21,7 @@ PASSWORD_MUST_NOT_BE_NULL = 'Password must not be null'
 OK_REQUEST_STATUS_CODE = 200
 BAD_REQUEST_STATUS_CODE = 400
 REGISTER_COMPANY_URL = '/users/register-company/'
+REGISTER_ASSESSOR_URL = '/users/register-assessor/'
 EXCEPTION_NOT_RAISED = 'Exception not raised'
 
 
@@ -649,9 +650,9 @@ class AssessorRegistrationTest(TestCase):
     @patch.object(registration, 'save_assessor_from_request_data')
     @patch.object(registration, 'validate_user_assessor_registration_data')
     @patch.object(registration, 'validate_user_registration_data')
-    def test_register_company(self, mocked_validate_user_registration_data,
-                              mocked_validate_user_assessor_registration_data,
-                              mocked_save_assessor_from_request_data):
+    def test_register_assessor(self, mocked_validate_user_registration_data,
+                               mocked_validate_user_assessor_registration_data,
+                               mocked_save_assessor_from_request_data):
 
         request_data = self.base_request_data.copy()
         mocked_validate_user_registration_data.return_value = None
@@ -664,6 +665,144 @@ class AssessorRegistrationTest(TestCase):
         mocked_validate_user_assessor_registration_data.assert_called_once()
         mocked_save_assessor_from_request_data.assert_called_once()
         self.assertEqual(dummy_assessor, self.expected_assessor)
+
+
+class AssessorViewsTestCase(TestCase):
+    def setUp(self) -> None:
+        base_company_data = {
+            'email': 'test_email@gmail.com',
+            'password': 'Password1234',
+            'confirmed_password': 'Password1234',
+            'company_name': 'Dummy Company Name',
+            'company_description': 'Dummy company description',
+            'company_address': 'Dummy company address'
+        }
+
+        response = self.client.post(
+            REGISTER_COMPANY_URL,
+            data=base_company_data,
+            content_type='application/json'
+        )
+
+        self.company = Company.objects.get(email="test_email@gmail.com")
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.company)
+
+        response = self.client.post(
+            '/users/generate-code/',
+            content_type='application/json'
+        )
+
+        response_content = json.loads(response.content)
+        self.one_time_code = response_content['code']
+
+        self.base_registration_data = {
+            'email': 'assessor@gmail.com',
+            'password': 'testPassword1234',
+            'confirmed_password': 'testPassword1234',
+            'first_name': 'Abdul',
+            'last_name': 'Jonathan',
+            'phone_number': '+6281275725231',
+            'employee_id': 'AWZ123',
+            'one_time_code': self.one_time_code,
+        }
+
+    def fetch_with_data(self, registration_data, url_to_fetch):
+        response = self.client.post(
+            url_to_fetch,
+            data=json.dumps(registration_data),
+            content_type='application/json'
+        )
+        return response
+
+    def test_register_assessor_when_complete(self):
+        registration_data = self.base_registration_data.copy()
+        response = self.fetch_with_data(registration_data, REGISTER_ASSESSOR_URL)
+        self.assertEqual(response.status_code, OK_REQUEST_STATUS_CODE)
+
+        response_content = json.loads(response.content)
+        self.assertTrue(len(response_content) > 0)
+        self.assertEqual(response_content['first_name'], registration_data['first_name'])
+        self.assertEqual(response_content['last_name'], registration_data['last_name'])
+        self.assertEqual(response_content['phone_number'], registration_data['phone_number'])
+        self.assertEqual(response_content['employee_id'], registration_data['employee_id'])
+        self.assertEqual(response_content['company_id'], str(self.company.company_id))
+
+    def test_register_assessor_when_email_is_invalid(self):
+        registration_data = self.base_registration_data.copy()
+        registration_data['email'] = ''
+        response = self.fetch_with_data(registration_data, REGISTER_ASSESSOR_URL)
+        self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content['message'], EMAIL_MUST_NOT_BE_NULL)
+
+        registration_data = self.base_registration_data.copy()
+        registration_data['email'] = 'email@email'
+        response = self.fetch_with_data(registration_data, REGISTER_ASSESSOR_URL)
+        self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content['message'], EMAIL_IS_INVALID)
+
+    def test_register_assessor_when_password_is_invalid(self):
+        registration_data = self.base_registration_data.copy()
+        registration_data['password'] = ''
+        response = self.fetch_with_data(registration_data, REGISTER_COMPANY_URL)
+        self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content['message'], PASSWORD_MUST_NOT_BE_NULL)
+
+        registration_data = self.base_registration_data.copy()
+        registration_data['password'] = 'password'
+        expected_message = 'Password length must contain at least 1 uppercase character'
+        response = self.fetch_with_data(registration_data, REGISTER_COMPANY_URL)
+        self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content['message'], expected_message)
+
+    def test_register_assessor_with_invalid_first_name(self):
+        registration_data = self.base_registration_data.copy()
+        registration_data['first_name'] = ''
+        response = self.fetch_with_data(registration_data, REGISTER_ASSESSOR_URL)
+        expected_message = 'Assessor first name must not be null'
+        self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content['message'], expected_message)
+
+    def test_register_assessor_with_invalid_phone_number(self):
+        registration_data = self.base_registration_data.copy()
+        registration_data['phone_number'] = ''
+        response = self.fetch_with_data(registration_data, REGISTER_ASSESSOR_URL)
+        expected_message = 'Assessor phone number must not be null'
+        self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content['message'], expected_message)
+
+    def test_register_assessor_with_invalid_one_time_code(self):
+        registration_data = self.base_registration_data.copy()
+        registration_data['one_time_code'] = ''
+        response = self.fetch_with_data(registration_data, REGISTER_ASSESSOR_URL)
+        expected_message = 'Registration code must not be null'
+        self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content['message'], expected_message)
+
+        registration_data = self.base_registration_data.copy()
+        invalid_code = registration_data['one_time_code']
+        registration_data['one_time_code'] = invalid_code[:-1] + invalid_code[0]
+        response = self.fetch_with_data(registration_data, REGISTER_ASSESSOR_URL)
+        expected_message = 'Registration code is invalid'
+        self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content['message'], expected_message)
+
+        registration_data = self.base_registration_data.copy()
+        response = self.fetch_with_data(registration_data, REGISTER_ASSESSOR_URL)
+
+        response = self.fetch_with_data(registration_data, REGISTER_ASSESSOR_URL)
+        expected_message = 'Registration code is expired'
+        self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content['message'], expected_message)
 
 
 class GoogleAuthTest(TestCase):
