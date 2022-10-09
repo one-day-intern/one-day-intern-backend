@@ -801,7 +801,7 @@ class AssessorViewsTestCase(TestCase):
         response = self.fetch_with_data(registration_data, REGISTER_ASSESSOR_URL)
 
         response = self.fetch_with_data(registration_data, REGISTER_ASSESSOR_URL)
-        expected_message = 'Registration code is expired'
+        expected_message = 'Email assessor@gmail.com is already registered'
         self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
         response_content = json.loads(response.content)
         self.assertEqual(response_content['message'], expected_message)
@@ -882,6 +882,7 @@ class OneTimeCodeViewsTestCase(TestCase):
 
         self.assertTrue(len(response_content) > 0)
         self.assertEqual(associated_company, self.company)
+
 
 class GoogleAuthTest(TestCase):
     def setUp(self) -> None:
