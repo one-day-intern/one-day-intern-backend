@@ -10,7 +10,7 @@ from rest_framework.test import APIClient
 from unittest.mock import patch
 from .models import Assignment, AssignmentSerializer
 from .exceptions.exceptions import RestrictedAccessException, InvalidAssignmentRegistration
-from .services import assessment
+from .services import assessment, utils
 import datetime
 import json
 
@@ -44,18 +44,27 @@ class AssessmentTest(TestCase):
             'assignment_name': 'Business Proposal Task 1',
             'description': 'This is the first assignment',
             'duration_in_minutes': 55,
-            'expected_file_format': 'pdf'
+            'expected_file_format': '.pdf'
         }
 
         self.expected_assignment = Assignment(
             name=self.request_data.get('assignment_name'),
             description=self.request_data.get('description'),
             owning_company=self.assessor.associated_company,
-            expected_file_format=self.request_data.get('expected_file_format'),
+            expected_file_format='pdf',
             duration_in_minutes=self.request_data.get('duration_in_minutes')
         )
 
         self.expected_assignment_data = AssignmentSerializer(self.expected_assignment).data
+
+    def test_sanitize_file_format_when_not_none(self):
+        expected_file_format = 'pdf'
+        sanitized_file_format = utils.sanitize_file_format('.pdf')
+        self.assertEqual(sanitized_file_format, expected_file_format)
+
+    def test_sanitize_file_format_when_none(self):
+        sanitize_file_format = utils.sanitize_file_format(None)
+        self.assertIsNone(sanitize_file_format)
 
     def test_get_assessor_or_raise_exception_when_assessor_exists(self):
         expected_assessor_data = AssessorSerializer(self.assessor).data
@@ -132,16 +141,18 @@ class AssessmentTest(TestCase):
         mocked_create.assert_called_once()
         self.assertDictEqual(returned_assignment_data, self.expected_assignment_data)
 
+    @patch.object(utils, 'sanitize_file_format')
     @patch.object(assessment, 'save_assignment_to_database')
     @patch.object(assessment, 'validate_assignment')
     @patch.object(assessment, 'validate_assessment_tool')
     @patch.object(assessment, 'get_assessor_or_raise_exception')
     def test_create_assignment(self, mocked_get_assessor, mocked_validate_assessment_tool,
-                               mocked_validate_assignment, mocked_save_assignment):
+                               mocked_validate_assignment, mocked_save_assignment, mocked_sanitize_file_format):
         mocked_get_assessor.return_value = self.assessor
         mocked_validate_assessment_tool.return_value = None
         mocked_validate_assignment.return_value = None
         mocked_save_assignment.return_value = self.expected_assignment
+        mocked_sanitize_file_format.return_value = 'pdf'
         returned_assignment = assessment.create_assignment(self.request_data, self.assessor)
         returned_assignment_data = AssignmentSerializer(returned_assignment).data
         self.assertDictEqual(returned_assignment_data, self.expected_assignment_data)
@@ -157,9 +168,13 @@ class AssessmentTest(TestCase):
         response_content = json.loads(response.content)
         self.assertTrue(len(response_content) > 0)
         self.assertIsNotNone(response_content.get('assessment_id'))
-        self.assertEqual(response_content.get('name'), self.request_data.get('assignment_name'))
-        self.assertEqual(response_content.get('description'), self.request_data.get('description'))
-        self.assertEqual(response_content.get('expected_file_format'), self.request_data.get('expected_file_format'))
-        self.assertEqual(response_content.get('duration_in_minutes'), self.request_data.get('duration_in_minutes'))
+        self.assertEqual(response_content.get('name'), self.expected_assignment_data.get('name'))
+        self.assertEqual(response_content.get('description'), self.expected_assignment_data.get('description'))
+        self.assertEqual(
+            response_content.get('expected_file_format'), self.expected_assignment_data.get('expected_file_format')
+        )
+        self.assertEqual(
+            response_content.get('duration_in_minutes'), self.expected_assignment_data.get('duration_in_minutes')
+        )
         self.assertEqual(response_content.get('owning_company_id'), self.company.id)
         self.assertEqual(response_content.get('owning_company_name'), self.company.company_name)

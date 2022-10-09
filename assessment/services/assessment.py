@@ -1,5 +1,6 @@
 from django.contrib.auth.models import User
 from users.models import Assessor
+from . import utils
 from ..models import Assignment
 from ..exceptions.exceptions import RestrictedAccessException, InvalidAssignmentRegistration
 
@@ -29,7 +30,7 @@ def save_assignment_to_database(request_data: dict, assessor: Assessor):
     name = request_data.get('assignment_name')
     description = request_data.get('description')
     owning_company = assessor.associated_company
-    expected_file_format = request_data.get('expected_file_format')
+    expected_file_format = utils.sanitize_file_format(request_data.get('expected_file_format'))
     duration_in_minutes = request_data.get('duration_in_minutes')
     assignment = Assignment.objects.create(
         name=name,
