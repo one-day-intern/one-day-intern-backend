@@ -20,6 +20,7 @@ PASSWORD_MUST_NOT_BE_NULL = 'Password must not be null'
 OK_REQUEST_STATUS_CODE = 200
 BAD_REQUEST_STATUS_CODE = 400
 REGISTER_COMPANY_URL = '/users/register-company/'
+REGISTER_ASSESSEE_URL = '/users/register-assessee/'
 EXCEPTION_NOT_RAISED = 'Exception not raised'
 
 
@@ -426,6 +427,118 @@ class CompanyRegistrationTest(TestCase):
         mocked_save_company_from_request_data.assert_called_once()
         self.assertEqual(dummy_company, self.expected_company)
 
+class AssesseeRegistrationTest(TestCase):
+    def setUp(self) -> None:
+        self.base_request_data =  {
+            'email': 'assessee@gmail.com',
+            'password': 'testPassword1234',
+            'confirmed_password': 'testPassword1234',
+            'first_name': 'Anastasia',
+            'last_name': 'Yuliana',
+            'phone_number': '+6281275725231',
+            'date_of_birth': '1994-09-30T10:37:35.849Z'
+        }
+
+        self.expected_assessee = Assessee(
+            email=self.base_request_data.get('email'),
+            password=self.base_request_data.get('password'),
+            first_name=self.base_request_data.get('first_name'),
+            last_name=self.base_request_data.get('last_name'),
+            phone_number=self.base_request_data.get('phone_number'),
+            date_of_birth=self.base_request_data.get('date_of_birth')
+        )
+
+    def test_validate_user_assessee_registration_data_when_assessee_is_valid(self):
+        request_data = self.base_request_data.copy()
+
+        try:
+            registration.validate_user_assessee_registration_data(request_data)
+        except InvalidRegistrationException as exception:
+            self.fail(f'{exception} is raised.')
+
+    def test_validate_user_assessee_registration_data_when_assessee_first_name_is_not_valid(self):
+        exception_error_message = 'Assessee first name must not be null'
+        request_data_missing_name = self.base_request_data.copy()
+        request_data_missing_name['first_name'] = ''
+
+        try:
+            registration.validate_user_assessee_registration_data(request_data_missing_name)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidRegistrationException as exception:
+            self.assertEqual(str(exception), exception_error_message)
+
+    def test_validate_user_assessee_registration_data_when_assessee_last_name_is_not_valid(self):
+        exception_error_message = 'Assessee last name must not be null'
+        request_data_missing_name = self.base_request_data.copy()
+        request_data_missing_name['last_name'] = ''
+
+        try:
+            registration.validate_user_assessee_registration_data(request_data_missing_name)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidRegistrationException as exception:
+            self.assertEqual(str(exception), exception_error_message)
+    
+    def test_validate_user_assessee_registration_data_when_assessee_phone_number_is_not_valid(self):
+        exception_error_message = 'Assessee phone number must not be null'
+        request_data_missing_phone_number = self.base_request_data.copy()
+        request_data_missing_phone_number['phone_number'] = ''
+
+        try:
+            registration.validate_user_assessee_registration_data(request_data_missing_phone_number)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidRegistrationException as exception:
+            self.assertEqual(str(exception), exception_error_message)   
+
+    def test_validate_user_assessee_registration_data_when_date_of_birth_is_invalid(self):
+        exception_error_message = 'Assessee date of birth must not be null'
+        request_data_missing_dob = self.base_request_data.copy()
+        request_data_missing_dob['date_of_birth'] = ''
+
+        try:
+            registration.validate_user_assessee_registration_data(request_data_missing_dob)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidRegistrationException as exception:
+            self.assertEqual(str(exception), exception_error_message)
+
+        exception_error_message = 'Invalid date of birth format'
+        request_data_invalid_dob = self.base_request_data.copy()
+        request_data_invalid_dob['date_of_birth'] = '08-29-1990'
+
+        try:
+            registration.validate_user_assessee_registration_data(request_data_invalid_dob)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidRegistrationException as exception:
+            self.assertEqual(str(exception), exception_error_message)
+
+
+    @patch.object(Assessee.objects, 'create_user')
+    def test_save_assessee_from_request_data(self, mocked_create_user):
+        request_data = self.base_request_data.copy()
+        mocked_create_user.return_value = self.expected_assessee
+
+        saved_assessee = registration.save_assessee_from_request_data(request_data)
+
+        mocked_create_user.assert_called_once()
+        self.assertEqual(saved_assessee, self.expected_assessee)
+
+    def test_register_assessee(self):
+
+        request_data = self.base_request_data.copy()
+        with patch.object(registration, 'validate_user_registration_data') as mocked_validate_user_registration_data:
+            with patch.object(registration, 'validate_user_assessee_registration_data') \
+                    as mocked_validate_user_assessee_registration_data:
+                with patch.object(registration, 'save_assessee_from_request_data') \
+                        as mocked_save_assessee_from_request_data:
+                    mocked_validate_user_registration_data.return_value = None
+                    mocked_validate_user_assessee_registration_data.return_value = mocked_validate_user_assessee_registration_data
+                    mocked_save_assessee_from_request_data.return_value = self.expected_assessee
+
+                    dummy_assessee = registration.register_assessee(request_data)
+
+                    mocked_validate_user_registration_data.assert_called_once()
+                    mocked_validate_user_assessee_registration_data.assert_called_once()
+                    mocked_save_assessee_from_request_data.assert_called_once()
+                    self.assertEqual(dummy_assessee, self.expected_assessee)
 
 class ViewsTestCase(TestCase):
     def setUp(self) -> None:
@@ -457,7 +570,7 @@ class ViewsTestCase(TestCase):
         self.assertEqual(response_content['company_name'], registration_data['company_name'])
         self.assertEqual(response_content['description'], registration_data['company_description'])
         self.assertEqual(response_content['address'], registration_data['company_address'])
-
+    
     def test_register_company_when_email_is_invalid(self):
         registration_data = self.registration_base_data.copy()
         registration_data['email'] = ''
@@ -472,7 +585,7 @@ class ViewsTestCase(TestCase):
         self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
         response_content = json.loads(response.content)
         self.assertEqual(response_content['message'], EMAIL_IS_INVALID)
-
+    
     def test_register_company_when_password_is_invalid(self):
         registration_data = self.registration_base_data.copy()
         registration_data['password'] = ''
@@ -496,7 +609,7 @@ class ViewsTestCase(TestCase):
         expected_message = 'Company name must be of minimum 3 characters and maximum of 50 characters'
         self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
         response_content = json.loads(response.content)
-        self.assertEqual(response_content['message'], expected_message)
+        self.assertEqual(response_content['message'], expected_message)  
 
     def test_register_company_with_invalid_company_description(self):
         registration_data = self.registration_base_data.copy()
@@ -515,6 +628,106 @@ class ViewsTestCase(TestCase):
         self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
         response_content = json.loads(response.content)
         self.assertEqual(response_content['message'], expected_message)
+    
+
+class AssesseeViewsTestCase(TestCase):
+        def setUp(self) -> None:
+            self.registration_base_data = {
+                    'email': 'assessee@gmail.com',
+                    'password': 'testPassword1234',
+                    'confirmed_password': 'testPassword1234',
+                    'first_name': 'Anastasia',
+                    'last_name': 'Yuliana',
+                    'phone_number': '+6281275725231',
+                    'date_of_birth': '1994-09-30T10:37:35.849Z'
+                }
+
+        def fetch_with_data(self, registration_data, url_to_fetch):
+            response = self.client.post(
+                url_to_fetch,
+                data=json.dumps(registration_data),
+                content_type='application/json'
+            )
+            return response
+
+        def test_register_assessee_when_complete(self):
+            registration_data = self.registration_base_data.copy()
+            response = self.fetch_with_data(registration_data, REGISTER_ASSESSEE_URL)
+            self.assertEqual(response.status_code, OK_REQUEST_STATUS_CODE)
+
+            response_content = json.loads(response.content)
+            self.assertTrue(len(response_content) > 0)
+            self.assertEqual(response_content['email'], registration_data['email'])
+            self.assertEqual(response_content['first_name'], registration_data['first_name'])
+            self.assertEqual(response_content['last_name'], registration_data['last_name'])
+            self.assertEqual(response_content['phone_number'], registration_data['phone_number'])
+            self.assertEqual(response_content['date_of_birth'], '1994-09-30')
+
+        def test_register_assessee_when_email_is_invalid(self):
+            registration_data = self.registration_base_data.copy()
+            registration_data['email'] = ''
+            response = self.fetch_with_data(registration_data, REGISTER_ASSESSEE_URL)
+            self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
+            response_content = json.loads(response.content)
+            self.assertEqual(response_content['message'], EMAIL_MUST_NOT_BE_NULL)
+
+            registration_data = self.registration_base_data.copy()
+            registration_data['email'] = 'email@email'
+            response = self.fetch_with_data(registration_data, REGISTER_ASSESSEE_URL)
+            self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
+            response_content = json.loads(response.content)
+            self.assertEqual(response_content['message'], EMAIL_IS_INVALID)
+
+        def test_register_assessee_when_password_is_invalid(self):
+            registration_data = self.registration_base_data.copy()
+            registration_data['password'] = ''
+            response = self.fetch_with_data(registration_data, REGISTER_ASSESSEE_URL)
+            self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
+            response_content = json.loads(response.content)
+            self.assertEqual(response_content['message'], PASSWORD_MUST_NOT_BE_NULL)
+
+            registration_data = self.registration_base_data.copy()
+            registration_data['password'] = 'password'
+            expected_message = 'Password length must contain at least 1 uppercase character'
+            response = self.fetch_with_data(registration_data, REGISTER_ASSESSEE_URL)
+            self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
+            response_content = json.loads(response.content)
+            self.assertEqual(response_content['message'], expected_message)
+
+        def test_register_assessee_with_invalid_first_name(self):
+            registration_data = self.registration_base_data.copy()
+            registration_data['first_name'] = ''
+            response = self.fetch_with_data(registration_data, REGISTER_ASSESSEE_URL)
+            expected_message = 'Assessee first name must not be null'
+            self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
+            response_content = json.loads(response.content)
+            self.assertEqual(response_content['message'], expected_message)  
+
+        def test_register_assessee_with_invalid_phone_number(self):
+            registration_data = self.registration_base_data.copy()
+            registration_data['phone_number'] = ''
+            response = self.fetch_with_data(registration_data, REGISTER_ASSESSEE_URL)
+            expected_message = 'Assessee phone number must not be null'
+            self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
+            response_content = json.loads(response.content)
+            self.assertEqual(response_content['message'], expected_message) 
+
+        def test_register_assessee_with_invalid_date_of_birth(self):
+            registration_data = self.registration_base_data.copy()
+            registration_data['date_of_birth'] = ''
+            response = self.fetch_with_data(registration_data, REGISTER_ASSESSEE_URL)
+            expected_message = 'Assessee date of birth must not be null'
+            self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
+            response_content = json.loads(response.content)
+            self.assertEqual(response_content['message'], expected_message) 
+
+            registration_data = self.registration_base_data.copy()
+            registration_data['date_of_birth'] = '09-1994-30T10:37:35.849Z'
+            response = self.fetch_with_data(registration_data, REGISTER_ASSESSEE_URL)
+            expected_message = 'Invalid date of birth format'
+            self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
+            response_content = json.loads(response.content)
+            self.assertEqual(response_content['message'], expected_message) 
 
 
 class GoogleAuthTest(TestCase):
@@ -821,3 +1034,4 @@ class GoogleLoginViewTest(TestCase):
             'Assessor or Assessee registering with google login with '
             f'{self.dummy_response_user_profile_data_from_id_token["email"]} email is not found.'
         )
+    
