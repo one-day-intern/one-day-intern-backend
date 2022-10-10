@@ -1,5 +1,6 @@
 from datetime import datetime
 import re
+import phonenumbers
 
 DATETIME_FORMAT = '%Y-%m-%d'
 email_regex = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
@@ -59,3 +60,7 @@ def parameterize_url(base_url, parameter_arguments):
             search_param = param
         parameterized_url += search_param + '&'
     return parameterized_url
+    
+def validate_phone_number(phone_number_string) -> bool:
+    phone_number = phonenumbers.parse(phone_number_string)
+    return phonenumbers.is_possible_number(phone_number)
