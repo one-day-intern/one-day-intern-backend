@@ -15,6 +15,8 @@ from .models import OdiUser, Assessee, Assessor, Company, AuthenticationService,
 from .services.registration import validate_user_assessor_registration_data, generate_one_time_code
 import json
 import requests
+import uuid
+
 
 INVALID_EMAIL = 'email@email'
 EMAIL_IS_INVALID = 'Email is invalid'
@@ -613,9 +615,7 @@ class AssessorRegistrationTest(TestCase):
 
         exception_error_message = 'Registration code is invalid'
         request_data_invalid_code = dict(self.base_request_data.copy())
-
-        invalid_code = request_data_invalid_code['one_time_code']
-        request_data_invalid_code['one_time_code'] = invalid_code[:-1] + invalid_code[0]
+        request_data_invalid_code['one_time_code'] = str(uuid.uuid4())
 
         try:
             validate_user_assessor_registration_data(request_data_invalid_code)
@@ -788,8 +788,7 @@ class AssessorViewsTestCase(TestCase):
         self.assertEqual(response_content['message'], expected_message)
 
         registration_data = self.base_registration_data.copy()
-        invalid_code = registration_data['one_time_code']
-        registration_data['one_time_code'] = invalid_code[:-1] + invalid_code[0]
+        registration_data['one_time_code'] = str(uuid.uuid4())
         response = self.fetch_with_data(registration_data, REGISTER_ASSESSOR_URL)
         expected_message = 'Registration code is invalid'
         self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
