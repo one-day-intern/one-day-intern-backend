@@ -2,10 +2,39 @@ from django.test import TestCase
 from unittest.mock import patch
 from django.core import mail
 from django.core.mail.backends.smtp import EmailBackend
-from .services import utils
+from .services import utils, company as company_service
+from users.models import (
+    Company,
+    CompanySerializer,
+    CompanyOneTimeLinkCode,
+    Assessor,
+    AuthenticationService
+)
+from assessment.exceptions.exceptions import RestrictedAccessException
+
+EXCEPTION_NOT_RAISED = 'Exception not raised'
 
 
 class OneTimeCodeTest(TestCase):
+    def setUp(self) -> None:
+        self.company = Company.objects.create_user(
+            email='company@company.com',
+            password='Password123',
+            description='A Company',
+            address='Hacker Way, Menlo Park, 94025'
+        )
+
+        self.assessor = Assessor.objects.create_user(
+            email='assessor@assessor.com',
+            password='password',
+            first_name='Levinson',
+            last_name='Durbin',
+            phone_number='+6282312345678',
+            employee_id='A&EX4NDER',
+            associated_company=self.company,
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
     def assert_message_equal(self, message_1: mail.EmailMultiAlternatives, message_2: mail.EmailMultiAlternatives):
         self.assertEqual(message_1.subject, message_2.subject)
         self.assertEqual(message_1.body, message_2.body)
@@ -54,3 +83,17 @@ class OneTimeCodeTest(TestCase):
         actual_message_1, actual_message_2 = call_arguments
         self.assert_message_equal(actual_message_1, expected_message_1)
         self.assert_message_equal(actual_message_2, expected_message_2)
+
+    def test_get_company_or_raise_exception_when_company_exists(self):
+        expected_company_data = CompanySerializer(self.company).data
+        company = company_service.get_company_or_raise_exception(self.company)
+        company_data = CompanySerializer(company).data
+        self.assertDictEqual(company_data, expected_company_data)
+
+    def test_get_company_or_raise_exception_when_company_does_not_exist(self):
+        expected_message = f'User {self.assessor.email} is not a company'
+        try:
+            company_service.get_company_or_raise_exception(self.assessor)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except RestrictedAccessException as exception:
+            self.assertEqual(str(exception), expected_message)
