@@ -66,9 +66,10 @@ class OneTimeCodeTest(TestCase):
         response_content = json.loads(response.content)
         self.assertEqual(response_content.get('message'), message)
 
+    @staticmethod
     @patch.object(EmailBackend, 'send_messages')
     @patch.object(mail, 'get_connection')
-    def test_send_mass_html_mail_when_no_datatuple(self, mocked_get_connection, mocked_send_messages):
+    def test_send_mass_html_mail_when_no_datatuple(mocked_get_connection, mocked_send_messages):
         mocked_get_connection.return_value = EmailBackend()
         datatuple = []
         expected_messages_sent = []
@@ -80,10 +81,20 @@ class OneTimeCodeTest(TestCase):
     def test_send_mass_html_when_datatuple_is_not_empty(self, mocked_get_connection, mocked_send_messages):
         mocked_get_connection.return_value = EmailBackend()
         datatuple = [
-            ('Subject 1', 'Hello, World! 1', '<h1>Hello, World! 1</h1>', 'from_email1@gmail.com',
-             ['recipient1@gmail.com']),
-            ('Subject 2', 'Hello, World! 2', '<h1>Hello, World! 2</h1>', 'from_email2@gmail.com',
-             ['recipient2@gmail.com']),
+            (
+                'Subject 1',
+                'Hello, World! 1',
+                '<h1>Hello, World! 1</h1>',
+                'from_email1@gmail.com',
+                ['recipient1@gmail.com']
+            ),
+            (
+                'Subject 2',
+                'Hello, World! 2',
+                '<h1>Hello, World! 2</h1>',
+                'from_email2@gmail.com',
+                ['recipient2@gmail.com']
+            ),
         ]
         expected_message_1 = mail.EmailMultiAlternatives(
             subject='Subject 1',
@@ -155,6 +166,7 @@ class OneTimeCodeTest(TestCase):
         request_data = self.base_request_data.copy()
         request_data['assessor_emails'] = ['assessor@yahoo.com', 'assessor@mail', 'assesspr@gmail.com']
         expected_message = 'assessor@mail is not a valid email'
+
         try:
             one_time_code.validate_request_data(request_data)
         except InvalidRequestException as exception:
