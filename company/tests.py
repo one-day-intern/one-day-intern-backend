@@ -141,7 +141,7 @@ class OneTimeCodeTest(TestCase):
 
     def test_validate_request_data_when_assessor_emails_is_not_a_list(self):
         request_data = self.base_request_data.copy()
-        request_data['assessor_emails'] = 'one-day-intern@gmail.com'
+        request_data['assessor_emails'] = self.base_request_data.get('assessor_emails')[0]
         expected_message = 'Request assessor_emails field must be a list'
 
         try:
@@ -263,7 +263,7 @@ class OneTimeCodeTest(TestCase):
     def test_serve_one_time_code_to_assessors_when_assessor_emails_not_a_list(self, mocked_send_mass_html_mail):
         expected_message = 'Request assessor_emails field must be a list'
         request_data = self.base_request_data.copy()
-        request_data['assessor_emails'] = 'one-day-intern@gmail.com'
+        request_data['assessor_emails'] = self.base_request_data.get('assessor_emails')[0]
         assessor_email_data = json.dumps(request_data)
         self.assert_invalid_request_response_matches(
             user=self.company,
