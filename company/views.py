@@ -1,3 +1,5 @@
-from django.shortcuts import render
+from rest_framework.response import Response
 
-# Create your views here.
+
+def serve_send_one_time_code_to_assessors(request):
+    return Response(data=None)

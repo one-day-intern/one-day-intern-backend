@@ -2,6 +2,7 @@ from django.test import TestCase
 from unittest.mock import patch
 from django.core import mail
 from django.core.mail.backends.smtp import EmailBackend
+from rest_framework.test import APIClient
 from .services import utils, one_time_code, company as company_service
 from users.models import (
     Company,
@@ -15,8 +16,11 @@ from .exceptions.exceptions import InvalidRequestException
 from users.services import utils as users_utils
 from one_day_intern import settings
 import uuid
+import json
+import http
 
 EXCEPTION_NOT_RAISED = 'Exception not raised'
+SEND_ONE_TIME_CODE_URL = '/company/one-time-code/generate/'
 
 
 class OneTimeCodeTest(TestCase):
@@ -51,6 +55,16 @@ class OneTimeCodeTest(TestCase):
         self.assertEqual(message_1.body, message_2.body)
         self.assertEqual(message_1.from_email, message_2.from_email)
         self.assertEqual(message_1.to[0], message_2.to[0])
+
+    def assert_invalid_request_response_matches(self, user, data, http_status_code, message,
+                                                mocked_send_mass_html_mail):
+        client = APIClient()
+        client.force_authenticate(user=user)
+        response = client.post(SEND_ONE_TIME_CODE_URL, data=data, content_type='application/json')
+        mocked_send_mass_html_mail.assert_not_called()
+        self.assertEqual(response.status_code, http_status_code)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), message)
 
     @patch.object(EmailBackend, 'send_messages')
     @patch.object(mail, 'get_connection')
@@ -201,3 +215,74 @@ class OneTimeCodeTest(TestCase):
             one_time_code.send_one_time_code_to_assessors(self.base_request_data, self.company)
         except Exception as exception:
             self.fail(f'{exception} is raised')
+
+    @patch.object(utils, 'send_mass_html_mail')
+    def test_serve_send_one_time_code_to_assessors_when_valid_status_200(self, mocked_send_mass_html_mail):
+        receiving_emails = self.base_request_data.get('assessor_emails')
+        expected_message = 'Invitations has been sent'
+        assessor_email_data = json.dumps(self.base_request_data)
+        client = APIClient()
+        client.force_authenticate(user=self.company)
+
+        response = client.post(SEND_ONE_TIME_CODE_URL, data=assessor_email_data, content_type='application/json')
+
+        mocked_send_mass_html_mail.assert_called_once()
+        messages_sent = mocked_send_mass_html_mail.call_args.args[0]
+        self.assertEqual(len(messages_sent), len(receiving_emails))
+        self.assertEqual(response.status_code, http.HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), expected_message)
+
+    @patch.object(utils, 'send_mass_html_mail')
+    def test_serve_send_one_time_code_to_assessors_when_user_is_not_company(self, mocked_send_mass_html_mail):
+        expected_message = 'User assessor@assessor.com is not a company'
+        assessor_email_data = json.dumps(self.base_request_data)
+        self.assert_invalid_request_response_matches(
+            user=self.assessor,
+            data=assessor_email_data,
+            http_status_code=http.HTTPStatus.UNAUTHORIZED,
+            message=expected_message,
+            mocked_send_mass_html_mail=mocked_send_mass_html_mail
+        )
+
+    @patch.object(utils, 'send_mass_html_mail')
+    def test_serve_send_one_time_code_to_assessors_when_assessor_emails_empty(self, mocked_send_mass_html_mail):
+        expected_message = 'Request must contain at least 1 assessor emails'
+        request_data = self.base_request_data.copy()
+        request_data['assessor_emails'] = []
+        assessor_email_data = json.dumps(request_data)
+        self.assert_invalid_request_response_matches(
+            user=self.company,
+            data=assessor_email_data,
+            http_status_code=http.HTTPStatus.BAD_REQUEST,
+            message=expected_message,
+            mocked_send_mass_html_mail=mocked_send_mass_html_mail
+        )
+
+    @patch.object(utils, 'send_mass_html_mail')
+    def test_serve_one_time_code_to_assessors_when_assessor_emails_not_a_list(self, mocked_send_mass_html_mail):
+        expected_message = 'Request assessor_emails field must be a list'
+        request_data = self.base_request_data.copy()
+        request_data['assessor_emails'] = 'one-day-intern@gmail.com'
+        assessor_email_data = json.dumps(request_data)
+        self.assert_invalid_request_response_matches(
+            user=self.company,
+            data=assessor_email_data,
+            http_status_code=http.HTTPStatus.BAD_REQUEST,
+            message=expected_message,
+            mocked_send_mass_html_mail=mocked_send_mass_html_mail
+        )
+
+    @patch.object(utils, 'send_mass_html_mail')
+    def test_serve_one_time_code_to_assessors_when_assessor_emails_are_invalid(self, mocked_send_mass_html_mail):
+        expected_message = 'email@email is not a valid email'
+        request_data = self.base_request_data.copy()
+        request_data['assessor_emails'] = ['email@email']
+        assessor_email_data = json.dumps(request_data)
+        self.assert_invalid_request_response_matches(
+            user=self.company,
+            data=assessor_email_data,
+            http_status_code=http.HTTPStatus.BAD_REQUEST,
+            message=expected_message,
+            mocked_send_mass_html_mail=mocked_send_mass_html_mail
+        )
