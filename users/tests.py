@@ -12,11 +12,12 @@ from .exceptions.exceptions import (
 )
 from rest_framework.test import APIClient
 from .models import OdiUser, Assessee, Assessor, Company, AuthenticationService, CompanyOneTimeLinkCode
+from .services.registration import validate_user_assessor_registration_data, generate_one_time_code
 import json
 import requests
 
-from .services.registration import validate_user_assessor_registration_data, generate_one_time_code
 
+INVALID_EMAIL = 'email@email'
 EMAIL_IS_INVALID = 'Email is invalid'
 EMAIL_MUST_NOT_BE_NULL = 'Email must not be null'
 PASSWORD_MUST_NOT_BE_NULL = 'Password must not be null'
@@ -122,8 +123,7 @@ class UtilityTestCase(TestCase):
         self.assertFalse(utils.validate_email(email))
 
     def test_validate_email_when_invalid(self):
-        email = 'email@email'
-        self.assertFalse(utils.validate_email(email))
+        self.assertFalse(utils.validate_email(INVALID_EMAIL))
 
     def test_validate_date_format_when_valid(self):
         date_str = '2022-09-26T15:29:30.506Z'
@@ -254,11 +254,11 @@ class UserRegistrationTest(TestCase):
         }
 
         request_data = self.base_request_data.copy()
-        request_data['email'] = 'email@email'
+        request_data['email'] = INVALID_EMAIL
 
         try:
             registration.validate_user_registration_data(request_data)
-            self.fail('Exception not raised')
+            self.fail(EXCEPTION_NOT_RAISED)
         except InvalidRegistrationException as exception:
             self.assertEqual(str(exception), EMAIL_IS_INVALID)
 
@@ -471,7 +471,7 @@ class ViewsTestCase(TestCase):
         self.assertEqual(response_content['message'], EMAIL_MUST_NOT_BE_NULL)
 
         registration_data = self.registration_base_data.copy()
-        registration_data['email'] = 'email@email'
+        registration_data['email'] = INVALID_EMAIL
         response = self.fetch_with_data(registration_data, REGISTER_COMPANY_URL)
         self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
         response_content = json.loads(response.content)
@@ -1006,7 +1006,7 @@ class GoogleAuthTest(TestCase):
         expected_assessee.save()
         try:
             google_login.get_assessee_assessor_user_with_google_matching_data(self.dummy_user_data)
-            self.fail('Exception not raised')
+            self.fail(EXCEPTION_NOT_RAISED)
         except EmailNotFoundException as exception:
             self.assertEqual(
                 str(exception),
@@ -1028,7 +1028,7 @@ class GoogleAuthTest(TestCase):
         existing_user.save()
         try:
             google_login.register_assessee_with_google_data(self.dummy_user_data)
-            self.fail('Exception not raised')
+            self.fail(EXCEPTION_NOT_RAISED)
         except InvalidGoogleLoginException as exception:
             self.assertEqual(str(exception), 'User is already registered through the One Day Intern login service.')
 
@@ -1047,7 +1047,7 @@ class GoogleAuthTest(TestCase):
         mocked_google_verify_token.return_value = dummy_response
         try:
             google_login.google_get_profile_from_id_token(dummy_id_token)
-            self.fail('Exception not raised')
+            self.fail(EXCEPTION_NOT_RAISED)
         except InvalidGoogleIDTokenException:
             pass
 
@@ -1077,7 +1077,7 @@ class GoogleAuthTest(TestCase):
 
         try:
             google_login.google_get_id_token_from_auth_code(dummy_auth_code, dummy_redirect_uri)
-            self.fail('Exception not raised')
+            self.fail(EXCEPTION_NOT_RAISED)
         except InvalidGoogleAuthCodeException:
             pass
 
