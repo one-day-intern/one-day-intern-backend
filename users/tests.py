@@ -13,19 +13,25 @@ from .exceptions.exceptions import (
 from rest_framework.test import APIClient
 from .models import OdiUser, Assessee, Assessor, Company, AuthenticationService, CompanyOneTimeLinkCode
 from .services.registration import validate_user_assessor_registration_data, generate_one_time_code
+from http import HTTPStatus
 import json
 import requests
+import uuid
 
 
 INVALID_EMAIL = 'email@email'
 EMAIL_IS_INVALID = 'Email is invalid'
 EMAIL_MUST_NOT_BE_NULL = 'Email must not be null'
 PASSWORD_MUST_NOT_BE_NULL = 'Password must not be null'
-OK_REQUEST_STATUS_CODE = 200
-BAD_REQUEST_STATUS_CODE = 400
+PASSWORD_INVALID_NO_UPPER = 'Password length must contain at least 1 uppercase character'
+EXCEPTION_NOT_RAISED = 'Exception not raised'
 REGISTER_COMPANY_URL = '/users/register-company/'
 REGISTER_ASSESSOR_URL = '/users/register-assessor/'
-EXCEPTION_NOT_RAISED = 'Exception not raised'
+GENERATE_ONE_TIME_CODE_URL = '/users/generate-code/'
+TEST_COMPANY_NAME = 'Dummy Company Name'
+TEST_COMPANY_DESCRIPTION = 'Dummy company description'
+TEST_COMPANY_ADDRESS = 'Dummy company address'
+REQUEST_CONTENT_TYPE = 'application/json'
 
 
 class OdiUserTestCase(TestCase):
@@ -94,11 +100,10 @@ class UtilityTestCase(TestCase):
         self.assertEqual(validation_result['message'], error_message)
 
     def test_validate_password_when_no_uppercase(self):
-        error_message = 'Password length must contain at least 1 uppercase character'
         validation_result = utils.validate_password('abcdefgh')
 
         self.assertFalse(validation_result['is_valid'])
-        self.assertEqual(validation_result['message'], error_message)
+        self.assertEqual(validation_result['message'], PASSWORD_INVALID_NO_UPPER)
 
     def test_validate_password_when_no_lowercase(self):
         error_message = 'Password length must contain at least 1 lowercase character'
@@ -434,26 +439,26 @@ class CompanyRegistrationTest(TestCase):
 class ViewsTestCase(TestCase):
     def setUp(self) -> None:
         self.registration_base_data = {
-            'email': 'test_email@gmail.com',
+            'email': 'test_email_views_test_case@gmail.com',
             'password': 'Password1234',
             'confirmed_password': 'Password1234',
-            'company_name': 'Dummy Company Name',
-            'company_description': 'Dummy company description',
-            'company_address': 'Dummy company address'
+            'company_name': TEST_COMPANY_NAME,
+            'company_description': TEST_COMPANY_DESCRIPTION,
+            'company_address': TEST_COMPANY_ADDRESS
         }
 
     def fetch_with_data(self, registration_data, url_to_fetch):
         response = self.client.post(
             url_to_fetch,
             data=json.dumps(registration_data),
-            content_type='application/json'
+            content_type=REQUEST_CONTENT_TYPE
         )
         return response
 
     def test_register_company_when_complete(self):
         registration_data = self.registration_base_data.copy()
         response = self.fetch_with_data(registration_data, REGISTER_COMPANY_URL)
-        self.assertEqual(response.status_code, OK_REQUEST_STATUS_CODE)
+        self.assertEqual(response.status_code, HTTPStatus.OK)
 
         response_content = json.loads(response.content)
         self.assertTrue(len(response_content) > 0)
@@ -462,96 +467,108 @@ class ViewsTestCase(TestCase):
         self.assertEqual(response_content['description'], registration_data['company_description'])
         self.assertEqual(response_content['address'], registration_data['company_address'])
 
+    def base_test_register_company_when_invalid(self, registration_data, expected_message, expected_status_code):
+        response = self.fetch_with_data(registration_data, REGISTER_COMPANY_URL)
+        self.assertEqual(response.status_code, expected_status_code)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content['message'], expected_message)
+
     def test_register_company_when_email_is_invalid(self):
         registration_data = self.registration_base_data.copy()
         registration_data['email'] = ''
-        response = self.fetch_with_data(registration_data, REGISTER_COMPANY_URL)
-        self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
-        response_content = json.loads(response.content)
-        self.assertEqual(response_content['message'], EMAIL_MUST_NOT_BE_NULL)
+        self.base_test_register_company_when_invalid(
+            registration_data,
+            EMAIL_MUST_NOT_BE_NULL,
+            HTTPStatus.BAD_REQUEST
+        )
 
         registration_data = self.registration_base_data.copy()
         registration_data['email'] = INVALID_EMAIL
-        response = self.fetch_with_data(registration_data, REGISTER_COMPANY_URL)
-        self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
-        response_content = json.loads(response.content)
-        self.assertEqual(response_content['message'], EMAIL_IS_INVALID)
+        self.base_test_register_company_when_invalid(
+            registration_data,
+            EMAIL_IS_INVALID,
+            HTTPStatus.BAD_REQUEST
+        )
 
     def test_register_company_when_password_is_invalid(self):
         registration_data = self.registration_base_data.copy()
         registration_data['password'] = ''
-        response = self.fetch_with_data(registration_data, REGISTER_COMPANY_URL)
-        self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
-        response_content = json.loads(response.content)
-        self.assertEqual(response_content['message'], PASSWORD_MUST_NOT_BE_NULL)
+        self.base_test_register_company_when_invalid(
+            registration_data,
+            PASSWORD_MUST_NOT_BE_NULL,
+            HTTPStatus.BAD_REQUEST
+        )
 
         registration_data = self.registration_base_data.copy()
         registration_data['password'] = 'password'
-        expected_message = 'Password length must contain at least 1 uppercase character'
-        response = self.fetch_with_data(registration_data, REGISTER_COMPANY_URL)
-        self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
-        response_content = json.loads(response.content)
-        self.assertEqual(response_content['message'], expected_message)
+        self.base_test_register_company_when_invalid(
+            registration_data,
+            PASSWORD_INVALID_NO_UPPER,
+            HTTPStatus.BAD_REQUEST
+        )
 
     def test_register_company_with_invalid_company_name(self):
         registration_data = self.registration_base_data.copy()
         registration_data['company_name'] = ''
-        response = self.fetch_with_data(registration_data, REGISTER_COMPANY_URL)
         expected_message = 'Company name must be of minimum 3 characters and maximum of 50 characters'
-        self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
-        response_content = json.loads(response.content)
-        self.assertEqual(response_content['message'], expected_message)
+        self.base_test_register_company_when_invalid(
+            registration_data,
+            expected_message,
+            HTTPStatus.BAD_REQUEST
+        )
 
     def test_register_company_with_invalid_company_description(self):
         registration_data = self.registration_base_data.copy()
         registration_data['company_description'] = ''
-        response = self.fetch_with_data(registration_data, REGISTER_COMPANY_URL)
         expected_message = 'Company description must be more than 3 characters'
-        self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
-        response_content = json.loads(response.content)
-        self.assertEqual(response_content['message'], expected_message)
+        self.base_test_register_company_when_invalid(
+            registration_data,
+            expected_message,
+            HTTPStatus.BAD_REQUEST
+        )
 
     def test_register_company_with_invalid_company_address(self):
         registration_data = self.registration_base_data.copy()
         registration_data['company_address'] = 'JL'
-        response = self.fetch_with_data(registration_data, REGISTER_COMPANY_URL)
         expected_message = 'Company address must be more than 3 characters'
-        self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
-        response_content = json.loads(response.content)
-        self.assertEqual(response_content['message'], expected_message)
+        self.base_test_register_company_when_invalid(
+            registration_data,
+            expected_message,
+            HTTPStatus.BAD_REQUEST
+        )
 
 
 class AssessorRegistrationTest(TestCase):
     def setUp(self) -> None:
         base_company_data = {
-            'email': 'test_email@gmail.com',
+            'email': 'test_email_assessor_registration@gmail.com',
             'password': 'Password1234',
             'confirmed_password': 'Password1234',
-            'company_name': 'Dummy Company Name',
-            'company_description': 'Dummy company description',
-            'company_address': 'Dummy company address'
+            'company_name': TEST_COMPANY_NAME,
+            'company_description': TEST_COMPANY_DESCRIPTION,
+            'company_address': TEST_COMPANY_ADDRESS
         }
 
         self.client.post(
             REGISTER_COMPANY_URL,
             data=base_company_data,
-            content_type='application/json'
+            content_type=REQUEST_CONTENT_TYPE
         )
 
-        self.company = Company.objects.get(email="test_email@gmail.com")
+        self.company = Company.objects.get(email="test_email_assessor_registration@gmail.com")
         self.client = APIClient()
         self.client.force_authenticate(user=self.company)
 
         response = self.client.post(
-            '/users/generate-code/',
-            content_type='application/json'
+            GENERATE_ONE_TIME_CODE_URL,
+            content_type=REQUEST_CONTENT_TYPE
         )
 
         response_content = json.loads(response.content)
         self.one_time_code = response_content['code']
 
         self.base_request_data = {
-            'email': 'assessor@gmail.com',
+            'email': 'assessor_registration@gmail.com',
             'password': 'testPassword1234',
             'confirmed_password': 'testPassword1234',
             'first_name': 'Abdul',
@@ -614,9 +631,7 @@ class AssessorRegistrationTest(TestCase):
 
         exception_error_message = 'Registration code is invalid'
         request_data_invalid_code = dict(self.base_request_data.copy())
-
-        invalid_code = request_data_invalid_code['one_time_code']
-        request_data_invalid_code['one_time_code'] = invalid_code[:-1] + invalid_code[0]
+        request_data_invalid_code['one_time_code'] = str(uuid.uuid4())
 
         try:
             validate_user_assessor_registration_data(request_data_invalid_code)
@@ -628,9 +643,9 @@ class AssessorRegistrationTest(TestCase):
         request_data_expired_code = dict(self.base_request_data.copy())
 
         self.client.post(
-            '/users/register-assessor/',
+            REGISTER_ASSESSOR_URL,
             data=json.dumps(request_data_expired_code),
-            content_type='application/json'
+            content_type=REQUEST_CONTENT_TYPE
         )
 
         try:
@@ -672,34 +687,34 @@ class AssessorRegistrationTest(TestCase):
 class AssessorViewsTestCase(TestCase):
     def setUp(self) -> None:
         base_company_data = {
-            'email': 'test_email@gmail.com',
+            'email': 'test_email_assessor_views@gmail.com',
             'password': 'Password1234',
             'confirmed_password': 'Password1234',
-            'company_name': 'Dummy Company Name',
-            'company_description': 'Dummy company description',
-            'company_address': 'Dummy company address'
+            'company_name': TEST_COMPANY_NAME,
+            'company_description': TEST_COMPANY_DESCRIPTION,
+            'company_address': TEST_COMPANY_ADDRESS
         }
 
         self.client.post(
             REGISTER_COMPANY_URL,
             data=base_company_data,
-            content_type='application/json'
+            content_type=REQUEST_CONTENT_TYPE
         )
 
-        self.company = Company.objects.get(email="test_email@gmail.com")
+        self.company = Company.objects.get(email="test_email_assessor_views@gmail.com")
         self.client = APIClient()
         self.client.force_authenticate(user=self.company)
 
         response = self.client.post(
-            '/users/generate-code/',
-            content_type='application/json'
+            GENERATE_ONE_TIME_CODE_URL,
+            content_type=REQUEST_CONTENT_TYPE
         )
 
         response_content = json.loads(response.content)
         self.one_time_code = response_content['code']
 
         self.base_registration_data = {
-            'email': 'assessor@gmail.com',
+            'email': 'assessor_views_test@gmail.com',
             'password': 'testPassword1234',
             'confirmed_password': 'testPassword1234',
             'first_name': 'Abdul',
@@ -713,14 +728,14 @@ class AssessorViewsTestCase(TestCase):
         response = self.client.post(
             url_to_fetch,
             data=json.dumps(registration_data),
-            content_type='application/json'
+            content_type=REQUEST_CONTENT_TYPE
         )
         return response
 
     def test_register_assessor_when_complete(self):
         registration_data = self.base_registration_data.copy()
         response = self.fetch_with_data(registration_data, REGISTER_ASSESSOR_URL)
-        self.assertEqual(response.status_code, OK_REQUEST_STATUS_CODE)
+        self.assertEqual(response.status_code, HTTPStatus.OK)
 
         response_content = json.loads(response.content)
         self.assertTrue(len(response_content) > 0)
@@ -734,14 +749,14 @@ class AssessorViewsTestCase(TestCase):
         registration_data = self.base_registration_data.copy()
         registration_data['email'] = ''
         response = self.fetch_with_data(registration_data, REGISTER_ASSESSOR_URL)
-        self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
         self.assertEqual(response_content['message'], EMAIL_MUST_NOT_BE_NULL)
 
         registration_data = self.base_registration_data.copy()
         registration_data['email'] = 'email@email'
         response = self.fetch_with_data(registration_data, REGISTER_ASSESSOR_URL)
-        self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
         self.assertEqual(response_content['message'], EMAIL_IS_INVALID)
 
@@ -749,24 +764,23 @@ class AssessorViewsTestCase(TestCase):
         registration_data = self.base_registration_data.copy()
         registration_data['password'] = ''
         response = self.fetch_with_data(registration_data, REGISTER_COMPANY_URL)
-        self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
         self.assertEqual(response_content['message'], PASSWORD_MUST_NOT_BE_NULL)
 
         registration_data = self.base_registration_data.copy()
         registration_data['password'] = 'password'
-        expected_message = 'Password length must contain at least 1 uppercase character'
         response = self.fetch_with_data(registration_data, REGISTER_COMPANY_URL)
-        self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
-        self.assertEqual(response_content['message'], expected_message)
+        self.assertEqual(response_content['message'], PASSWORD_INVALID_NO_UPPER)
 
     def test_register_assessor_with_invalid_first_name(self):
         registration_data = self.base_registration_data.copy()
         registration_data['first_name'] = ''
         response = self.fetch_with_data(registration_data, REGISTER_ASSESSOR_URL)
         expected_message = 'Assessor first name must not be null'
-        self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
         self.assertEqual(response_content['message'], expected_message)
 
@@ -775,7 +789,7 @@ class AssessorViewsTestCase(TestCase):
         registration_data['phone_number'] = ''
         response = self.fetch_with_data(registration_data, REGISTER_ASSESSOR_URL)
         expected_message = 'Assessor phone number must not be null'
-        self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
         self.assertEqual(response_content['message'], expected_message)
 
@@ -784,16 +798,15 @@ class AssessorViewsTestCase(TestCase):
         registration_data['one_time_code'] = ''
         response = self.fetch_with_data(registration_data, REGISTER_ASSESSOR_URL)
         expected_message = 'Registration code must not be null'
-        self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
         self.assertEqual(response_content['message'], expected_message)
 
         registration_data = self.base_registration_data.copy()
-        invalid_code = registration_data['one_time_code']
-        registration_data['one_time_code'] = invalid_code[:-1] + invalid_code[0]
+        registration_data['one_time_code'] = str(uuid.uuid4())
         response = self.fetch_with_data(registration_data, REGISTER_ASSESSOR_URL)
         expected_message = 'Registration code is invalid'
-        self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
         self.assertEqual(response_content['message'], expected_message)
 
@@ -801,8 +814,8 @@ class AssessorViewsTestCase(TestCase):
         self.fetch_with_data(registration_data, REGISTER_ASSESSOR_URL)
 
         response = self.fetch_with_data(registration_data, REGISTER_ASSESSOR_URL)
-        expected_message = 'Email assessor@gmail.com is already registered'
-        self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
+        expected_message = 'Email assessor_views_test@gmail.com is already registered'
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
         self.assertEqual(response_content['message'], expected_message)
 
@@ -810,21 +823,21 @@ class AssessorViewsTestCase(TestCase):
 class GenerateOneTimeCodeTest(TestCase):
     def setUp(self) -> None:
         base_company_data = {
-            'email': 'test_email@gmail.com',
+            'email': 'test_email_generate_otc@gmail.com',
             'password': 'Password1234',
             'confirmed_password': 'Password1234',
-            'company_name': 'Dummy Company Name',
-            'company_description': 'Dummy company description',
-            'company_address': 'Dummy company address'
+            'company_name': TEST_COMPANY_NAME,
+            'company_description': TEST_COMPANY_DESCRIPTION,
+            'company_address': TEST_COMPANY_ADDRESS
         }
 
         self.client.post(
             REGISTER_COMPANY_URL,
             data=base_company_data,
-            content_type='application/json'
+            content_type=REQUEST_CONTENT_TYPE
         )
 
-        self.company = Company.objects.get(email="test_email@gmail.com")
+        self.company = Company.objects.get(email="test_email_generate_otc@gmail.com")
         self.client = APIClient()
         self.client.force_authenticate(user=self.company)
 
@@ -850,31 +863,31 @@ class GenerateOneTimeCodeTest(TestCase):
 class OneTimeCodeViewsTestCase(TestCase):
     def setUp(self) -> None:
         registration_data = {
-            'email': 'test_email@gmail.com',
+            'email': 'test_email_otc_views@gmail.com',
             'password': 'Password1234',
             'confirmed_password': 'Password1234',
-            'company_name': 'Dummy Company Name',
-            'company_description': 'Dummy company description',
-            'company_address': 'Dummy company address'
+            'company_name': TEST_COMPANY_NAME,
+            'company_description': TEST_COMPANY_DESCRIPTION,
+            'company_address': TEST_COMPANY_ADDRESS
         }
 
         self.client.post(
             '/users/register-company/',
             data=json.dumps(registration_data),
-            content_type='application/json'
+            content_type=REQUEST_CONTENT_TYPE
         )
 
     def test_generate_assessor_one_time_code_when_complete_status_200(self):
-        self.company = Company.objects.get(email="test_email@gmail.com")
+        self.company = Company.objects.get(email="test_email_otc_views@gmail.com")
         self.client = APIClient()
         self.client.force_authenticate(user=self.company)
 
         response = self.client.post(
-            '/users/generate-code/',
-            content_type='application/json'
+            GENERATE_ONE_TIME_CODE_URL,
+            content_type=REQUEST_CONTENT_TYPE
         )
 
-        self.assertTrue(response.status_code == OK_REQUEST_STATUS_CODE)
+        self.assertEqual(response.status_code, HTTPStatus.OK)
 
         response_content = json.loads(response.content)
         one_time_code = CompanyOneTimeLinkCode.objects.get(code=response_content['code'])

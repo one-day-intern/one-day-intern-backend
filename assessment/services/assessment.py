@@ -2,7 +2,7 @@ from django.contrib.auth.models import User
 from users.models import Assessor
 from . import utils
 from ..models import Assignment
-from ..exceptions.exceptions import RestrictedAccessException, InvalidAssignmentRegistration
+from one_day_intern.exceptions import RestrictedAccessException, InvalidAssignmentRegistration
 
 
 def get_assessor_or_raise_exception(user: User):
