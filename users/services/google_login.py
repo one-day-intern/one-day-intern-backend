@@ -7,7 +7,7 @@ from one_day_intern.settings import (
     GOOGLE_AUTH_TOKEN_URL
 )
 from rest_framework_simplejwt.tokens import RefreshToken
-from ..exceptions.exceptions import (
+from one_day_intern.exceptions import (
     InvalidGoogleAuthCodeException,
     InvalidGoogleIDTokenException,
     EmailNotFoundException,

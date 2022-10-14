@@ -66,3 +66,4 @@ def parameterize_url(base_url, parameter_arguments):
             search_param = param
         parameterized_url += search_param + '&'
     return parameterized_url
+

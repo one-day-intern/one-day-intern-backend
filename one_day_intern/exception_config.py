@@ -1,7 +1,6 @@
 from rest_framework.views import exception_handler
 from rest_framework.response import Response
-from users.exceptions.exceptions import InvalidRegistrationException
-from one_day_intern.exceptions import RestrictedAccessException, InvalidRequestException
+from .exceptions import RestrictedAccessException, InvalidRequestException, InvalidRegistrationException
 
 
 def custom_exception_handler(exception, context):

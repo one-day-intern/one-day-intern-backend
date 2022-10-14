@@ -2,7 +2,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from django.views.decorators.http import require_POST, require_GET
 from django.shortcuts import redirect
-from .services.registration import register_company, register_assessor, generate_one_time_code
+from .services.registration import register_company, register_assessor, generate_one_time_code, register_assessee
 from .services.google_login import (
     google_get_profile_from_id_token,
     google_get_id_token_from_auth_code,
@@ -15,7 +15,7 @@ from one_day_intern.settings import (
     GOOGLE_AUTH_REGISTER_ASSESSEE_REDIRECT_URI,
     GOOGLE_AUTH_CLIENT_CALLBACK_URL
 )
-from .models import CompanySerializer, AssessorSerializer, CompanyOneTimeLinkCodeSerializer
+from .models import CompanySerializer, AssessorSerializer, CompanyOneTimeLinkCodeSerializer, AssesseeSerializer
 import json
 
 
@@ -86,6 +86,23 @@ def serve_google_register_assessee(request):
     response.set_cookie('refreshToken', tokens.get('refresh'))
     return response
 
+@require_POST
+@api_view(['POST'])
+def serve_register_assessee(request):
+    """
+        request_data must contain
+        email,
+        password,
+        confirmed_password,
+        first_name,
+        last_name,
+        phone_number,
+        date_of_birth,
+    """
+    request_data = json.loads(request.body.decode('utf-8'))
+    assessee = register_assessee(request_data)
+    response_data = AssesseeSerializer(assessee).data
+    return Response(data=response_data)
 
 @require_POST
 @api_view(['POST'])
