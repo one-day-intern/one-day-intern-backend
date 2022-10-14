@@ -13,7 +13,7 @@ import json
 def serve_create_assignment(request):
     """
     request_data must contain
-    assignment_name (string),
+    name (string),
     description (string),
     duration_in_minutes (integer),
     expected_file_format (string, without leading .)

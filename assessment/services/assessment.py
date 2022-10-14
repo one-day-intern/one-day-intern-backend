@@ -15,7 +15,7 @@ def get_assessor_or_raise_exception(user: User):
 
 
 def validate_assessment_tool(request_data):
-    if not request_data.get('assignment_name'):
+    if not request_data.get('name'):
         raise InvalidAssignmentRegistration('Assessment name should not be empty')
 
 
@@ -27,7 +27,7 @@ def validate_assignment(request_data):
 
 
 def save_assignment_to_database(request_data: dict, assessor: Assessor):
-    name = request_data.get('assignment_name')
+    name = request_data.get('name')
     description = request_data.get('description')
     owning_company = assessor.associated_company
     expected_file_format = utils.sanitize_file_format(request_data.get('expected_file_format'))
