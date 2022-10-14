@@ -85,7 +85,7 @@ def serve_google_register_assessee(request):
     response.set_cookie('accessToken', tokens.get('access'))
     response.set_cookie('refreshToken', tokens.get('refresh'))
     return response
-    
+
 @require_POST
 @api_view(['POST'])
 def serve_register_assessee(request):
