@@ -3,7 +3,7 @@ from django.test import TestCase
 from google.oauth2 import id_token
 from unittest.mock import patch
 from .services import registration, utils, google_login
-from .exceptions.exceptions import (
+from one_day_intern.exceptions import (
     InvalidRegistrationException,
     EmailNotFoundException,
     InvalidGoogleLoginException,

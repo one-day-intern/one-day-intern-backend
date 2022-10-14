@@ -1,7 +1,8 @@
+import imp
 import uuid
 from .utils import validate_phone_number
 from ..models import OdiUser, Company, CompanyOneTimeLinkCode, Assessor, Assessee
-from ..exceptions.exceptions import InvalidRegistrationException, EmailNotFoundException
+from one_day_intern.exceptions import InvalidRegistrationException, EmailNotFoundException
 from . import utils
 
 
