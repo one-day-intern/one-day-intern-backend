@@ -41,14 +41,14 @@ class AssessmentTest(TestCase):
         )
 
         self.request_data = {
-            'assignment_name': 'Business Proposal Task 1',
+            'name': 'Business Proposal Task 1',
             'description': 'This is the first assignment',
             'duration_in_minutes': 55,
             'expected_file_format': '.pdf'
         }
 
         self.expected_assignment = Assignment(
-            name=self.request_data.get('assignment_name'),
+            name=self.request_data.get('name'),
             description=self.request_data.get('description'),
             owning_company=self.assessor.associated_company,
             expected_file_format='pdf',
@@ -99,7 +99,7 @@ class AssessmentTest(TestCase):
 
     def test_validate_assessment_tool_when_request_data_has_no_name(self):
         invalid_request_data = self.request_data.copy()
-        invalid_request_data['assignment_name'] = ''
+        invalid_request_data['name'] = ''
         expected_message = 'Assessment name should not be empty'
 
         try:
