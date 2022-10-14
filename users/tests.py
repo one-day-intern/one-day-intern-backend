@@ -935,7 +935,7 @@ class AssessorViewsTestCase(TestCase):
         response_content = json.loads(response.content)
         self.assertEqual(response_content['message'], expected_message)
 
-    
+
 
 class AssesseeViewsTestCase(TestCase):
         def setUp(self) -> None:
@@ -1026,7 +1026,7 @@ class AssesseeViewsTestCase(TestCase):
             expected_message = 'Assessee date of birth must not be null'
             self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
             response_content = json.loads(response.content)
-            self.assertEqual(response_content['message'], expected_message) 
+            self.assertEqual(response_content['message'], expected_message)
 
             registration_data = self.registration_base_data.copy()
             registration_data['date_of_birth'] = '09-1994-30T10:37:35.849Z'
@@ -1034,7 +1034,7 @@ class AssesseeViewsTestCase(TestCase):
             expected_message = 'Invalid date of birth format'
             self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
             response_content = json.loads(response.content)
-            self.assertEqual(response_content['message'], expected_message) 
+            self.assertEqual(response_content['message'], expected_message)
 
 class GenerateOneTimeCodeTest(TestCase):
     def setUp(self) -> None:
