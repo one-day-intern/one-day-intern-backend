@@ -9,7 +9,7 @@ from users.models import (
 from rest_framework.test import APIClient
 from unittest.mock import patch
 from .models import Assignment, AssignmentSerializer
-from .exceptions.exceptions import RestrictedAccessException, InvalidAssignmentRegistration
+from one_day_intern.exceptions import RestrictedAccessException, InvalidAssignmentRegistration
 from .services import assessment, utils
 import datetime
 import json

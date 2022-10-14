@@ -4,3 +4,7 @@ class RestrictedAccessException(Exception):
 
 class InvalidAssignmentRegistration(Exception):
     pass
+
+
+class InvalidRequestException(Exception):
+    pass

@@ -11,8 +11,7 @@ from users.models import (
     Assessor,
     AuthenticationService
 )
-from assessment.exceptions.exceptions import RestrictedAccessException
-from .exceptions.exceptions import InvalidRequestException
+from one_day_intern.exceptions import RestrictedAccessException, InvalidRequestException
 from users.services import utils as users_utils
 from one_day_intern import settings
 import uuid

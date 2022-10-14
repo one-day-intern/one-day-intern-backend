@@ -1,5 +1,5 @@
 from django.contrib.auth.models import User
-from assessment.exceptions.exceptions import RestrictedAccessException
+from one_day_intern.exceptions import RestrictedAccessException
 from users.models import Company
 
 

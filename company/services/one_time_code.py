@@ -3,7 +3,7 @@ from one_day_intern.settings import EMAIL_HOST_USER
 from users.models import Company, CompanyOneTimeLinkCode
 from users.services import utils as users_utils
 from . import utils, company as company_service
-from ..exceptions.exceptions import InvalidRequestException
+from one_day_intern.exceptions import InvalidRequestException
 
 
 def validate_request_data(request_data: dict):
