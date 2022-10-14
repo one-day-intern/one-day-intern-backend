@@ -899,7 +899,7 @@ class AssessorViewsTestCase(TestCase):
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
         self.assertEqual(response_content['message'], expected_message)
-    
+
     def test_register_assessor_with_invalid_phone_number(self):
         registration_data = self.base_registration_data.copy()
         registration_data['phone_number'] = ''
@@ -1017,7 +1017,7 @@ class AssesseeViewsTestCase(TestCase):
             expected_message = 'Assessee phone number must not be null'
             self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
             response_content = json.loads(response.content)
-            self.assertEqual(response_content['message'], expected_message) 
+            self.assertEqual(response_content['message'], expected_message)
 
         def test_register_assessee_with_invalid_date_of_birth(self):
             registration_data = self.registration_base_data.copy()
