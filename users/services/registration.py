@@ -1,5 +1,7 @@
-from ..models import OdiUser, Company, Assessee
-from ..exceptions.exceptions import InvalidRegistrationException
+import uuid
+from .utils import validate_phone_number
+from ..models import OdiUser, Company, CompanyOneTimeLinkCode, Assessor, Assessee
+from ..exceptions.exceptions import InvalidRegistrationException, EmailNotFoundException
 from . import utils
 
 
@@ -48,6 +50,26 @@ def validate_user_assessee_registration_data(request_data):
 
 
 
+def validate_user_assessor_registration_data(request_data):
+    one_time_code = request_data.get('one_time_code')
+    if not one_time_code:
+        raise InvalidRegistrationException('Registration code must not be null')
+    if not request_data.get('first_name'):
+        raise InvalidRegistrationException('Assessor first name must not be null')
+    if not request_data.get('phone_number'):
+        raise InvalidRegistrationException('Assessor phone number must not be null')
+    if not validate_phone_number(request_data.get('phone_number')):
+        raise InvalidRegistrationException('Phone number is invalid')
+
+    one_time_code = uuid.UUID(one_time_code)
+    found_one_time_code = CompanyOneTimeLinkCode.objects.filter(code=one_time_code)
+
+    if not found_one_time_code:
+        raise InvalidRegistrationException('Registration code is invalid')
+    if not found_one_time_code[0].is_active:
+        raise InvalidRegistrationException('Registration code is expired')
+
+
 def save_company_from_request_data(request_data):
     email = request_data.get('email')
     password = request_data.get('password')
@@ -93,9 +115,52 @@ def save_assessee_from_request_data(request_data):
 
     return assessee
 
+def save_assessor_from_request_data(request_data):
+    email = request_data.get('email')
+    password = request_data.get('password')
+    first_name = request_data.get('first_name')
+    last_name = request_data.get('last_name')
+    phone_number = request_data.get('phone_number')
+    employee_id = request_data.get('employee_id')
+    one_time_code = uuid.UUID(request_data.get('one_time_code'))
+
+    found_one_time_code = CompanyOneTimeLinkCode.objects.get(code=one_time_code)
+    associated_company = found_one_time_code.associated_company
+    found_one_time_code.is_active = False
+    found_one_time_code.save()
+
+    assessor = Assessor.objects.create_user(
+        email=email,
+        password=password,
+        first_name=first_name,
+        last_name=last_name,
+        phone_number=phone_number,
+        employee_id=employee_id,
+        associated_company=associated_company
+    )
+
+    return assessor
+
 
 def register_assessee(request_data):
     validate_user_registration_data(request_data)
     validate_user_assessee_registration_data(request_data)
     assessee = save_assessee_from_request_data(request_data)
     return assessee
+
+
+def register_assessor(request_data):
+    validate_user_registration_data(request_data)
+    validate_user_assessor_registration_data(request_data)
+    assessor = save_assessor_from_request_data(request_data)
+    return assessor
+
+
+def generate_one_time_code(company_email):
+    found_companies = Company.objects.filter(email=company_email)
+    if not found_companies:
+        raise EmailNotFoundException(f'Company with email {company_email} is not found')
+
+    found_company = found_companies[0]
+    one_time_code = CompanyOneTimeLinkCode.objects.create(associated_company=found_company)
+    return one_time_code

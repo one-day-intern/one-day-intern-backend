@@ -1,6 +1,7 @@
 from datetime import datetime
-import re
 import phonenumbers
+import re
+from typing import Optional, Match
 
 DATETIME_FORMAT = '%Y-%m-%d'
 email_regex = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
@@ -26,7 +27,7 @@ def validate_password(password) -> dict:
     return validation_result
 
 
-def validate_email(email) -> bool:
+def validate_email(email) -> Optional[Match[str]]:
     return re.fullmatch(email_regex, email)
 
 
@@ -37,6 +38,11 @@ def validate_date_format(date_text) -> bool:
         return True
     except ValueError:
         return False
+
+
+def validate_phone_number(phone_number_string) -> bool:
+    phone_number = phonenumbers.parse(phone_number_string)
+    return phonenumbers.is_possible_number(phone_number)
 
 
 def get_date_from_string(date_text):

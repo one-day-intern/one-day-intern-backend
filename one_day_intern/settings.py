@@ -47,6 +47,8 @@ INSTALLED_APPS = [
     'main',
     'users',
     'assessee',
+    'assessment',
+    'company',
 ]
 
 REST_FRAMEWORK = {
@@ -172,6 +174,7 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# Settings for Google Auth Login and Registration
 AUTH_USER_MODEL = 'users.OdiUser'
 GOOGLE_AUTH_CLIENT_ID = os.getenv('CLIENT_ID')
 GOOGLE_AUTH_CLIENT_SECRET = os.getenv('CLIENT_SECRET')
@@ -180,3 +183,13 @@ GOOGLE_AUTH_GRANT_TYPE = 'authorization_code'
 GOOGLE_AUTH_LOGIN_REDIRECT_URI = os.getenv('GOOGLE_AUTH_LOGIN_REDIRECT_URI')
 GOOGLE_AUTH_REGISTER_ASSESSEE_REDIRECT_URI = os.getenv('GOOGLE_AUTH_REGISTER_ASSESSEE_REDIRECT_URI')
 GOOGLE_AUTH_CLIENT_CALLBACK_URL = os.getenv('GOOGLE_AUTH_CLIENT_CALLBACK_URL')
+
+# Settings for Automatic Email
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL')
+SERVER_EMAIL = os.getenv('SERVER_EMAIL')
