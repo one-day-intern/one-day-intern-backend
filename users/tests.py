@@ -960,7 +960,7 @@ class AssesseeViewsTestCase(TestCase):
         def test_register_assessee_when_complete(self):
             registration_data = self.registration_base_data.copy()
             response = self.fetch_with_data(registration_data, REGISTER_ASSESSEE_URL)
-            self.assertEqual(response.status_code, OK_REQUEST_STATUS_CODE)
+            self.assertEqual(response.status_code, HTTPStatus.OK)
 
             response_content = json.loads(response.content)
             self.assertTrue(len(response_content) > 0)
@@ -974,14 +974,14 @@ class AssesseeViewsTestCase(TestCase):
             registration_data = self.registration_base_data.copy()
             registration_data['email'] = ''
             response = self.fetch_with_data(registration_data, REGISTER_ASSESSEE_URL)
-            self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
+            self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
             response_content = json.loads(response.content)
             self.assertEqual(response_content['message'], EMAIL_MUST_NOT_BE_NULL)
 
             registration_data = self.registration_base_data.copy()
             registration_data['email'] = 'email@email'
             response = self.fetch_with_data(registration_data, REGISTER_ASSESSEE_URL)
-            self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
+            self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
             response_content = json.loads(response.content)
             self.assertEqual(response_content['message'], EMAIL_IS_INVALID)
 
@@ -989,7 +989,7 @@ class AssesseeViewsTestCase(TestCase):
             registration_data = self.registration_base_data.copy()
             registration_data['password'] = ''
             response = self.fetch_with_data(registration_data, REGISTER_ASSESSEE_URL)
-            self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
+            self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
             response_content = json.loads(response.content)
             self.assertEqual(response_content['message'], PASSWORD_MUST_NOT_BE_NULL)
 
@@ -997,7 +997,7 @@ class AssesseeViewsTestCase(TestCase):
             registration_data['password'] = 'password'
             expected_message = 'Password length must contain at least 1 uppercase character'
             response = self.fetch_with_data(registration_data, REGISTER_ASSESSEE_URL)
-            self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
+            self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
             response_content = json.loads(response.content)
             self.assertEqual(response_content['message'], expected_message)
 
@@ -1006,7 +1006,7 @@ class AssesseeViewsTestCase(TestCase):
             registration_data['first_name'] = ''
             response = self.fetch_with_data(registration_data, REGISTER_ASSESSEE_URL)
             expected_message = 'Assessee first name must not be null'
-            self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
+            self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
             response_content = json.loads(response.content)
             self.assertEqual(response_content['message'], expected_message)  
 
@@ -1015,7 +1015,7 @@ class AssesseeViewsTestCase(TestCase):
             registration_data['phone_number'] = ''
             response = self.fetch_with_data(registration_data, REGISTER_ASSESSEE_URL)
             expected_message = 'Assessee phone number must not be null'
-            self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
+            self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
             response_content = json.loads(response.content)
             self.assertEqual(response_content['message'], expected_message) 
 
@@ -1024,7 +1024,7 @@ class AssesseeViewsTestCase(TestCase):
             registration_data['date_of_birth'] = ''
             response = self.fetch_with_data(registration_data, REGISTER_ASSESSEE_URL)
             expected_message = 'Assessee date of birth must not be null'
-            self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
+            self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
             response_content = json.loads(response.content)
             self.assertEqual(response_content['message'], expected_message) 
 
@@ -1032,7 +1032,7 @@ class AssesseeViewsTestCase(TestCase):
             registration_data['date_of_birth'] = '09-1994-30T10:37:35.849Z'
             response = self.fetch_with_data(registration_data, REGISTER_ASSESSEE_URL)
             expected_message = 'Invalid date of birth format'
-            self.assertEqual(response.status_code, BAD_REQUEST_STATUS_CODE)
+            self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
             response_content = json.loads(response.content)
             self.assertEqual(response_content['message'], expected_message) 
 
