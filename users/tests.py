@@ -20,21 +20,22 @@ import uuid
 
 
 INVALID_EMAIL = 'email@email'
-EMAIL_IS_INVALID = 'Email is invalid'
-EMAIL_MUST_NOT_BE_NULL = 'Email must not be null'
-PASSWORD_MUST_NOT_BE_NULL = 'Password must not be null'
-OK_REQUEST_STATUS_CODE = 200
-BAD_REQUEST_STATUS_CODE = 400
-REGISTER_COMPANY_URL = '/users/register-company/'
-REGISTER_ASSESSEE_URL = '/users/register-assessee/'
-PASSWORD_INVALID_NO_UPPER = 'Password length must contain at least 1 uppercase character'
-EXCEPTION_NOT_RAISED = 'Exception not raised'
-REGISTER_ASSESSOR_URL = '/users/register-assessor/'
-GENERATE_ONE_TIME_CODE_URL = '/users/generate-code/'
 TEST_COMPANY_NAME = 'Dummy Company Name'
 TEST_COMPANY_DESCRIPTION = 'Dummy company description'
 TEST_COMPANY_ADDRESS = 'Dummy company address'
 REQUEST_CONTENT_TYPE = 'application/json'
+
+EMAIL_IS_INVALID = 'Email is invalid'
+EMAIL_MUST_NOT_BE_NULL = 'Email must not be null'
+PASSWORD_MUST_NOT_BE_NULL = 'Password must not be null'
+PASSWORD_INVALID_NO_UPPER = 'Password length must contain at least 1 uppercase character'
+EXCEPTION_NOT_RAISED = 'Exception not raised'
+
+REGISTER_COMPANY_URL = '/users/register-company/'
+REGISTER_ASSESSEE_URL = '/users/register-assessee/'
+REGISTER_ASSESSOR_URL = '/users/register-assessor/'
+GENERATE_ONE_TIME_CODE_URL = '/users/generate-code/'
+GET_USER_INFO_URL = '/users/get-info/'
 
 
 class OdiUserTestCase(TestCase):
@@ -424,7 +425,6 @@ class CompanyRegistrationTest(TestCase):
         except InvalidRegistrationException as exception:
             self.assertEqual(str(exception), exception_error_message)
 
-
     @patch.object(Company.objects, 'create_user')
     def test_save_company_from_request_data(self, mocked_create_user):
         request_data = self.base_request_data.copy()
@@ -538,7 +538,6 @@ class AssesseeRegistrationTest(TestCase):
         except InvalidRegistrationException as exception:
             self.assertEqual(str(exception), exception_error_message)
 
-
     @patch.object(Assessee.objects, 'create_user')
     def test_save_assessee_from_request_data(self, mocked_create_user):
         request_data = self.base_request_data.copy()
@@ -550,7 +549,6 @@ class AssesseeRegistrationTest(TestCase):
         self.assertEqual(saved_assessee, self.expected_assessee)
 
     def test_register_assessee(self):
-
         request_data = self.base_request_data.copy()
         with patch.object(registration, 'validate_user_registration_data') as mocked_validate_user_registration_data:
             with patch.object(registration, 'validate_user_assessee_registration_data') \
@@ -979,7 +977,6 @@ class AssessorViewsTestCase(TestCase):
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
         self.assertEqual(response_content['message'], expected_message)
-
 
 
 class AssesseeViewsTestCase(TestCase):
@@ -1463,4 +1460,74 @@ class GoogleLoginViewTest(TestCase):
             'Assessor or Assessee registering with google login with '
             f'{self.dummy_response_user_profile_data_from_id_token["email"]} email is not found.'
         )
-    
+
+
+class UserInfoViewTestCase(TestCase):
+    def setUp(self) -> None:
+        self.company = Company.objects.create_user(
+            email='company@email.com',
+            password='Password123',
+            company_name='PT Indonesia Sejahtera',
+            description='PT Indonesia Sejahtera adalah sebuah PT',
+            address='JL. PPL Jaya'
+        )
+
+        self.assessor = Assessor.objects.create_user(
+            email='assessor_info@gmail.com',
+            password='testPassword1234',
+            first_name='Abdul',
+            last_name='Jonathan',
+            phone_number='+6281275725231',
+            employee_id='AWZ123',
+            associated_company=self.company,
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.assessee = Assessee.objects.create_user(
+            email='assessee@gmail.com',
+            password='testPassword1234',
+            first_name='Anastasia',
+            last_name='Yuliana',
+            phone_number='+6281275725231',
+            date_of_birth='1994-09-30'
+        )
+
+    def test_serve_get_user_info_when_user_is_company(self):
+        client = APIClient()
+        client.force_authenticate(self.company)
+        response = client.get(GET_USER_INFO_URL)
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertIsNotNone(response_content.get('company_id'))
+        self.assertEqual(response_content.get('email'), self.company.email)
+        self.assertEqual(response_content.get('company_name'), self.company.company_name)
+        self.assertEqual(response_content.get('description'), self.company.description)
+        self.assertEqual(response_content.get('address'), self.company.address)
+
+    def test_serve_get_user_info_when_user_is_assessor(self):
+        client = APIClient()
+        client.force_authenticate(self.assessor)
+        response = client.get(GET_USER_INFO_URL)
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('first_name'), self.assessor.first_name)
+        self.assertEqual(response_content.get('last_name'), self.assessor.last_name)
+        self.assertEqual(response_content.get('phone_number'), self.assessor.phone_number)
+        self.assertEqual(response_content.get('employee_id'), self.assessor.employee_id)
+        self.assertEqual(response_content.get('company_id'), str(self.company.company_id))
+
+    def test_serve_get_user_info_when_user_is_assessee(self):
+        client = APIClient()
+        client.force_authenticate(self.assessee)
+        response = client.get(GET_USER_INFO_URL)
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('email'), self.assessee.email)
+        self.assertEqual(response_content.get('first_name'), self.assessee.first_name)
+        self.assertEqual(response_content.get('last_name'), self.assessee.last_name)
+        self.assertEqual(response_content.get('phone_number'), self.assessee.phone_number)
+        self.assertEqual(response_content.get('date_of_birth'), self.assessee.date_of_birth)
+
+
+
+
