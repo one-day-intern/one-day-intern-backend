@@ -29,7 +29,6 @@ REGISTER_COMPANY_URL = '/users/register-company/'
 REGISTER_ASSESSEE_URL = '/users/register-assessee/'
 PASSWORD_INVALID_NO_UPPER = 'Password length must contain at least 1 uppercase character'
 EXCEPTION_NOT_RAISED = 'Exception not raised'
-REGISTER_COMPANY_URL = '/users/register-company/'
 REGISTER_ASSESSOR_URL = '/users/register-assessor/'
 GENERATE_ONE_TIME_CODE_URL = '/users/generate-code/'
 TEST_COMPANY_NAME = 'Dummy Company Name'
@@ -291,28 +290,43 @@ class UserRegistrationTest(TestCase):
         except InvalidRegistrationException as exception:
             self.assertEqual(str(exception), expected_error_message)
 
-    @patch.object(OdiUser.objects, 'filter')
     @patch.object(utils, 'validate_password')
     @patch.object(utils, 'validate_email')
-    def test_validate_user_registration_when_user_is_already_registered(self,
-                                                                        mocked_validate_email,
-                                                                        mocked_validate_password,
-                                                                        mocked_filter):
+    def test_validate_user_registration_when_user_is_already_registered_with_same_email(self,
+                                                                                        mocked_validate_email,
+                                                                                        mocked_validate_password):
         request_data = self.base_request_data.copy()
         mocked_validate_email.return_value = True
         mocked_validate_password.return_value = {
             'is_valid': True,
             'message': None
         }
-
         OdiUser.objects.create_user(email=request_data['email'], password=request_data['password'])
-        mocked_filter.return_value = OdiUser.objects.all()
 
         try:
             registration.validate_user_registration_data(request_data)
             self.fail(EXCEPTION_NOT_RAISED)
         except InvalidRegistrationException as exception:
-            self.assertEqual(str(exception), f'Email {request_data["email"]} is already registered')
+            self.assertEqual(str(exception), f'Email {request_data["email"].lower()} is already registered')
+
+    @patch.object(utils, 'validate_password')
+    @patch.object(utils, 'validate_email')
+    def test_validate_user_registration_when_user_is_already_registered_with_different_email_case(
+            self, mocked_validate_email, mocked_validate_password):
+        request_data = self.base_request_data.copy()
+        request_data['email'] = request_data['email'].upper()
+        mocked_validate_email.return_value = True
+        mocked_validate_password.return_value = {
+            'is_valid': True,
+            'message': None
+        }
+        OdiUser.objects.create_user(email=self.base_request_data['email'], password=request_data['password'])
+
+        try:
+            registration.validate_user_registration_data(request_data)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidRegistrationException as exception:
+            self.assertEqual(str(exception), f'Email {request_data["email"].lower()} is already registered')
 
 
 class CompanyRegistrationTest(TestCase):
@@ -410,6 +424,7 @@ class CompanyRegistrationTest(TestCase):
         except InvalidRegistrationException as exception:
             self.assertEqual(str(exception), exception_error_message)
 
+
     @patch.object(Company.objects, 'create_user')
     def test_save_company_from_request_data(self, mocked_create_user):
         request_data = self.base_request_data.copy()
@@ -438,6 +453,7 @@ class CompanyRegistrationTest(TestCase):
         mocked_validate_user_company_registration_data.assert_called_once()
         mocked_save_company_from_request_data.assert_called_once()
         self.assertEqual(dummy_company, self.expected_company)
+
 
 class AssesseeRegistrationTest(TestCase):
     def setUp(self) -> None:
@@ -552,6 +568,7 @@ class AssesseeRegistrationTest(TestCase):
                     mocked_save_assessee_from_request_data.assert_called_once()
                     self.assertEqual(dummy_assessee, self.expected_assessee)
 
+
 class ViewsTestCase(TestCase):
     def setUp(self) -> None:
         self.registration_base_data = {
@@ -582,6 +599,34 @@ class ViewsTestCase(TestCase):
         self.assertEqual(response_content['company_name'], registration_data['company_name'])
         self.assertEqual(response_content['description'], registration_data['company_description'])
         self.assertEqual(response_content['address'], registration_data['company_address'])
+
+    def test_register_company_when_company_already_registered(self):
+        expected_message = 'Email test_email_views_test_case@gmail.com is already registered'
+        registration_data = self.registration_base_data.copy()
+        registration_data['email'] = 'test_emaiL_views_test_case@gmail.com'
+        self.fetch_with_data(registration_data, REGISTER_COMPANY_URL)
+
+        registration_data = self.registration_base_data.copy()
+        registration_data['email'] = 'test_emaIl_views_test_case@gmail.com'
+        response = self.fetch_with_data(registration_data, REGISTER_COMPANY_URL)
+
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content['message'], expected_message)
+
+    def test_register_company_when_company_already_registered_but_different_email_case(self):
+        expected_message = 'Email test_email_views_test_case@gmail.com is already registered'
+        registration_data = self.registration_base_data.copy()
+        registration_data['email'] = 'test_email_views_test_case@gmail.com'
+        self.fetch_with_data(registration_data, REGISTER_COMPANY_URL)
+
+        registration_data = self.registration_base_data.copy()
+        registration_data['email'] = 'test_email_views_test_case@gmaiL.com'
+        response = self.fetch_with_data(registration_data, REGISTER_COMPANY_URL)
+
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content['message'], expected_message)
 
     def base_test_register_company_when_invalid(self, registration_data, expected_message, expected_status_code):
         response = self.fetch_with_data(registration_data, REGISTER_COMPANY_URL)
@@ -870,7 +915,7 @@ class AssessorViewsTestCase(TestCase):
         self.assertEqual(response_content['message'], EMAIL_MUST_NOT_BE_NULL)
 
         registration_data = self.base_registration_data.copy()
-        registration_data['email'] = 'email@email'
+        registration_data['email'] = INVALID_EMAIL
         response = self.fetch_with_data(registration_data, REGISTER_ASSESSOR_URL)
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
@@ -938,103 +983,104 @@ class AssessorViewsTestCase(TestCase):
 
 
 class AssesseeViewsTestCase(TestCase):
-        def setUp(self) -> None:
-            self.registration_base_data = {
-                    'email': 'assessee@gmail.com',
-                    'password': 'testPassword1234',
-                    'confirmed_password': 'testPassword1234',
-                    'first_name': 'Anastasia',
-                    'last_name': 'Yuliana',
-                    'phone_number': '+6281275725231',
-                    'date_of_birth': '1994-09-30T10:37:35.849Z'
-                }
+    def setUp(self) -> None:
+        self.registration_base_data = {
+                'email': 'assessee@gmail.com',
+                'password': 'testPassword1234',
+                'confirmed_password': 'testPassword1234',
+                'first_name': 'Anastasia',
+                'last_name': 'Yuliana',
+                'phone_number': '+6281275725231',
+                'date_of_birth': '1994-09-30T10:37:35.849Z'
+            }
 
-        def fetch_with_data(self, registration_data, url_to_fetch):
-            response = self.client.post(
-                url_to_fetch,
-                data=json.dumps(registration_data),
-                content_type='application/json'
-            )
-            return response
+    def fetch_with_data(self, registration_data, url_to_fetch):
+        response = self.client.post(
+            url_to_fetch,
+            data=json.dumps(registration_data),
+            content_type='application/json'
+        )
+        return response
 
-        def test_register_assessee_when_complete(self):
-            registration_data = self.registration_base_data.copy()
-            response = self.fetch_with_data(registration_data, REGISTER_ASSESSEE_URL)
-            self.assertEqual(response.status_code, HTTPStatus.OK)
+    def test_register_assessee_when_complete(self):
+        registration_data = self.registration_base_data.copy()
+        response = self.fetch_with_data(registration_data, REGISTER_ASSESSEE_URL)
+        self.assertEqual(response.status_code, HTTPStatus.OK)
 
-            response_content = json.loads(response.content)
-            self.assertTrue(len(response_content) > 0)
-            self.assertEqual(response_content['email'], registration_data['email'])
-            self.assertEqual(response_content['first_name'], registration_data['first_name'])
-            self.assertEqual(response_content['last_name'], registration_data['last_name'])
-            self.assertEqual(response_content['phone_number'], registration_data['phone_number'])
-            self.assertEqual(response_content['date_of_birth'], '1994-09-30')
+        response_content = json.loads(response.content)
+        self.assertTrue(len(response_content) > 0)
+        self.assertEqual(response_content['email'], registration_data['email'])
+        self.assertEqual(response_content['first_name'], registration_data['first_name'])
+        self.assertEqual(response_content['last_name'], registration_data['last_name'])
+        self.assertEqual(response_content['phone_number'], registration_data['phone_number'])
+        self.assertEqual(response_content['date_of_birth'], '1994-09-30')
 
-        def test_register_assessee_when_email_is_invalid(self):
-            registration_data = self.registration_base_data.copy()
-            registration_data['email'] = ''
-            response = self.fetch_with_data(registration_data, REGISTER_ASSESSEE_URL)
-            self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
-            response_content = json.loads(response.content)
-            self.assertEqual(response_content['message'], EMAIL_MUST_NOT_BE_NULL)
+    def test_register_assessee_when_email_is_invalid(self):
+        registration_data = self.registration_base_data.copy()
+        registration_data['email'] = ''
+        response = self.fetch_with_data(registration_data, REGISTER_ASSESSEE_URL)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content['message'], EMAIL_MUST_NOT_BE_NULL)
 
-            registration_data = self.registration_base_data.copy()
-            registration_data['email'] = 'email@email'
-            response = self.fetch_with_data(registration_data, REGISTER_ASSESSEE_URL)
-            self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
-            response_content = json.loads(response.content)
-            self.assertEqual(response_content['message'], EMAIL_IS_INVALID)
+        registration_data = self.registration_base_data.copy()
+        registration_data['email'] = INVALID_EMAIL
+        response = self.fetch_with_data(registration_data, REGISTER_ASSESSEE_URL)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content['message'], EMAIL_IS_INVALID)
 
-        def test_register_assessee_when_password_is_invalid(self):
-            registration_data = self.registration_base_data.copy()
-            registration_data['password'] = ''
-            response = self.fetch_with_data(registration_data, REGISTER_ASSESSEE_URL)
-            self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
-            response_content = json.loads(response.content)
-            self.assertEqual(response_content['message'], PASSWORD_MUST_NOT_BE_NULL)
+    def test_register_assessee_when_password_is_invalid(self):
+        registration_data = self.registration_base_data.copy()
+        registration_data['password'] = ''
+        response = self.fetch_with_data(registration_data, REGISTER_ASSESSEE_URL)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content['message'], PASSWORD_MUST_NOT_BE_NULL)
 
-            registration_data = self.registration_base_data.copy()
-            registration_data['password'] = 'password'
-            expected_message = 'Password length must contain at least 1 uppercase character'
-            response = self.fetch_with_data(registration_data, REGISTER_ASSESSEE_URL)
-            self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
-            response_content = json.loads(response.content)
-            self.assertEqual(response_content['message'], expected_message)
+        registration_data = self.registration_base_data.copy()
+        registration_data['password'] = 'password'
+        expected_message = 'Password length must contain at least 1 uppercase character'
+        response = self.fetch_with_data(registration_data, REGISTER_ASSESSEE_URL)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content['message'], expected_message)
 
-        def test_register_assessee_with_invalid_first_name(self):
-            registration_data = self.registration_base_data.copy()
-            registration_data['first_name'] = ''
-            response = self.fetch_with_data(registration_data, REGISTER_ASSESSEE_URL)
-            expected_message = 'Assessee first name must not be null'
-            self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
-            response_content = json.loads(response.content)
-            self.assertEqual(response_content['message'], expected_message)
+    def test_register_assessee_with_invalid_first_name(self):
+        registration_data = self.registration_base_data.copy()
+        registration_data['first_name'] = ''
+        response = self.fetch_with_data(registration_data, REGISTER_ASSESSEE_URL)
+        expected_message = 'Assessee first name must not be null'
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content['message'], expected_message)
 
-        def test_register_assessee_with_invalid_phone_number(self):
-            registration_data = self.registration_base_data.copy()
-            registration_data['phone_number'] = ''
-            response = self.fetch_with_data(registration_data, REGISTER_ASSESSEE_URL)
-            expected_message = 'Assessee phone number must not be null'
-            self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
-            response_content = json.loads(response.content)
-            self.assertEqual(response_content['message'], expected_message)
+    def test_register_assessee_with_invalid_phone_number(self):
+        registration_data = self.registration_base_data.copy()
+        registration_data['phone_number'] = ''
+        response = self.fetch_with_data(registration_data, REGISTER_ASSESSEE_URL)
+        expected_message = 'Assessee phone number must not be null'
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content['message'], expected_message)
 
-        def test_register_assessee_with_invalid_date_of_birth(self):
-            registration_data = self.registration_base_data.copy()
-            registration_data['date_of_birth'] = ''
-            response = self.fetch_with_data(registration_data, REGISTER_ASSESSEE_URL)
-            expected_message = 'Assessee date of birth must not be null'
-            self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
-            response_content = json.loads(response.content)
-            self.assertEqual(response_content['message'], expected_message)
+    def test_register_assessee_with_invalid_date_of_birth(self):
+        registration_data = self.registration_base_data.copy()
+        registration_data['date_of_birth'] = ''
+        response = self.fetch_with_data(registration_data, REGISTER_ASSESSEE_URL)
+        expected_message = 'Assessee date of birth must not be null'
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content['message'], expected_message)
 
-            registration_data = self.registration_base_data.copy()
-            registration_data['date_of_birth'] = '09-1994-30T10:37:35.849Z'
-            response = self.fetch_with_data(registration_data, REGISTER_ASSESSEE_URL)
-            expected_message = 'Invalid date of birth format'
-            self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
-            response_content = json.loads(response.content)
-            self.assertEqual(response_content['message'], expected_message)
+        registration_data = self.registration_base_data.copy()
+        registration_data['date_of_birth'] = '09-1994-30T10:37:35.849Z'
+        response = self.fetch_with_data(registration_data, REGISTER_ASSESSEE_URL)
+        expected_message = 'Invalid date of birth format'
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content['message'], expected_message)
+
 
 class GenerateOneTimeCodeTest(TestCase):
     def setUp(self) -> None:
