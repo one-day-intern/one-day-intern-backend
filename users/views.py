@@ -131,4 +131,5 @@ def generate_assessor_one_time_code(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def serve_get_user_info(request):
-    return Response(data=None)
+    response_data = get_user_info(request.user)
+    return Response(data=response_data)
