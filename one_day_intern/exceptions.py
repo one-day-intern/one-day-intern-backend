@@ -9,6 +9,7 @@ class InvalidAssignmentRegistration(Exception):
 class InvalidRequestException(Exception):
     pass
 
+
 class InvalidRegistrationException(Exception):
     pass
 
