@@ -22,3 +22,27 @@ def serve_create_assignment(request):
     assignment = create_assignment(request_data, request.user)
     response_data = AssignmentSerializer(assignment).data
     return Response(data=response_data)
+
+
+@require_POST
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def serve_create_test_flow(request):
+    """
+    Endpoint can only be accessed by company/assessor
+    request_data must contain
+    test_flow_name,
+    tools_used (in the form of a list, with dictionaries as its elements)
+    tools_used is OPTIONAL, when not present, a test flow with no tools will be created
+    A valid request looks like this.
+    {
+        "name": <test flow name>,
+        "tools_used": [
+            {
+                "tool_id": <tool-id-uuid>,
+                "release_time": <release-time>
+            }
+        ]
+    }
+    """
+    return Response(data=None)

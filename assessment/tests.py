@@ -1,4 +1,6 @@
 from django.test import TestCase
+from django.urls import reverse
+from http import HTTPStatus
 from one_day_intern.exceptions import RestrictedAccessException, InvalidAssignmentRegistration, InvalidRequestException
 from rest_framework.test import APIClient
 from unittest.mock import patch, call
@@ -19,6 +21,7 @@ import uuid
 EXCEPTION_NOT_RAISED = 'Exception not raised'
 TEST_FLOW_INVALID_NAME = 'Test Flow name must exist and must be at most 50 characters'
 CREATE_ASSIGNMENT_URL = '/assessment/create/assignment/'
+CREATE_TEST_FLOW_URL = reverse('test-flow-create')
 OK_RESPONSE_STATUS_CODE = 200
 
 
@@ -181,6 +184,14 @@ class AssessmentTest(TestCase):
         )
         self.assertEqual(response_content.get('owning_company_id'), self.company.id)
         self.assertEqual(response_content.get('owning_company_name'), self.company.company_name)
+
+
+def fetch_create_test_flow(request_data, authenticated_user):
+    client = APIClient()
+    client.force_authenticate(user=authenticated_user)
+    test_flow_data = json.dumps(request_data)
+    response = client.post(CREATE_TEST_FLOW_URL, data=test_flow_data, content_type='application/json')
+    return response
 
 
 class TestFlowTest(TestCase):
@@ -361,7 +372,7 @@ class TestFlowTest(TestCase):
         invalid_datetime_string = '2020-Monday-OctoberT01:01:01'
         expected_error_message = f'{invalid_datetime_string} is not a valid ISO date string'
         mocked_get_tool.return_value = None
-        mocked_get_tool.side_effect = ValueError(expected_error_message)
+        mocked_get_time.side_effect = ValueError(expected_error_message)
 
         request_data = self.base_request_data.copy()
         request_data['tool_id'] = [{
@@ -461,3 +472,104 @@ class TestFlowTest(TestCase):
         self.assertIsNotNone(saved_test_flow.test_flow_id)
         self.assertEqual(saved_test_flow.name, request_data.get('name'))
         self.assertEqual(saved_test_flow.owning_company, self.company)
+
+    def flow_assert_response_correctness_when_request_is_valid(self, response, request_data,
+                                                               expected_number_of_tools, expected_usable, company):
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertIsNotNone(response_content.get('test_flow_id'))
+        self.assertEqual(response_content.get('name'), request_data.get('name'))
+        self.assertEqual(response_content.get('owning_company_id'), str(company.company_id))
+        self.assertEqual(response_content.get('is_usable'), expected_usable)
+        self.assertEqual(len(response_content.get('tools')), expected_number_of_tools)
+
+    def flow_assert_response_correctness_when_request_is_invalid(self, response, expected_status_code,
+                                                                 expected_message):
+        self.assertEqual(response.status_code, expected_status_code)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), expected_message)
+
+    def test_create_test_flow_when_tools_used_is_empty_and_user_is_company(self):
+        request_data = self.base_request_data.copy()
+        request_data['tools_used'] = []
+
+        response = fetch_create_test_flow(request_data=request_data, authenticated_user=self.company)
+        self.flow_assert_response_correctness_when_request_is_valid(
+            response=response,
+            request_data=request_data,
+            expected_number_of_tools=0,
+            expected_usable=False,
+            company=self.company
+        )
+
+    def test_create_test_flow_when_no_tools_used_field_and_user_is_company(self):
+        request_data = self.base_request_data.copy()
+        del request_data['tools_used']
+        response = fetch_create_test_flow(request_data=request_data, authenticated_user=self.company)
+        self.flow_assert_response_correctness_when_request_is_valid(
+            response=response,
+            request_data=request_data,
+            expected_number_of_tools=0,
+            expected_usable=False,
+            company=self.company
+        )
+
+    def test_create_test_flow_when_tool_id_used_does_not_exist_and_user_is_company(self):
+        non_exist_tool_id = str(uuid.uuid4())
+        request_data = self.base_request_data.copy()
+        request_data['tools_used'] = [
+            {
+                'tool_id': non_exist_tool_id,
+                'release_time': '1998-01-01T01:01:00Z'
+            }
+        ]
+        response = fetch_create_test_flow(request_data=request_data, authenticated_user=self.company)
+        self.flow_assert_response_correctness_when_request_is_invalid(
+            response=response,
+            expected_status_code=HTTPStatus.BAD_REQUEST,
+            expected_message=f'Assessment tool with id {non_exist_tool_id} does not exist'
+        )
+
+    def test_create_test_flow_when_tool_release_time_is_invalid_and_user_is_company(self):
+        invalid_iso_datetime = '2022-10-2501:20:00.000'
+        request_data = self.base_request_data.copy()
+        request_data['tools_used'] = [
+            {
+                'tool_id': str(self.assessment_tool_1.assessment_id),
+                'release_time': invalid_iso_datetime
+            }
+        ]
+
+        response = fetch_create_test_flow(request_data=request_data, authenticated_user=self.company)
+        self.flow_assert_response_correctness_when_request_is_invalid(
+            response=response,
+            expected_status_code=HTTPStatus.BAD_REQUEST,
+            expected_message=f'{invalid_iso_datetime} is not a valid ISO date string'
+        )
+
+    def assert_tool_data_correctness(self, tool_flow_data, assessment_tool: Assignment):
+        self.assertIsNotNone(tool_flow_data.get('assessment_tool'))
+        assessment_tool_data = tool_flow_data.get('assessment_tool')
+        self.assertEqual(assessment_tool_data.get('name'), assessment_tool.name)
+        self.assertEqual(assessment_tool_data.get('description'), assessment_tool.description)
+        self.assertEqual(assessment_tool_data.get('owning_company_id'), str(assessment_tool.owning_company.company_id))
+
+    def test_create_test_flow_when_request_is_valid_and_user_is_company(self):
+        request_data = self.base_request_data.copy()
+        response = fetch_create_test_flow(request_data=request_data, authenticated_user=self.company)
+        self.flow_assert_response_correctness_when_request_is_valid(
+            response=response,
+            request_data=request_data,
+            expected_number_of_tools=2,
+            expected_usable=True,
+            company=self.company
+        )
+
+        response_content = json.loads(response.content)
+        tools = response_content.get('tools')
+
+        test_flow_tool_1 = tools[0]
+        self.assert_tool_data_correctness(test_flow_tool_1, self.assessment_tool_1)
+
+        test_flow_tool_2 = tools[1]
+        self.assert_tool_data_correctness(test_flow_tool_2, self.assessment_tool_2)
