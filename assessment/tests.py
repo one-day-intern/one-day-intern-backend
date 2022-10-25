@@ -1,7 +1,7 @@
 from django.test import TestCase
 from one_day_intern.exceptions import RestrictedAccessException, InvalidAssignmentRegistration, InvalidRequestException
 from rest_framework.test import APIClient
-from unittest.mock import patch
+from unittest.mock import patch, call
 from users.models import (
     Company,
     Assessor,
@@ -430,3 +430,34 @@ class TestFlowTest(TestCase):
         release_time = tool_data_assessment_1['release_time']
         self.assertEqual(tool.assessment_id, self.assessment_tool_1.assessment_id)
         self.assertEqual(release_time, expected_release_time)
+
+    @patch.object(TestFlow, 'save')
+    @patch.object(TestFlow, 'add_tool')
+    def test_save_test_flow_to_database_when_converted_tools_is_empty(self, mocked_add_tool, mocked_save):
+        converted_tools = []
+        request_data = self.base_request_data.copy()
+        saved_test_flow = test_flow.save_test_flow_to_database(request_data, converted_tools, self.company)
+        mocked_save.assert_called_once()
+        mocked_add_tool.assert_not_called()
+        self.assertIsNotNone(saved_test_flow.test_flow_id)
+        self.assertEqual(saved_test_flow.name, request_data.get('name'))
+        self.assertEqual(saved_test_flow.owning_company, self.company)
+
+    @patch.object(TestFlow, 'save')
+    @patch.object(TestFlow, 'add_tool')
+    def test_save_test_flow_to_database_when_converted_tools_is_not_empty(self, mocked_add_tool, mocked_save):
+        request_data = self.base_request_data.copy()
+        converted_tools = self.converted_tools.copy()
+        converted_tool_1 = converted_tools[0]
+        converted_tool_2 = converted_tools[1]
+        expected_calls = [
+            call(assessment_tool=converted_tool_1['tool'], release_time=converted_tool_1['release_time']),
+            call(assessment_tool=converted_tool_2['tool'], release_time=converted_tool_2['release_time'])
+        ]
+
+        saved_test_flow = test_flow.save_test_flow_to_database(request_data, converted_tools, self.company)
+        mocked_save.assert_called_once()
+        mocked_add_tool.assert_has_calls(expected_calls)
+        self.assertIsNotNone(saved_test_flow.test_flow_id)
+        self.assertEqual(saved_test_flow.name, request_data.get('name'))
+        self.assertEqual(saved_test_flow.owning_company, self.company)
