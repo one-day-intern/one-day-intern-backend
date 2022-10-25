@@ -387,3 +387,46 @@ class TestFlowTest(TestCase):
             self.fail(EXCEPTION_NOT_RAISED)
         except InvalidRequestException as exception:
             self.assertEqual(str(exception), 'Test Flow must be of type list')
+
+    @patch.object(utils, 'get_time_from_date_time_string')
+    @patch.object(utils, 'get_tool_from_id')
+    def test_convert_assessment_tool_id_to_assessment_tool_when_request_does_not_contain_tool(self, mocked_get_tool,
+                                                                                              mocked_get_time):
+        mocked_get_tool.return_value = None
+        mocked_get_time.return_value = None
+        request_data = self.base_request_data.copy()
+        del request_data['tools_used']
+        converted_tool = test_flow.convert_assessment_tool_id_to_assessment_tool(request_data)
+        self.assertEqual(converted_tool, [])
+
+    @patch.object(utils, 'get_time_from_date_time_string')
+    @patch.object(utils, 'get_tool_from_id')
+    def test_convert_assessment_tool_id_to_assessment_tool_when_tools_used_is_empty(self, mocked_get_tool,
+                                                                                    mocked_get_time):
+        mocked_get_tool.return_value = None
+        mocked_get_time.return_value = None
+        request_data = self.base_request_data.copy()
+        request_data['tools_used'] = []
+        converted_tool = test_flow.convert_assessment_tool_id_to_assessment_tool(request_data)
+        self.assertEqual(converted_tool, [])
+
+    @patch.object(utils, 'get_time_from_date_time_string')
+    @patch.object(utils, 'get_tool_from_id')
+    def test_convert_assessment_tool_id_assessment_tool_when_tools_used_not_empty(self, mocked_get_tool,
+                                                                                  mocked_get_time):
+        number_of_assessment_tools = 2
+        expected_release_time = datetime.time(13, 00)
+        mocked_get_tool.return_value = self.assessment_tool_1
+        mocked_get_time.return_value = expected_release_time
+        request_data = self.base_request_data.copy()
+        converted_tools = test_flow.convert_assessment_tool_id_to_assessment_tool(request_data)
+
+        self.assertEqual(len(converted_tools), number_of_assessment_tools)
+        tool_data_assessment_1 = converted_tools[1]
+        self.assertIsNotNone(tool_data_assessment_1.get('tool'))
+        self.assertIsNotNone(tool_data_assessment_1.get('release_time'))
+
+        tool = tool_data_assessment_1['tool']
+        release_time = tool_data_assessment_1['release_time']
+        self.assertEqual(tool.assessment_id, self.assessment_tool_1.assessment_id)
+        self.assertEqual(release_time, expected_release_time)
