@@ -75,3 +75,21 @@ class Assessee(OdiUser):
         default=AuthenticationService.DEFAULT.value
     )
 
+class AssesseeSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Assessee
+        fields = ['email','first_name', 'last_name', 'phone_number', 'date_of_birth']
+
+class CompanyOneTimeLinkCode(models.Model):
+    associated_company = models.ForeignKey('Company', on_delete=models.CASCADE)
+    code = models.UUIDField(default=uuid.uuid4, auto_created=True)
+    is_active = models.BooleanField(default=True)
+
+
+class CompanyOneTimeLinkCodeSerializer(serializers.ModelSerializer):
+    associated_company = serializers.ReadOnlyField(source='associated_company.email')
+
+    class Meta:
+        model = CompanyOneTimeLinkCode
+        fields = ['associated_company', 'code', 'is_active']
