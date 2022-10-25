@@ -43,7 +43,16 @@ def convert_assessment_tool_id_to_assessment_tool(request_data) -> list:
 
 
 def save_test_flow_to_database(request_data, converted_tools, company) -> TestFlow:
-    raise Exception
+    name = request_data.get('name')
+    test_flow = TestFlow.objects.create(name=name, owning_company=company)
+
+    for tool_data in converted_tools:
+        test_flow.add_tool(
+            assessment_tool=tool_data.get('tool'),
+            release_time=tool_data.get('release_time')
+        )
+
+    return test_flow
 
 
 def create_test_flow(request_data: dict, user: User):
