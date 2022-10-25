@@ -1,5 +1,5 @@
 from django.test import TestCase
-from one_day_intern.exceptions import RestrictedAccessException, InvalidAssignmentRegistration
+from one_day_intern.exceptions import RestrictedAccessException, InvalidAssignmentRegistration, InvalidRequestException
 from rest_framework.test import APIClient
 from unittest.mock import patch
 from users.models import (
@@ -11,7 +11,7 @@ from users.models import (
 )
 from .exceptions.exceptions import AssessmentToolDoesNotExist
 from .models import Assignment, AssignmentSerializer, TestFlow, TestFlowTool
-from .services import assessment, utils
+from .services import assessment, utils, test_flow
 import datetime
 import json
 import uuid
@@ -283,3 +283,107 @@ class TestFlowTest(TestCase):
             test_flow=test_flow_,
             release_time=release_time
         )
+
+    @patch.object(utils, 'get_time_from_date_time_string')
+    @patch.object(utils, 'get_tool_from_id')
+    def test_validate_test_flow_when_name_does_not_exist(self, mocked_get_tool, mocked_get_time):
+        mocked_get_tool.return_value = None
+        mocked_get_time.return_value = None
+        request_data = self.base_request_data.copy()
+        del request_data['name']
+
+        try:
+            test_flow.validate_test_flow_registration(request_data)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidRequestException as exception:
+            self.assertEqual(str(exception), TEST_FLOW_INVALID_NAME)
+
+    @patch.object(utils, 'get_time_from_date_time_string')
+    @patch.object(utils, 'get_tool_from_id')
+    def test_validate_test_flow_when_name_exceeds_50_character(self, mocked_get_tool, mocked_get_time):
+        mocked_get_tool.return_value = None
+        mocked_get_time.return_value = None
+        request_data = self.base_request_data.copy()
+        request_data['name'] = 'abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz'
+
+        try:
+            test_flow.validate_test_flow_registration(request_data)
+        except InvalidRequestException as exception:
+            self.assertEqual(str(exception), TEST_FLOW_INVALID_NAME)
+
+    @patch.object(utils, 'get_time_from_date_time_string')
+    @patch.object(utils, 'get_tool_from_id')
+    def test_validate_test_flow_when_does_not_contain_tool_used(self, mocked_get_tool, mocked_get_time):
+        mocked_get_tool.return_value = None
+        mocked_get_time.return_value = None
+        request_data = self.base_request_data.copy()
+        request_data['tools_used'] = []
+
+        try:
+            test_flow.validate_test_flow_registration(request_data)
+        except Exception as exception:
+            self.fail(f'{exception} is raised')
+
+    @patch.object(utils, 'get_time_from_date_time_string')
+    @patch.object(utils, 'get_tool_from_id')
+    def test_validate_test_flow_when_contain_tool_used(self, mocked_get_tool, mocked_get_time):
+        mocked_get_tool.return_value = None
+        mocked_get_time.return_value = None
+        request_data = self.base_request_data.copy()
+
+        try:
+            test_flow.validate_test_flow_registration(request_data)
+        except Exception as exception:
+            self.fail(f'{exception} is raised')
+
+    @patch.object(utils, 'get_time_from_date_time_string')
+    @patch.object(utils, 'get_tool_from_id')
+    def test_validate_test_flow_when_tool_does_not_exist(self, mocked_get_tool, mocked_get_time):
+        invalid_tool_id = str(uuid.uuid4())
+        expected_error_message = f'Assessment tool with id {invalid_tool_id} does not exist'
+        mocked_get_time.return_value = None
+        mocked_get_tool.side_effect = AssessmentToolDoesNotExist(expected_error_message)
+        request_data = self.base_request_data.copy()
+        request_data['tools_used'] = [{
+            'tool_id': invalid_tool_id,
+            'release_time': '2022-10-25T01:20:00.000Z'
+        }]
+
+        try:
+            test_flow.validate_test_flow_registration(request_data)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidRequestException as exception:
+            self.assertEqual(str(exception), expected_error_message)
+
+    @patch.object(utils, 'get_time_from_date_time_string')
+    @patch.object(utils, 'get_tool_from_id')
+    def test_validate_test_flow_when_datetime_is_invalid(self, mocked_get_tool, mocked_get_time):
+        invalid_datetime_string = '2020-Monday-OctoberT01:01:01'
+        expected_error_message = f'{invalid_datetime_string} is not a valid ISO date string'
+        mocked_get_tool.return_value = None
+        mocked_get_tool.side_effect = ValueError(expected_error_message)
+
+        request_data = self.base_request_data.copy()
+        request_data['tool_id'] = [{
+            'tool_id': str(self.assessment_tool_1.assessment_id),
+            'release_time': invalid_datetime_string
+        }]
+
+        try:
+            test_flow.validate_test_flow_registration(request_data)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidRequestException as exception:
+            self.assertEqual(str(exception), f'{invalid_datetime_string} is not a valid ISO date string')
+
+    @patch.object(utils, 'get_time_from_date_time_string')
+    @patch.object(utils, 'get_tool_from_id')
+    def test_validate_test_flow_when_tool_used_is_not_a_list(self, mocked_get_tool, mocked_get_time):
+        mocked_get_tool.return_value = None
+        mocked_get_time.return_value = None
+        request_data = self.base_request_data.copy()
+        request_data['tools_used'] = 'list'
+        try:
+            test_flow.validate_test_flow_registration(request_data)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidRequestException as exception:
+            self.assertEqual(str(exception), 'Test Flow must be of type list')
