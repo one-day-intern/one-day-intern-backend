@@ -3,7 +3,8 @@ from django.views.decorators.http import require_POST
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from .services.assessment import create_assignment
-from .models import AssignmentSerializer
+from .services.test_flow import create_test_flow
+from .models import AssignmentSerializer, TestFlowSerializer
 import json
 
 
@@ -45,4 +46,8 @@ def serve_create_test_flow(request):
         ]
     }
     """
-    return Response(data=None)
+    request_data = json.loads(request.body.decode('utf-8'))
+    test_flow = create_test_flow(request_data, user=request.user)
+    response_data = TestFlowSerializer(test_flow).data
+    return Response(data=response_data)
+

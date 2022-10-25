@@ -56,4 +56,8 @@ def save_test_flow_to_database(request_data, converted_tools, company) -> TestFl
 
 
 def create_test_flow(request_data: dict, user: User):
-    raise Exception
+    company = utils.get_company_or_assessor_associated_company_from_user(user)
+    validate_test_flow_registration(request_data)
+    converted_tools = convert_assessment_tool_id_to_assessment_tool(request_data)
+    test_flow = save_test_flow_to_database(request_data, converted_tools, company)
+    return test_flow

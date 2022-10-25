@@ -1,4 +1,7 @@
+from django.contrib.auth.models import User
 from datetime import time, datetime
+from users.models import Company, Assessor
+from one_day_intern.exceptions import RestrictedAccessException
 from ..exceptions.exceptions import AssessmentToolDoesNotExist
 from ..models import AssessmentTool
 
@@ -25,3 +28,15 @@ def get_tool_from_id(tool_id) -> AssessmentTool:
     else:
         raise AssessmentToolDoesNotExist(f'Assessment tool with id {tool_id} does not exist')
 
+
+def get_company_or_assessor_associated_company_from_user(user: User) -> Company:
+    found_companies = Company.objects.filter(email=user.email)
+    if found_companies:
+        return found_companies[0]
+
+    found_assessors = Assessor.objects.filter(email=user.email)
+    if found_assessors:
+        assessor = found_assessors[0]
+        return assessor.associated_company
+
+    raise RestrictedAccessException(f'User with email {user.email} is not a company or an assessor')
