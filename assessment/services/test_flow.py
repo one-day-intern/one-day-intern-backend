@@ -27,7 +27,19 @@ def validate_test_flow_registration(request_data: dict):
 
 
 def convert_assessment_tool_id_to_assessment_tool(request_data) -> list:
-    raise Exception
+    assessment_tools_in_request = request_data.get('tools_used')
+    assessment_tools_release_time = []
+    if assessment_tools_in_request:
+        for request_tool_data in assessment_tools_in_request:
+            tool = utils.get_tool_from_id(request_tool_data.get('tool_id'))
+            release_time = utils.get_time_from_date_time_string(request_tool_data.get('release_time'))
+            tool_data = {
+                'tool': tool,
+                'release_time': release_time
+            }
+            assessment_tools_release_time.append(tool_data)
+
+    return assessment_tools_release_time
 
 
 def save_test_flow_to_database(request_data, converted_tools, company) -> TestFlow:
