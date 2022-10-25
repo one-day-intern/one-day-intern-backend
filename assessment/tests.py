@@ -1,4 +1,7 @@
 from django.test import TestCase
+from one_day_intern.exceptions import RestrictedAccessException, InvalidAssignmentRegistration
+from rest_framework.test import APIClient
+from unittest.mock import patch
 from users.models import (
     Company,
     Assessor,
@@ -6,13 +9,12 @@ from users.models import (
     AuthenticationService,
     AssessorSerializer
 )
-from rest_framework.test import APIClient
-from unittest.mock import patch
+from .exceptions.exceptions import AssessmentToolDoesNotExist
 from .models import Assignment, AssignmentSerializer
-from one_day_intern.exceptions import RestrictedAccessException, InvalidAssignmentRegistration
 from .services import assessment, utils
 import datetime
 import json
+import uuid
 
 EXCEPTION_NOT_RAISED = 'Exception not raised'
 CREATE_ASSIGNMENT_URL = '/assessment/create/assignment/'
@@ -178,3 +180,63 @@ class AssessmentTest(TestCase):
         )
         self.assertEqual(response_content.get('owning_company_id'), self.company.id)
         self.assertEqual(response_content.get('owning_company_name'), self.company.company_name)
+
+
+class TestFlowTest(TestCase):
+    def setUp(self) -> None:
+        self.company = Company.objects.create_user(
+            email='companytestflow@company.com',
+            password='password',
+            company_name='Company',
+            description='Company Description',
+            address='JL. Company Levinson Durbin Householder'
+        )
+
+        self.assessment_tool_1 = Assignment.objects.create(
+            name='Assignment 1',
+            description='An Assignment number 1',
+            owning_company=self.company,
+            expected_file_format='docx',
+            duration_in_minutes=50
+        )
+
+        self.assessment_tool_2 = Assignment.objects.create(
+            name='Assignment 2',
+            description='An Assignment number 2',
+            owning_company=self.company,
+            expected_file_format='pdf',
+            duration_in_minutes=100
+        )
+
+    def test_get_tool_from_id_when_tool_exist(self):
+        tool_id = str(self.assessment_tool_1.assessment_id)
+        retrieved_assessment_tool = utils.get_tool_from_id(tool_id)
+        self.assertEqual(str(retrieved_assessment_tool.assessment_id), tool_id)
+        self.assertEqual(retrieved_assessment_tool.name, self.assessment_tool_1.name)
+        self.assertEqual(retrieved_assessment_tool.description, self.assessment_tool_1.description)
+        self.assertEqual(retrieved_assessment_tool.expected_file_format, self.assessment_tool_1.expected_file_format)
+        self.assertEqual(retrieved_assessment_tool.duration_in_minutes, self.assessment_tool_1.duration_in_minutes)
+
+    def test_get_tool_from_id_when_tool_does_not_exist(self):
+        tool_id = str(uuid.uuid4())
+        expected_message = f'Assessment tool with id {tool_id} does not exist'
+        try:
+            utils.get_tool_from_id(tool_id)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except AssessmentToolDoesNotExist as exception:
+            self.assertEqual(str(exception), expected_message)
+
+    def test_get_time_from_date_time_string_when_string_is_invalid_iso_date_time(self):
+        invalid_iso_date = '2022-1025T01:20:00.000Z'
+        expected_message = f'2022-1025T01:20:00.000 is not a valid ISO date string'
+        try:
+            utils.get_time_from_date_time_string(invalid_iso_date)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except ValueError as exception:
+            self.assertEqual(str(exception), expected_message)
+
+    def test_get_time_from_date_time_string_when_string_is_valid_iso_date_time(self):
+        valid_iso_date = '2022-10-25T01:20:00.000Z'
+        time_: datetime.time = utils.get_time_from_date_time_string(valid_iso_date)
+        self.assertEqual(time_.hour, 1)
+        self.assertEqual(time_.minute, 20)
