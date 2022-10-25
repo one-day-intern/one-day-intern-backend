@@ -48,6 +48,12 @@ class TestFlow(models.Model):
     tools = models.ManyToManyField(AssessmentTool, through='TestFlowTool')
     is_usable = models.BooleanField(default=False)
 
+    def add_tool(self, assessment_tool, release_time):
+        pass
+
+    def get_is_usable(self):
+        return self.is_usable
+
 
 class TestFlowTool(models.Model):
     assessment_tool = models.ForeignKey('assessment.AssessmentTool', on_delete=models.CASCADE)

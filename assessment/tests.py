@@ -10,13 +10,14 @@ from users.models import (
     AssessorSerializer
 )
 from .exceptions.exceptions import AssessmentToolDoesNotExist
-from .models import Assignment, AssignmentSerializer
+from .models import Assignment, AssignmentSerializer, TestFlow, TestFlowTool
 from .services import assessment, utils
 import datetime
 import json
 import uuid
 
 EXCEPTION_NOT_RAISED = 'Exception not raised'
+TEST_FLOW_INVALID_NAME = 'Test Flow name must exist and must be at most 50 characters'
 CREATE_ASSIGNMENT_URL = '/assessment/create/assignment/'
 OK_RESPONSE_STATUS_CODE = 200
 
@@ -208,6 +209,31 @@ class TestFlowTest(TestCase):
             duration_in_minutes=100
         )
 
+        self.base_request_data = {
+            'name': 'TestFlow 1',
+            'tools_used': [
+                {
+                    'tool_id': str(self.assessment_tool_1.assessment_id),
+                    'release_time': '1899-12-30T09:00:00.000Z'
+                },
+                {
+                    'tool_id': str(self.assessment_tool_2.assessment_id),
+                    'release_time': '1899-12-30T13:00:00.000Z'
+                },
+            ]
+        }
+
+        self.converted_tools = [
+            {
+                'tool': self.assessment_tool_1,
+                'release_time': datetime.time(13, 0)
+            },
+            {
+                'tool': self.assessment_tool_2,
+                'release_time': datetime.time(9, 0)
+            }
+        ]
+
     def test_get_tool_from_id_when_tool_exist(self):
         tool_id = str(self.assessment_tool_1.assessment_id)
         retrieved_assessment_tool = utils.get_tool_from_id(tool_id)
@@ -240,3 +266,20 @@ class TestFlowTest(TestCase):
         time_: datetime.time = utils.get_time_from_date_time_string(valid_iso_date)
         self.assertEqual(time_.hour, 1)
         self.assertEqual(time_.minute, 20)
+
+    @patch.object(TestFlowTool.objects, 'create')
+    def test_add_tool_to_test_flow(self, mock_test_flow_tools_create):
+        release_time = datetime.time(10, 30)
+        test_flow_ = TestFlow.objects.create(
+            name=self.base_request_data['name'],
+            owning_company=self.company,
+            is_usable=False
+        )
+
+        test_flow_.add_tool(self.assessment_tool_1, release_time=release_time)
+        self.assertTrue(test_flow_.get_is_usable())
+        mock_test_flow_tools_create.assert_called_with(
+            assessment_tool=self.assessment_tool_1,
+            test_flow=test_flow_,
+            release_time=release_time
+        )
