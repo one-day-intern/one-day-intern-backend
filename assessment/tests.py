@@ -1,7 +1,7 @@
 from django.test import TestCase
 from django.urls import reverse
 from http import HTTPStatus
-from one_day_intern.exceptions import RestrictedAccessException, InvalidAssignmentRegistration, InvalidRequestException
+from one_day_intern.exceptions import RestrictedAccessException, InvalidAssignmentRegistration
 from rest_framework.test import APIClient
 from unittest.mock import patch, call
 from users.models import (
@@ -11,7 +11,7 @@ from users.models import (
     AuthenticationService,
     AssessorSerializer
 )
-from .exceptions.exceptions import AssessmentToolDoesNotExist
+from .exceptions.exceptions import AssessmentToolDoesNotExist, InvalidTestFlowRegistration
 from .models import Assignment, AssignmentSerializer, TestFlow, TestFlowTool
 from .services import assessment, utils, test_flow
 import datetime
@@ -306,7 +306,7 @@ class TestFlowTest(TestCase):
         try:
             test_flow.validate_test_flow_registration(request_data)
             self.fail(EXCEPTION_NOT_RAISED)
-        except InvalidRequestException as exception:
+        except InvalidTestFlowRegistration as exception:
             self.assertEqual(str(exception), TEST_FLOW_INVALID_NAME)
 
     @patch.object(utils, 'get_time_from_date_time_string')
@@ -319,7 +319,7 @@ class TestFlowTest(TestCase):
 
         try:
             test_flow.validate_test_flow_registration(request_data)
-        except InvalidRequestException as exception:
+        except InvalidTestFlowRegistration as exception:
             self.assertEqual(str(exception), TEST_FLOW_INVALID_NAME)
 
     @patch.object(utils, 'get_time_from_date_time_string')
@@ -363,7 +363,7 @@ class TestFlowTest(TestCase):
         try:
             test_flow.validate_test_flow_registration(request_data)
             self.fail(EXCEPTION_NOT_RAISED)
-        except InvalidRequestException as exception:
+        except InvalidTestFlowRegistration as exception:
             self.assertEqual(str(exception), expected_error_message)
 
     @patch.object(utils, 'get_time_from_date_time_string')
@@ -383,7 +383,7 @@ class TestFlowTest(TestCase):
         try:
             test_flow.validate_test_flow_registration(request_data)
             self.fail(EXCEPTION_NOT_RAISED)
-        except InvalidRequestException as exception:
+        except InvalidTestFlowRegistration as exception:
             self.assertEqual(str(exception), f'{invalid_datetime_string} is not a valid ISO date string')
 
     @patch.object(utils, 'get_time_from_date_time_string')
@@ -396,7 +396,7 @@ class TestFlowTest(TestCase):
         try:
             test_flow.validate_test_flow_registration(request_data)
             self.fail(EXCEPTION_NOT_RAISED)
-        except InvalidRequestException as exception:
+        except InvalidTestFlowRegistration as exception:
             self.assertEqual(str(exception), 'Test Flow must be of type list')
 
     @patch.object(utils, 'get_time_from_date_time_string')
