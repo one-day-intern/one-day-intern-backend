@@ -4,7 +4,7 @@ from one_day_intern.exceptions import RestrictedAccessException, InvalidAssignme
     InvalidInteractiveQuizRegistration
 from users.models import Assessor
 from . import utils
-from ..models import Assignment, MultipleChoiceQuestion, InteractiveQuiz, MultipleChoiceAnswerOption, TextQuestion
+from ..models import Assignment, MultipleChoiceQuestion, InteractiveQuiz, TextQuestion
 
 
 def get_assessor_or_raise_exception(user: User):
