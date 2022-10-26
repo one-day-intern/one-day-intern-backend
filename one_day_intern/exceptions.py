@@ -2,15 +2,15 @@ class RestrictedAccessException(Exception):
     pass
 
 
-class InvalidAssignmentRegistration(Exception):
-    pass
-
-
-class InvalidInteractiveQuizRegistration(Exception):
-    pass
-
-
 class InvalidRequestException(Exception):
+    pass
+
+
+class InvalidAssignmentRegistration(InvalidRequestException):
+    pass
+
+
+class InvalidInteractiveQuizRegistration(InvalidRequestException):
     pass
 
 
