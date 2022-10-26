@@ -292,9 +292,18 @@ class TestFlowTest(TestCase):
         except AssessmentToolDoesNotExist as exception:
             self.assertEqual(str(exception), expected_message)
 
+    def test_get_time_from_date_time_string_when_string_is_None(self):
+        invalid_iso_date = None
+        expected_message = 'None is not a valid ISO date string'
+        try:
+            utils.get_time_from_date_time_string(invalid_iso_date)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except ValueError as exception:
+            self.assertEqual(str(exception), expected_message)
+
     def test_get_time_from_date_time_string_when_string_is_invalid_iso_date_time(self):
         invalid_iso_date = '2022-1025T01:20:00.000Z'
-        expected_message = f'2022-1025T01:20:00.000 is not a valid ISO date string'
+        expected_message = '2022-1025T01:20:00.000 is not a valid ISO date string'
         try:
             utils.get_time_from_date_time_string(invalid_iso_date)
             self.fail(EXCEPTION_NOT_RAISED)

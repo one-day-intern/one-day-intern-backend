@@ -3,7 +3,6 @@ from datetime import time, datetime
 from users.models import Company, Assessor
 from one_day_intern.exceptions import RestrictedAccessException
 from ..exceptions.exceptions import AssessmentToolDoesNotExist
-from ..models import AssessmentTool
 
 
 def sanitize_file_format(file_format: str):
