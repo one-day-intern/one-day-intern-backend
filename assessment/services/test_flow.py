@@ -17,8 +17,8 @@ def validate_test_flow_registration(request_data: dict, company: Company):
     if request_data.get('tools_used'):
         tools_used = request_data.get('tools_used')
         for tool_used_data in tools_used:
-            tool_id = tool_used_data['tool_id']
-            tool_release_time = tool_used_data['release_time']
+            tool_id = tool_used_data.get('tool_id')
+            tool_release_time = tool_used_data.get('release_time')
 
             try:
                 utils.get_tool_of_company_from_id(tool_id, company)

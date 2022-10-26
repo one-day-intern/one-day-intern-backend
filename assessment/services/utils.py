@@ -11,11 +11,11 @@ def sanitize_file_format(file_format: str):
 
 
 def get_time_from_date_time_string(iso_datetime) -> time:
-    iso_datetime = iso_datetime.strip('Z')
+    iso_datetime = iso_datetime.strip('Z') if iso_datetime else None
     try:
         datetime_: datetime = datetime.fromisoformat(iso_datetime)
         return time(datetime_.hour, datetime_.minute)
-    except ValueError:
+    except (ValueError, TypeError):
         raise ValueError(f'{iso_datetime} is not a valid ISO date string')
 
 
