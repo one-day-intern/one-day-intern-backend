@@ -29,7 +29,7 @@ def validate_assignment(request_data):
 
 
 def save_assignment_to_database(request_data: dict, assessor: Assessor):
-    name = request_data.get('assignment_name')
+    name = request_data.get('name')
     description = request_data.get('description')
     owning_company = assessor.associated_company
     expected_file_format = utils.sanitize_file_format(request_data.get('expected_file_format'))
@@ -107,7 +107,7 @@ def save_question_to_database(question_data: dict, interactive_quiz: Interactive
 
 
 def save_interactive_quiz_to_database(request_data: dict, assessor: Assessor):
-    name = request_data.get('assignment_name')
+    name = request_data.get('name')
     description = request_data.get('description')
     owning_company = assessor.associated_company
     questions = request_data.get('questions')
