@@ -1,10 +1,5 @@
-class RestrictedAccessException(Exception):
-    pass
+from django.core.exceptions import ObjectDoesNotExist
 
 
-class InvalidAssignmentRegistration(Exception):
-    pass
-
-
-class InvalidInteractiveQuizRegistration(Exception):
+class AssessmentToolDoesNotExist(ObjectDoesNotExist):
     pass

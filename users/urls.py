@@ -3,7 +3,10 @@ from .views import (
     serve_register_company,
     serve_google_login_callback,
     serve_register_assessee,
-    serve_google_register_assessee, serve_register_assessor, generate_assessor_one_time_code,
+    serve_google_register_assessee,
+    serve_register_assessor,
+    serve_get_user_info,
+    generate_assessor_one_time_code,
 )
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
@@ -19,4 +22,5 @@ urlpatterns = [
     path('google/oauth/register/assessee/', serve_google_register_assessee),
     path('register-assessee/', serve_register_assessee),
     path('generate-code/', generate_assessor_one_time_code),
+    path('get-info/', serve_get_user_info)
 ]

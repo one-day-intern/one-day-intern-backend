@@ -6,8 +6,13 @@ class InvalidAssignmentRegistration(Exception):
     pass
 
 
+class InvalidInteractiveQuizRegistration(Exception):
+    pass
+
+
 class InvalidRequestException(Exception):
     pass
+
 
 class InvalidRegistrationException(Exception):
     pass
