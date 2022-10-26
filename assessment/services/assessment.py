@@ -17,7 +17,7 @@ def get_assessor_or_raise_exception(user: User):
 
 
 def validate_assessment_tool(request_data):
-    if not request_data.get('assignment_name'):
+    if not request_data.get('name'):
         raise InvalidAssignmentRegistration('Assessment name should not be empty')
 
 
