@@ -83,7 +83,6 @@ class MultipleChoiceAnswerOptionSerializer(serializers.ModelSerializer):
 
 
 class MultipleChoiceQuestionSerializer(serializers.ModelSerializer):
-
     class Meta:
         model = MultipleChoiceQuestion
         fields = [
@@ -104,12 +103,21 @@ class TextQuestionSerializer(serializers.ModelSerializer):
         ]
 
 
+def to_representation(instance):
+    if isinstance(instance, MultipleChoiceQuestion):
+        return MultipleChoiceQuestionSerializer(instance=instance).data
+    elif isinstance(instance, TextQuestion):
+        return TextQuestionSerializer(instance=instance).data
+
+
 class QuestionSerializer(serializers.ModelSerializer):
-    def to_representation(self, instance):
-        if isinstance(instance, MultipleChoiceQuestion):
-            return MultipleChoiceQuestionSerializer(instance=instance).data
-        elif isinstance(instance, TextQuestion):
-            return TextQuestionSerializer(instance=instance).data
+    class Meta:
+        model = TextQuestion
+        fields = [
+            'prompt',
+            'points',
+            'question_type',
+        ]
 
 
 class InteractiveQuizSerializer(serializers.ModelSerializer):
