@@ -64,19 +64,6 @@ def validate_interactive_quiz(request_data):
         raise InvalidInteractiveQuizRegistration('Interactive Quiz duration must only be of type numeric')
 
 
-def save_answer_option_to_database(answer: dict, mc_question: MultipleChoiceQuestion):
-    content = answer.get('content')
-    correct = answer.get('correct')
-
-    answer_option = MultipleChoiceAnswerOption.objects.create(
-        question=mc_question,
-        content=content,
-        correct=correct
-    )
-
-    return answer_option
-
-
 def save_question_to_database(question_data: dict, interactive_quiz: InteractiveQuiz):
     prompt = question_data.get('prompt')
     points = question_data.get('points')
@@ -92,7 +79,7 @@ def save_question_to_database(question_data: dict, interactive_quiz: Interactive
 
         answers = question_data.get('answer_options')
         for answer in answers:
-            save_answer_option_to_database(answer, question)
+            question.save_answer_option_to_database(answer)
     else:
         answer_key = question_data.get('answer_key')
 

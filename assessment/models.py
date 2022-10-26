@@ -62,6 +62,18 @@ class MultipleChoiceQuestion(Question):
     def get_answer_options(self):
         return self.multiplechoiceansweroption_set
 
+    def save_answer_option_to_database(self, answer: dict):
+        content = answer.get('content')
+        correct = answer.get('correct')
+
+        answer_option = MultipleChoiceAnswerOption.objects.create(
+            question=self,
+            content=content,
+            correct=correct
+        )
+
+        return answer_option
+
 
 class MultipleChoiceAnswerOption(models.Model):
     question = models.ForeignKey('MultipleChoiceQuestion', related_name='questions', on_delete=models.CASCADE)

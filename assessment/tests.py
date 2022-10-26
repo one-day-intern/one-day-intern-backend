@@ -376,7 +376,6 @@ class InteractiveQuizTest(TestCase):
         self.assertDictEqual(returned_question_data, self.text_question_data)
 
     @patch.object(utils, 'get_interactive_quiz_total_points')
-    @patch.object(assessment, 'save_answer_option_to_database')
     @patch.object(assessment, 'save_question_to_database')
     @patch.object(assessment, 'save_interactive_quiz_to_database')
     @patch.object(assessment, 'validate_answer_option')
@@ -387,8 +386,7 @@ class InteractiveQuizTest(TestCase):
     def test_create_interactive_quiz(self, mocked_get_assessor, mocked_validate_assessment_tool,
                                      mocked_validate_interactive_quiz, mocked_validate_question,
                                      mocked_validate_answer_option, mocked_save_interactive_quiz,
-                                     mocked_save_questions, mocked_save_answer_options,
-                                     mocked_get_interactive_quiz_total_points):
+                                     mocked_save_questions, mocked_get_interactive_quiz_total_points):
         mocked_get_assessor.return_value = self.assessor
 
         mocked_validate_assessment_tool.return_value = None
@@ -398,7 +396,6 @@ class InteractiveQuizTest(TestCase):
 
         mocked_save_interactive_quiz.return_value = self.expected_interactive_quiz
         mocked_save_questions.return_value = None
-        mocked_save_answer_options.return_value = None
 
         mocked_get_interactive_quiz_total_points.return_value = 10
 
