@@ -20,6 +20,8 @@ import uuid
 
 EXCEPTION_NOT_RAISED = 'Exception not raised'
 TEST_FLOW_INVALID_NAME = 'Test Flow name must exist and must be at most 50 characters'
+TEST_FLOW_OF_COMPANY_DOES_NOT_EXIST_FORMAT = 'Assessment tool with id {} belonging to company {} does not exist'
+TEST_FLOW_INVALID_DATE_FORMAT = '{} is not a valid ISO date string'
 CREATE_ASSIGNMENT_URL = '/assessment/create/assignment/'
 CREATE_TEST_FLOW_URL = reverse('test-flow-create')
 OK_RESPONSE_STATUS_CODE = 200
@@ -196,7 +198,7 @@ def fetch_create_test_flow(request_data, authenticated_user):
 
 class TestFlowTest(TestCase):
     def setUp(self) -> None:
-        self.company = Company.objects.create_user(
+        self.company_1 = Company.objects.create_user(
             email='companytestflow@company.com',
             password='password',
             company_name='Company',
@@ -207,7 +209,7 @@ class TestFlowTest(TestCase):
         self.assessment_tool_1 = Assignment.objects.create(
             name='Assignment 1',
             description='An Assignment number 1',
-            owning_company=self.company,
+            owning_company=self.company_1,
             expected_file_format='docx',
             duration_in_minutes=50
         )
@@ -215,7 +217,7 @@ class TestFlowTest(TestCase):
         self.assessment_tool_2 = Assignment.objects.create(
             name='Assignment 2',
             description='An Assignment number 2',
-            owning_company=self.company,
+            owning_company=self.company_1,
             expected_file_format='pdf',
             duration_in_minutes=100
         )
@@ -245,20 +247,47 @@ class TestFlowTest(TestCase):
             }
         ]
 
-    def test_get_tool_from_id_when_tool_exist(self):
+        self.company_2 = Company.objects.create_user(
+            email='companytestflow2@company.com',
+            password='Password12',
+            company_name='Company',
+            description='Company Description',
+            address='JL. Company Levinson Hermitian Householder'
+        )
+
+        self.assessment_tool_3 = Assignment.objects.create(
+            name='Assignment 3',
+            description='An Assignment number 3',
+            owning_company=self.company_2,
+            expected_file_format='txt',
+            duration_in_minutes=100
+        )
+
+    def test_get_tool_of_company_from_id_when_tool_exists_and_belong_to_company(self):
         tool_id = str(self.assessment_tool_1.assessment_id)
-        retrieved_assessment_tool = utils.get_tool_from_id(tool_id)
+        retrieved_assessment_tool = utils.get_tool_of_company_from_id(tool_id, self.company_1)
         self.assertEqual(str(retrieved_assessment_tool.assessment_id), tool_id)
         self.assertEqual(retrieved_assessment_tool.name, self.assessment_tool_1.name)
         self.assertEqual(retrieved_assessment_tool.description, self.assessment_tool_1.description)
         self.assertEqual(retrieved_assessment_tool.expected_file_format, self.assessment_tool_1.expected_file_format)
         self.assertEqual(retrieved_assessment_tool.duration_in_minutes, self.assessment_tool_1.duration_in_minutes)
 
-    def test_get_tool_from_id_when_tool_does_not_exist(self):
+    def test_et_tool_of_company_from_id_when_tool_does_not_exist(self):
         tool_id = str(uuid.uuid4())
-        expected_message = f'Assessment tool with id {tool_id} does not exist'
+        expected_message = TEST_FLOW_OF_COMPANY_DOES_NOT_EXIST_FORMAT.format(tool_id, self.company_1.company_name)
+
         try:
-            utils.get_tool_from_id(tool_id)
+            utils.get_tool_of_company_from_id(tool_id, self.company_1)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except AssessmentToolDoesNotExist as exception:
+            self.assertEqual(str(exception), expected_message)
+
+    def test_get_tool_from_id_when_tool_exists_but_does_not_belong_to_company(self):
+        tool_id = str(self.assessment_tool_3.assessment_id)
+        expected_message = TEST_FLOW_OF_COMPANY_DOES_NOT_EXIST_FORMAT.format(tool_id, self.company_1.company_name)
+
+        try:
+            utils.get_tool_of_company_from_id(tool_id, self.company_1)
             self.fail(EXCEPTION_NOT_RAISED)
         except AssessmentToolDoesNotExist as exception:
             self.assertEqual(str(exception), expected_message)
@@ -283,7 +312,7 @@ class TestFlowTest(TestCase):
         release_time = datetime.time(10, 30)
         test_flow_ = TestFlow.objects.create(
             name=self.base_request_data['name'],
-            owning_company=self.company,
+            owning_company=self.company_1,
             is_usable=False
         )
 
@@ -296,7 +325,7 @@ class TestFlowTest(TestCase):
         )
 
     @patch.object(utils, 'get_time_from_date_time_string')
-    @patch.object(utils, 'get_tool_from_id')
+    @patch.object(utils, 'get_tool_of_company_from_id')
     def test_validate_test_flow_when_name_does_not_exist(self, mocked_get_tool, mocked_get_time):
         mocked_get_tool.return_value = None
         mocked_get_time.return_value = None
@@ -304,13 +333,13 @@ class TestFlowTest(TestCase):
         del request_data['name']
 
         try:
-            test_flow.validate_test_flow_registration(request_data)
+            test_flow.validate_test_flow_registration(request_data, self.company_1)
             self.fail(EXCEPTION_NOT_RAISED)
         except InvalidTestFlowRegistration as exception:
             self.assertEqual(str(exception), TEST_FLOW_INVALID_NAME)
 
     @patch.object(utils, 'get_time_from_date_time_string')
-    @patch.object(utils, 'get_tool_from_id')
+    @patch.object(utils, 'get_tool_of_company_from_id')
     def test_validate_test_flow_when_name_exceeds_50_character(self, mocked_get_tool, mocked_get_time):
         mocked_get_tool.return_value = None
         mocked_get_time.return_value = None
@@ -318,12 +347,12 @@ class TestFlowTest(TestCase):
         request_data['name'] = 'abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz'
 
         try:
-            test_flow.validate_test_flow_registration(request_data)
+            test_flow.validate_test_flow_registration(request_data, self.company_1)
         except InvalidTestFlowRegistration as exception:
             self.assertEqual(str(exception), TEST_FLOW_INVALID_NAME)
 
     @patch.object(utils, 'get_time_from_date_time_string')
-    @patch.object(utils, 'get_tool_from_id')
+    @patch.object(utils, 'get_tool_of_company_from_id')
     def test_validate_test_flow_when_does_not_contain_tool_used(self, mocked_get_tool, mocked_get_time):
         mocked_get_tool.return_value = None
         mocked_get_time.return_value = None
@@ -331,29 +360,31 @@ class TestFlowTest(TestCase):
         request_data['tools_used'] = []
 
         try:
-            test_flow.validate_test_flow_registration(request_data)
+            test_flow.validate_test_flow_registration(request_data, self.company_1)
         except Exception as exception:
             self.fail(f'{exception} is raised')
 
     @patch.object(utils, 'get_time_from_date_time_string')
-    @patch.object(utils, 'get_tool_from_id')
+    @patch.object(utils, 'get_tool_of_company_from_id')
     def test_validate_test_flow_when_contain_tool_used(self, mocked_get_tool, mocked_get_time):
         mocked_get_tool.return_value = None
         mocked_get_time.return_value = None
         request_data = self.base_request_data.copy()
 
         try:
-            test_flow.validate_test_flow_registration(request_data)
+            test_flow.validate_test_flow_registration(request_data, self.company_1)
         except Exception as exception:
             self.fail(f'{exception} is raised')
 
     @patch.object(utils, 'get_time_from_date_time_string')
-    @patch.object(utils, 'get_tool_from_id')
+    @patch.object(utils, 'get_tool_of_company_from_id')
     def test_validate_test_flow_when_tool_does_not_exist(self, mocked_get_tool, mocked_get_time):
         invalid_tool_id = str(uuid.uuid4())
-        expected_error_message = f'Assessment tool with id {invalid_tool_id} does not exist'
+        expected_error_message = \
+            TEST_FLOW_OF_COMPANY_DOES_NOT_EXIST_FORMAT.format(invalid_tool_id, self.company_1.company_name)
         mocked_get_time.return_value = None
         mocked_get_tool.side_effect = AssessmentToolDoesNotExist(expected_error_message)
+
         request_data = self.base_request_data.copy()
         request_data['tools_used'] = [{
             'tool_id': invalid_tool_id,
@@ -361,16 +392,16 @@ class TestFlowTest(TestCase):
         }]
 
         try:
-            test_flow.validate_test_flow_registration(request_data)
+            test_flow.validate_test_flow_registration(request_data, self.company_1)
             self.fail(EXCEPTION_NOT_RAISED)
         except InvalidTestFlowRegistration as exception:
             self.assertEqual(str(exception), expected_error_message)
 
     @patch.object(utils, 'get_time_from_date_time_string')
-    @patch.object(utils, 'get_tool_from_id')
+    @patch.object(utils, 'get_tool_of_company_from_id')
     def test_validate_test_flow_when_datetime_is_invalid(self, mocked_get_tool, mocked_get_time):
         invalid_datetime_string = '2020-Monday-OctoberT01:01:01'
-        expected_error_message = f'{invalid_datetime_string} is not a valid ISO date string'
+        expected_error_message = TEST_FLOW_INVALID_DATE_FORMAT.format(invalid_datetime_string)
         mocked_get_tool.return_value = None
         mocked_get_time.side_effect = ValueError(expected_error_message)
 
@@ -381,48 +412,49 @@ class TestFlowTest(TestCase):
         }]
 
         try:
-            test_flow.validate_test_flow_registration(request_data)
+            test_flow.validate_test_flow_registration(request_data, self.company_1)
             self.fail(EXCEPTION_NOT_RAISED)
         except InvalidTestFlowRegistration as exception:
-            self.assertEqual(str(exception), f'{invalid_datetime_string} is not a valid ISO date string')
+            self.assertEqual(str(exception), expected_error_message)
 
     @patch.object(utils, 'get_time_from_date_time_string')
-    @patch.object(utils, 'get_tool_from_id')
+    @patch.object(utils, 'get_tool_of_company_from_id')
     def test_validate_test_flow_when_tool_used_is_not_a_list(self, mocked_get_tool, mocked_get_time):
         mocked_get_tool.return_value = None
         mocked_get_time.return_value = None
         request_data = self.base_request_data.copy()
         request_data['tools_used'] = 'list'
+
         try:
-            test_flow.validate_test_flow_registration(request_data)
+            test_flow.validate_test_flow_registration(request_data, self.company_1)
             self.fail(EXCEPTION_NOT_RAISED)
         except InvalidTestFlowRegistration as exception:
             self.assertEqual(str(exception), 'Test Flow must be of type list')
 
     @patch.object(utils, 'get_time_from_date_time_string')
-    @patch.object(utils, 'get_tool_from_id')
+    @patch.object(utils, 'get_tool_of_company_from_id')
     def test_convert_assessment_tool_id_to_assessment_tool_when_request_does_not_contain_tool(self, mocked_get_tool,
                                                                                               mocked_get_time):
         mocked_get_tool.return_value = None
         mocked_get_time.return_value = None
         request_data = self.base_request_data.copy()
         del request_data['tools_used']
-        converted_tool = test_flow.convert_assessment_tool_id_to_assessment_tool(request_data)
+        converted_tool = test_flow.convert_assessment_tool_id_to_assessment_tool(request_data, self.company_1)
         self.assertEqual(converted_tool, [])
 
     @patch.object(utils, 'get_time_from_date_time_string')
-    @patch.object(utils, 'get_tool_from_id')
+    @patch.object(utils, 'get_tool_of_company_from_id')
     def test_convert_assessment_tool_id_to_assessment_tool_when_tools_used_is_empty(self, mocked_get_tool,
                                                                                     mocked_get_time):
         mocked_get_tool.return_value = None
         mocked_get_time.return_value = None
         request_data = self.base_request_data.copy()
         request_data['tools_used'] = []
-        converted_tool = test_flow.convert_assessment_tool_id_to_assessment_tool(request_data)
+        converted_tool = test_flow.convert_assessment_tool_id_to_assessment_tool(request_data, self.company_1)
         self.assertEqual(converted_tool, [])
 
     @patch.object(utils, 'get_time_from_date_time_string')
-    @patch.object(utils, 'get_tool_from_id')
+    @patch.object(utils, 'get_tool_of_company_from_id')
     def test_convert_assessment_tool_id_assessment_tool_when_tools_used_not_empty(self, mocked_get_tool,
                                                                                   mocked_get_time):
         number_of_assessment_tools = 2
@@ -430,7 +462,7 @@ class TestFlowTest(TestCase):
         mocked_get_tool.return_value = self.assessment_tool_1
         mocked_get_time.return_value = expected_release_time
         request_data = self.base_request_data.copy()
-        converted_tools = test_flow.convert_assessment_tool_id_to_assessment_tool(request_data)
+        converted_tools = test_flow.convert_assessment_tool_id_to_assessment_tool(request_data, self.company_1)
 
         self.assertEqual(len(converted_tools), number_of_assessment_tools)
         tool_data_assessment_1 = converted_tools[1]
@@ -447,12 +479,12 @@ class TestFlowTest(TestCase):
     def test_save_test_flow_to_database_when_converted_tools_is_empty(self, mocked_add_tool, mocked_save):
         converted_tools = []
         request_data = self.base_request_data.copy()
-        saved_test_flow = test_flow.save_test_flow_to_database(request_data, converted_tools, self.company)
+        saved_test_flow = test_flow.save_test_flow_to_database(request_data, converted_tools, self.company_1)
         mocked_save.assert_called_once()
         mocked_add_tool.assert_not_called()
         self.assertIsNotNone(saved_test_flow.test_flow_id)
         self.assertEqual(saved_test_flow.name, request_data.get('name'))
-        self.assertEqual(saved_test_flow.owning_company, self.company)
+        self.assertEqual(saved_test_flow.owning_company, self.company_1)
 
     @patch.object(TestFlow, 'save')
     @patch.object(TestFlow, 'add_tool')
@@ -466,12 +498,12 @@ class TestFlowTest(TestCase):
             call(assessment_tool=converted_tool_2['tool'], release_time=converted_tool_2['release_time'])
         ]
 
-        saved_test_flow = test_flow.save_test_flow_to_database(request_data, converted_tools, self.company)
+        saved_test_flow = test_flow.save_test_flow_to_database(request_data, converted_tools, self.company_1)
         mocked_save.assert_called_once()
         mocked_add_tool.assert_has_calls(expected_calls)
         self.assertIsNotNone(saved_test_flow.test_flow_id)
         self.assertEqual(saved_test_flow.name, request_data.get('name'))
-        self.assertEqual(saved_test_flow.owning_company, self.company)
+        self.assertEqual(saved_test_flow.owning_company, self.company_1)
 
     def flow_assert_response_correctness_when_request_is_valid(self, response, request_data,
                                                                expected_number_of_tools, expected_usable, company):
@@ -493,25 +525,25 @@ class TestFlowTest(TestCase):
         request_data = self.base_request_data.copy()
         request_data['tools_used'] = []
 
-        response = fetch_create_test_flow(request_data=request_data, authenticated_user=self.company)
+        response = fetch_create_test_flow(request_data=request_data, authenticated_user=self.company_1)
         self.flow_assert_response_correctness_when_request_is_valid(
             response=response,
             request_data=request_data,
             expected_number_of_tools=0,
             expected_usable=False,
-            company=self.company
+            company=self.company_1
         )
 
     def test_create_test_flow_when_no_tools_used_field_and_user_is_company(self):
         request_data = self.base_request_data.copy()
         del request_data['tools_used']
-        response = fetch_create_test_flow(request_data=request_data, authenticated_user=self.company)
+        response = fetch_create_test_flow(request_data=request_data, authenticated_user=self.company_1)
         self.flow_assert_response_correctness_when_request_is_valid(
             response=response,
             request_data=request_data,
             expected_number_of_tools=0,
             expected_usable=False,
-            company=self.company
+            company=self.company_1
         )
 
     def test_create_test_flow_when_tool_id_used_does_not_exist_and_user_is_company(self):
@@ -523,11 +555,12 @@ class TestFlowTest(TestCase):
                 'release_time': '1998-01-01T01:01:00Z'
             }
         ]
-        response = fetch_create_test_flow(request_data=request_data, authenticated_user=self.company)
+        response = fetch_create_test_flow(request_data=request_data, authenticated_user=self.company_1)
         self.flow_assert_response_correctness_when_request_is_invalid(
             response=response,
             expected_status_code=HTTPStatus.BAD_REQUEST,
-            expected_message=f'Assessment tool with id {non_exist_tool_id} does not exist'
+            expected_message=
+            TEST_FLOW_OF_COMPANY_DOES_NOT_EXIST_FORMAT.format(non_exist_tool_id, self.company_1.company_name)
         )
 
     def test_create_test_flow_when_tool_release_time_is_invalid_and_user_is_company(self):
@@ -540,7 +573,7 @@ class TestFlowTest(TestCase):
             }
         ]
 
-        response = fetch_create_test_flow(request_data=request_data, authenticated_user=self.company)
+        response = fetch_create_test_flow(request_data=request_data, authenticated_user=self.company_1)
         self.flow_assert_response_correctness_when_request_is_invalid(
             response=response,
             expected_status_code=HTTPStatus.BAD_REQUEST,
@@ -556,13 +589,13 @@ class TestFlowTest(TestCase):
 
     def test_create_test_flow_when_request_is_valid_and_user_is_company(self):
         request_data = self.base_request_data.copy()
-        response = fetch_create_test_flow(request_data=request_data, authenticated_user=self.company)
+        response = fetch_create_test_flow(request_data=request_data, authenticated_user=self.company_1)
         self.flow_assert_response_correctness_when_request_is_valid(
             response=response,
             request_data=request_data,
             expected_number_of_tools=2,
             expected_usable=True,
-            company=self.company
+            company=self.company_1
         )
 
         response_content = json.loads(response.content)
@@ -573,3 +606,17 @@ class TestFlowTest(TestCase):
 
         test_flow_tool_2 = tools[1]
         self.assert_tool_data_correctness(test_flow_tool_2, self.assessment_tool_2)
+
+    def test_create_test_flow_when_user_does_not_own_assessment_tool(self):
+        request_data = self.base_request_data.copy()
+        response = fetch_create_test_flow(request_data=request_data, authenticated_user=self.company_2)
+        self.flow_assert_response_correctness_when_request_is_invalid(
+            response=response,
+            expected_status_code=HTTPStatus.BAD_REQUEST,
+            expected_message=TEST_FLOW_OF_COMPANY_DOES_NOT_EXIST_FORMAT.format(
+                self.assessment_tool_1.assessment_id, self.company_2.company_name
+            )
+        )
+
+
+
