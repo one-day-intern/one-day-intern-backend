@@ -21,7 +21,14 @@ def get_time_from_date_time_string(iso_datetime) -> time:
 
 
 def get_tool_of_company_from_id(tool_id: str, owning_company: Company):
-    raise Exception
+    found_assessment_tools = owning_company.assessmenttool_set.filter(assessment_id=tool_id)
+
+    if found_assessment_tools:
+        return found_assessment_tools[0]
+    else:
+        raise AssessmentToolDoesNotExist(
+            f'Assessment tool with id {tool_id} belonging to company {owning_company.company_name} does not exist'
+        )
 
 
 def get_company_or_assessor_associated_company_from_user(user: User) -> Company:
