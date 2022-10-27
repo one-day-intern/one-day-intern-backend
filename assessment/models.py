@@ -56,6 +56,7 @@ class TestFlow(models.Model):
             release_time=release_time,
             start_working_time=start_working_time
         )
+        self.save()
 
     def get_is_usable(self):
         return self.is_usable
