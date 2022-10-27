@@ -48,12 +48,13 @@ class TestFlow(models.Model):
     tools = models.ManyToManyField(AssessmentTool, through='TestFlowTool')
     is_usable = models.BooleanField(default=False)
 
-    def add_tool(self, assessment_tool, release_time):
+    def add_tool(self, assessment_tool, release_time, start_working_time):
         self.is_usable = True
         TestFlowTool.objects.create(
             assessment_tool=assessment_tool,
             test_flow=self,
-            release_time=release_time
+            release_time=release_time,
+            start_working_time=start_working_time
         )
 
     def get_is_usable(self):

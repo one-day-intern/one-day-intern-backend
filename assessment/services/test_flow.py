@@ -19,10 +19,12 @@ def validate_test_flow_registration(request_data: dict, company: Company):
         for tool_used_data in tools_used:
             tool_id = tool_used_data.get('tool_id')
             tool_release_time = tool_used_data.get('release_time')
+            tool_start_working_time = tool_used_data.get('start_working_time')
 
             try:
                 utils.get_tool_of_company_from_id(tool_id, company)
                 utils.get_time_from_date_time_string(tool_release_time)
+                utils.get_time_from_date_time_string(tool_start_working_time)
             except (ValueError, AssessmentToolDoesNotExist) as exception:
                 raise InvalidTestFlowRegistration(str(exception))
 
@@ -34,9 +36,12 @@ def convert_assessment_tool_id_to_assessment_tool(request_data: dict, company: C
         for request_tool_data in assessment_tools_in_request:
             tool = utils.get_tool_of_company_from_id(request_tool_data.get('tool_id'), company)
             release_time = utils.get_time_from_date_time_string(request_tool_data.get('release_time'))
+            start_working_time = utils.get_time_from_date_time_string(request_tool_data.get('start_working_time'))
+
             tool_data = {
                 'tool': tool,
-                'release_time': release_time
+                'release_time': release_time,
+                'start_working_time': start_working_time
             }
             assessment_tools_release_time.append(tool_data)
 
@@ -50,7 +55,8 @@ def save_test_flow_to_database(request_data, converted_tools, company) -> TestFl
     for tool_data in converted_tools:
         test_flow.add_tool(
             assessment_tool=tool_data.get('tool'),
-            release_time=tool_data.get('release_time')
+            release_time=tool_data.get('release_time'),
+            start_working_time=tool_data.get('start_working_time')
         )
 
     return test_flow
