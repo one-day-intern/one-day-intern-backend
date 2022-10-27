@@ -48,12 +48,13 @@ class TestFlow(models.Model):
     tools = models.ManyToManyField(AssessmentTool, through='TestFlowTool')
     is_usable = models.BooleanField(default=False)
 
-    def add_tool(self, assessment_tool, release_time):
+    def add_tool(self, assessment_tool, release_time, start_working_time):
         self.is_usable = True
         TestFlowTool.objects.create(
             assessment_tool=assessment_tool,
             test_flow=self,
-            release_time=release_time
+            release_time=release_time,
+            start_working_time=start_working_time
         )
 
     def get_is_usable(self):
@@ -64,6 +65,7 @@ class TestFlowTool(models.Model):
     assessment_tool = models.ForeignKey('assessment.AssessmentTool', on_delete=models.CASCADE)
     test_flow = models.ForeignKey(TestFlow, on_delete=models.CASCADE)
     release_time = models.TimeField(auto_now=False, auto_now_add=False, default=datetime.time(0, 0))
+    start_working_time = models.TimeField(auto_now=False, auto_now_add=False, default=datetime.time(0, 0))
 
     class Meta:
         ordering = ['release_time']

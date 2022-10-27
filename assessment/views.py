@@ -41,7 +41,8 @@ def serve_create_test_flow(request):
         "tools_used": [
             {
                 "tool_id": <tool-id-uuid>,
-                "release_time": <release-time>
+                "release_time": <release-time>,
+                "start_working_time": <start-working-time>
             }
         ]
     }
