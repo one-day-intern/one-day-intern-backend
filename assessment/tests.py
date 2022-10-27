@@ -227,11 +227,13 @@ class TestFlowTest(TestCase):
             'tools_used': [
                 {
                     'tool_id': str(self.assessment_tool_1.assessment_id),
-                    'release_time': '1899-12-30T09:00:00.000Z'
+                    'release_time': '1899-12-30T09:00:00.000Z',
+                    'start_working_time': '1899-12-30T10:00:00.000Z'
                 },
                 {
                     'tool_id': str(self.assessment_tool_2.assessment_id),
-                    'release_time': '1899-12-30T13:00:00.000Z'
+                    'release_time': '1899-12-30T13:00:00.000Z',
+                    'start_working_time': '1899-12-30T14:00:00.000Z'
                 },
             ]
         }
@@ -239,11 +241,13 @@ class TestFlowTest(TestCase):
         self.converted_tools = [
             {
                 'tool': self.assessment_tool_1,
-                'release_time': datetime.time(13, 0)
+                'release_time': datetime.time(9, 0),
+                'start_working_time': datetime.time(10, 0),
             },
             {
                 'tool': self.assessment_tool_2,
-                'release_time': datetime.time(9, 0)
+                'release_time': datetime.time(13, 0),
+                'start_working_time': datetime.time(14, 0)
             }
         ]
 
@@ -319,18 +323,20 @@ class TestFlowTest(TestCase):
     @patch.object(TestFlowTool.objects, 'create')
     def test_add_tool_to_test_flow(self, mock_test_flow_tools_create):
         release_time = datetime.time(10, 30)
+        start_working_time = datetime.time(11, 45)
         test_flow_ = TestFlow.objects.create(
             name=self.base_request_data['name'],
             owning_company=self.company_1,
             is_usable=False
         )
 
-        test_flow_.add_tool(self.assessment_tool_1, release_time=release_time)
+        test_flow_.add_tool(self.assessment_tool_1, release_time=release_time, start_working_time=start_working_time)
         self.assertTrue(test_flow_.get_is_usable())
         mock_test_flow_tools_create.assert_called_with(
             assessment_tool=self.assessment_tool_1,
             test_flow=test_flow_,
-            release_time=release_time
+            release_time=release_time,
+            start_working_time=start_working_time
         )
 
     @patch.object(utils, 'get_time_from_date_time_string')
@@ -389,15 +395,14 @@ class TestFlowTest(TestCase):
     @patch.object(utils, 'get_tool_of_company_from_id')
     def test_validate_test_flow_when_tool_does_not_exist(self, mocked_get_tool, mocked_get_time):
         invalid_tool_id = str(uuid.uuid4())
-        expected_error_message = \
-            TEST_FLOW_OF_COMPANY_DOES_NOT_EXIST_FORMAT.format(invalid_tool_id, self.company_1.company_name)
+        expected_error_message = f'Assessment tool with id {invalid_tool_id} does not exist'
         mocked_get_time.return_value = None
         mocked_get_tool.side_effect = AssessmentToolDoesNotExist(expected_error_message)
-
         request_data = self.base_request_data.copy()
         request_data['tools_used'] = [{
             'tool_id': invalid_tool_id,
-            'release_time': '2022-10-25T01:20:00.000Z'
+            'release_time': '2022-10-25T01:20:00.000Z',
+            'start_working_time': '2022-10-25T04:20:00.000Z'
         }]
 
         try:
@@ -410,14 +415,15 @@ class TestFlowTest(TestCase):
     @patch.object(utils, 'get_tool_of_company_from_id')
     def test_validate_test_flow_when_datetime_is_invalid(self, mocked_get_tool, mocked_get_time):
         invalid_datetime_string = '2020-Monday-OctoberT01:01:01'
-        expected_error_message = TEST_FLOW_INVALID_DATE_FORMAT.format(invalid_datetime_string)
+        expected_error_message = f'{invalid_datetime_string} is not a valid ISO date string'
         mocked_get_tool.return_value = None
-        mocked_get_time.side_effect = ValueError(expected_error_message)
+        mocked_get_tool.side_effect = ValueError(expected_error_message)
 
         request_data = self.base_request_data.copy()
         request_data['tool_id'] = [{
             'tool_id': str(self.assessment_tool_1.assessment_id),
-            'release_time': invalid_datetime_string
+            'release_time': invalid_datetime_string,
+            'start_working_time': '2022-10-25T04:20:00.000Z'
         }]
 
         try:
@@ -467,9 +473,9 @@ class TestFlowTest(TestCase):
     def test_convert_assessment_tool_id_assessment_tool_when_tools_used_not_empty(self, mocked_get_tool,
                                                                                   mocked_get_time):
         number_of_assessment_tools = 2
-        expected_release_time = datetime.time(13, 00)
+        expected_returned_time = datetime.time(13, 00)
         mocked_get_tool.return_value = self.assessment_tool_1
-        mocked_get_time.return_value = expected_release_time
+        mocked_get_time.return_value = expected_returned_time
         request_data = self.base_request_data.copy()
         converted_tools = test_flow.convert_assessment_tool_id_to_assessment_tool(request_data, self.company_1)
 
@@ -477,11 +483,14 @@ class TestFlowTest(TestCase):
         tool_data_assessment_1 = converted_tools[1]
         self.assertIsNotNone(tool_data_assessment_1.get('tool'))
         self.assertIsNotNone(tool_data_assessment_1.get('release_time'))
+        self.assertIsNotNone(tool_data_assessment_1.get('start_working_time'))
 
         tool = tool_data_assessment_1['tool']
         release_time = tool_data_assessment_1['release_time']
+        start_working_time = tool_data_assessment_1['start_working_time']
         self.assertEqual(tool.assessment_id, self.assessment_tool_1.assessment_id)
-        self.assertEqual(release_time, expected_release_time)
+        self.assertEqual(release_time, expected_returned_time)
+        self.assertEqual(start_working_time, expected_returned_time)
 
     @patch.object(TestFlow, 'save')
     @patch.object(TestFlow, 'add_tool')
@@ -503,8 +512,16 @@ class TestFlowTest(TestCase):
         converted_tool_1 = converted_tools[0]
         converted_tool_2 = converted_tools[1]
         expected_calls = [
-            call(assessment_tool=converted_tool_1['tool'], release_time=converted_tool_1['release_time']),
-            call(assessment_tool=converted_tool_2['tool'], release_time=converted_tool_2['release_time'])
+            call(
+                assessment_tool=converted_tool_1['tool'],
+                release_time=converted_tool_1['release_time'],
+                start_working_time=converted_tool_1['start_working_time']
+            ),
+            call(
+                assessment_tool=converted_tool_2['tool'],
+                release_time=converted_tool_2['release_time'],
+                start_working_time=converted_tool_2['start_working_time']
+            ),
         ]
 
         saved_test_flow = test_flow.save_test_flow_to_database(request_data, converted_tools, self.company_1)
@@ -561,9 +578,11 @@ class TestFlowTest(TestCase):
         request_data['tools_used'] = [
             {
                 'tool_id': non_exist_tool_id,
-                'release_time': '1998-01-01T01:01:00Z'
+                'release_time': '1998-01-01T01:01:00Z',
+                'start_working_time': '1998-01-01T01:01:00Z'
             }
         ]
+
         response = fetch_create_test_flow(request_data=request_data, authenticated_user=self.company_1)
         self.flow_assert_response_correctness_when_request_is_invalid(
             response=response,
@@ -578,7 +597,27 @@ class TestFlowTest(TestCase):
         request_data['tools_used'] = [
             {
                 'tool_id': str(self.assessment_tool_1.assessment_id),
-                'release_time': invalid_iso_datetime
+                'release_time': invalid_iso_datetime,
+                'start_working_time': '1998-01-01T01:10:00Z'
+            }
+        ]
+
+        response = fetch_create_test_flow(request_data=request_data, authenticated_user=self.company_1)
+        self.flow_assert_response_correctness_when_request_is_invalid(
+            response=response,
+            expected_status_code=HTTPStatus.BAD_REQUEST,
+            expected_message=f'{invalid_iso_datetime} is not a valid ISO date string'
+        )
+
+    def test_create_test_flow_when_tool_start_working_time_is_invalid_and_user_is_company(self):
+        # CHANGE
+        invalid_iso_datetime = '20211-02-01033:03T'
+        request_data = self.base_request_data.copy()
+        request_data['tools_used'] = [
+            {
+                'tool_id': str(self.assessment_tool_1.assessment_id),
+                'release_time': '1998-01-01T01:10:00Z',
+                'start_working_time': invalid_iso_datetime
             }
         ]
 

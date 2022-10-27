@@ -64,6 +64,7 @@ class TestFlowTool(models.Model):
     assessment_tool = models.ForeignKey('assessment.AssessmentTool', on_delete=models.CASCADE)
     test_flow = models.ForeignKey(TestFlow, on_delete=models.CASCADE)
     release_time = models.TimeField(auto_now=False, auto_now_add=False, default=datetime.time(0, 0))
+    start_working_time = models.TimeField(auto_now=False, auto_now_add=False, default=datetime.time(0, 0))
 
     class Meta:
         ordering = ['release_time']
