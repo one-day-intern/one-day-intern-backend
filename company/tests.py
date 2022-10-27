@@ -251,7 +251,7 @@ class OneTimeCodeTest(TestCase):
         self.assert_invalid_request_response_matches(
             user=self.assessor,
             data=assessor_email_data,
-            http_status_code=http.HTTPStatus.UNAUTHORIZED,
+            http_status_code=http.HTTPStatus.FORBIDDEN,
             message=expected_message,
             mocked_send_mass_html_mail=mocked_send_mass_html_mail
         )
