@@ -4,7 +4,8 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from .services.assessment import create_assignment
 from .services.test_flow import create_test_flow
-from .models import AssignmentSerializer, TestFlowSerializer
+from .services.assessment_event import create_assessment_event
+from .models import AssignmentSerializer, TestFlowSerializer, AssessmentEventSerializer
 import json
 
 
@@ -64,5 +65,8 @@ def serve_create_assessment_event(request):
     start_date,
     test_flow_id
     """
-    return Response(data=None)
+    request_data = json.loads(request.body.decode('utf-8'))
+    assessment_event = create_assessment_event(request_data, user=request.user)
+    response_data = AssessmentEventSerializer(assessment_event).data
+    return Response(data=response_data)
 

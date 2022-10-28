@@ -12,3 +12,7 @@ class InvalidTestFlowRegistration(InvalidRequestException):
 
 class InvalidAssessmentEventRegistration(InvalidRequestException):
     pass
+
+
+class TestFlowDoesNotExist(ObjectDoesNotExist):
+    pass
