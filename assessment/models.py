@@ -155,13 +155,15 @@ class TestFlow(models.Model):
     tools = models.ManyToManyField(AssessmentTool, through='TestFlowTool')
     is_usable = models.BooleanField(default=False)
 
-    def add_tool(self, assessment_tool, release_time):
+    def add_tool(self, assessment_tool, release_time, start_working_time):
         self.is_usable = True
         TestFlowTool.objects.create(
             assessment_tool=assessment_tool,
             test_flow=self,
-            release_time=release_time
+            release_time=release_time,
+            start_working_time=start_working_time
         )
+        self.save()
 
     def get_is_usable(self):
         return self.is_usable
@@ -171,6 +173,7 @@ class TestFlowTool(models.Model):
     assessment_tool = models.ForeignKey('assessment.AssessmentTool', on_delete=models.CASCADE)
     test_flow = models.ForeignKey(TestFlow, on_delete=models.CASCADE)
     release_time = models.TimeField(auto_now=False, auto_now_add=False, default=datetime.time(0, 0))
+    start_working_time = models.TimeField(auto_now=False, auto_now_add=False, default=datetime.time(0, 0))
 
     class Meta:
         ordering = ['release_time']
@@ -193,3 +196,20 @@ class TestFlowSerializer(serializers.ModelSerializer):
     class Meta:
         model = TestFlow
         fields = ['test_flow_id', 'name', 'owning_company_id', 'is_usable', 'tools']
+
+
+class AssessmentEvent(models.Model):
+    event_id = models.UUIDField(default=uuid.uuid4, auto_created=True)
+    name = models.CharField(max_length=50)
+    start_date_time = models.DateTimeField()
+    owning_company = models.ForeignKey('users.Company', on_delete=models.CASCADE)
+    test_flow_used = models.ForeignKey('assessment.TestFlow', on_delete=models.RESTRICT)
+
+
+class AssessmentEventSerializer(serializers.ModelSerializer):
+    owning_company_id = serializers.ReadOnlyField(source='owning_company.company_id')
+    test_flow_id = serializers.ReadOnlyField(source='test_flow_used.test_flow_id')
+
+    class Meta:
+        model = AssessmentEvent
+        fields = ['event_id', 'name', 'start_date_time', 'owning_company_id', 'test_flow_id']
