@@ -27,6 +27,7 @@ EXCEPTION_NOT_RAISED = 'Exception not raised'
 TEST_FLOW_INVALID_NAME = 'Test Flow name must exist and must be at most 50 characters'
 TEST_FLOW_OF_COMPANY_DOES_NOT_EXIST_FORMAT = 'Assessment tool with id {} belonging to company {} does not exist'
 ASSESSMENT_EVENT_INVALID_NAME = 'Assessment Event name must be minimum of length 3 and at most 50 characters'
+ACTIVE_TEST_FLOW_NOT_FOUND = 'Active test flow of id {} belonging to {} does not exist'
 INVALID_DATE_FORMAT = '{} is not a valid ISO date string'
 CREATE_ASSIGNMENT_URL = '/assessment/create/assignment/'
 CREATE_TEST_FLOW_URL = reverse('test-flow-create')
@@ -830,9 +831,7 @@ class AssessmentEventTest(TestCase):
     @freeze_time('2022-12-01')
     def test_validate_assessment_event_when_test_flow_is_not_owned_by_company(self):
         request_data = self.base_request_data.copy()
-        expected_message = \
-            f'Active test flow of id {request_data["test_flow_id"]} belonging to {self.company_2.company_name} ' \
-            f'does not exist'
+        expected_message = ACTIVE_TEST_FLOW_NOT_FOUND.format(request_data["test_flow_id"], self.company_2.company_name)
 
         try:
             assessment_event.validate_assessment_event(request_data, self.company_2)
@@ -846,9 +845,7 @@ class AssessmentEventTest(TestCase):
     def test_validate_assessment_event_when_test_flow_is_not_active(self):
         request_data = self.base_request_data.copy()
         request_data['test_flow_id'] = str(self.test_flow_2.test_flow_id)
-        expected_message = \
-            f'Active test flow of id {request_data["test_flow_id"]} belonging to {self.company_2.company_name} ' \
-            f'does not exist'
+        expected_message = ACTIVE_TEST_FLOW_NOT_FOUND.format(request_data["test_flow_id"], self.company_2.company_name)
 
         try:
             assessment_event.validate_assessment_event(request_data, self.company_2)
@@ -993,9 +990,10 @@ class AssessmentEventTest(TestCase):
         self.assessment_event_assert_correctness_when_request_is_invalid(
             response=response,
             expected_status_code=HTTPStatus.BAD_REQUEST,
-            expected_message=
-            f'Active test flow of id {request_data["test_flow_id"]} belonging '
-            f'to {self.company_1.company_name} does not exist'
+            expected_message=ACTIVE_TEST_FLOW_NOT_FOUND.format(
+                request_data["test_flow_id"],
+                self.company_1.company_name
+            )
         )
 
     def test_create_assessment_event_when_test_flow_does_not_belong_to_company(self):
@@ -1008,9 +1006,10 @@ class AssessmentEventTest(TestCase):
         self.assessment_event_assert_correctness_when_request_is_invalid(
             response=response,
             expected_status_code=HTTPStatus.BAD_REQUEST,
-            expected_message=
-            f'Active test flow of id {request_data["test_flow_id"]} belonging '
-            f'to {self.company_2.company_name} does not exist'
+            expected_message=ACTIVE_TEST_FLOW_NOT_FOUND.format(
+                request_data["test_flow_id"],
+                self.company_2.company_name
+            )
         )
 
     def test_create_assessment_event_when_user_is_assessee(self):
