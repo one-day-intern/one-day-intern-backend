@@ -99,21 +99,6 @@ def serve_google_register_assessee(request):
     return response
 
 
-@require_GET
-@api_view(['GET'])
-def serve_google_register_assessee(request):
-    auth_code = request.GET.get('code')
-    id_token = google_get_id_token_from_auth_code(auth_code, GOOGLE_AUTH_REGISTER_ASSESSEE_REDIRECT_URI)
-    user_profile = google_get_profile_from_id_token(id_token)
-    user = register_assessee_with_google_data(user_profile)
-    tokens = get_tokens_for_user(user)
-
-    response = redirect(GOOGLE_AUTH_CLIENT_CALLBACK_URL)
-    response.set_cookie('accessToken', tokens.get('access'))
-    response.set_cookie('refreshToken', tokens.get('refresh'))
-    return response
-
-
 @require_POST
 @api_view(['POST'])
 def serve_register_assessee(request):

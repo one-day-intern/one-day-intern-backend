@@ -5,7 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from .services.assessment import create_assignment, create_interactive_quiz
 from .services.test_flow import create_test_flow
 from .services.assessment_event import create_assessment_event
-from .models import AssignmentSerializer, TestFlowSerializer, AssessmentEventSerializer
+from .models import AssignmentSerializer, TestFlowSerializer, AssessmentEventSerializer, InteractiveQuizSerializer
 import json
 
 
