@@ -1,9 +1,10 @@
+from django.core.exceptions import ObjectDoesNotExist
 from django.contrib.auth.models import User
 from datetime import time, datetime
-from users.models import Company, Assessor
+from users.models import Company, Assessor, Assessee
 from one_day_intern.exceptions import RestrictedAccessException
-from ..models import TestFlow
-from ..exceptions.exceptions import AssessmentToolDoesNotExist, TestFlowDoesNotExist
+from ..models import TestFlow, AssessmentEvent
+from ..exceptions.exceptions import AssessmentToolDoesNotExist, TestFlowDoesNotExist, EventDoesNotExist
 
 
 def sanitize_file_format(file_format: str):
@@ -62,3 +63,28 @@ def get_active_test_flow_of_company_from_id(test_flow_id, owning_company) -> Tes
         raise TestFlowDoesNotExist(
             f'Active test flow of id {test_flow_id} belonging to {owning_company.company_name} does not exist'
         )
+
+
+def get_assessee_from_email(email):
+    try:
+        return Assessee.objects.get(email=email)
+    except ObjectDoesNotExist:
+        raise ObjectDoesNotExist(f'Assessee with email {email} not found')
+
+
+def get_company_assessor_from_email(email, company: Company):
+    found_assessors = company.assessor_set.filter(email=email)
+
+    if found_assessors:
+        return found_assessors[0]
+    else:
+        raise ObjectDoesNotExist(f'Assessor with email {email} associated with {company.company_name} is not found')
+
+
+def get_assessment_event_from_id(assessment_event_id) -> AssessmentEvent:
+    found_events = AssessmentEvent.objects.filter(event_id=assessment_event_id)
+
+    if found_events:
+        return found_events[0]
+    else:
+        raise EventDoesNotExist(f'Assessment Event with ID {assessment_event_id} does not exist')

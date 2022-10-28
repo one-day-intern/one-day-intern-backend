@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from .services.assessment import create_assignment
 from .services.test_flow import create_test_flow
-from .services.assessment_event import create_assessment_event
+from .services.assessment_event import create_assessment_event, add_assessment_event_participation
 from .models import AssignmentSerializer, TestFlowSerializer, AssessmentEventSerializer
 import json
 
@@ -69,4 +69,31 @@ def serve_create_assessment_event(request):
     assessment_event = create_assessment_event(request_data, user=request.user)
     response_data = AssessmentEventSerializer(assessment_event).data
     return Response(data=response_data)
+
+
+@require_POST
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def serve_add_assessment_event_participant(request):
+    """
+    Endpoint can only be accessed by assessor
+    request_data must contain
+    assessment_event_id,
+    list_of_participants,
+    containing the assessee_id and assessor_id
+    of the assessor assigned to the assessee
+    A valid request looks like this.
+    {
+        assessment_event_id: <AssessmentEventId>
+        list_of_participants: [
+            {
+                assessee_email: <AssesseeEmail>,
+                assessor_email: <AssessorEmail>
+            }
+        ]
+    }
+    """
+    request_data = json.loads(request.body.decode('utf-8'))
+    add_assessment_event_participation(request_data, user=request.user)
+    return Response(data={'message': 'Participants are successfully added'})
 
