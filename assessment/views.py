@@ -2,10 +2,10 @@ from rest_framework.decorators import api_view, permission_classes
 from django.views.decorators.http import require_POST
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from .services.assessment import create_assignment
+from .services.assessment import create_assignment, create_response_test
 from .services.test_flow import create_test_flow
 from .services.assessment_event import create_assessment_event, add_assessment_event_participation
-from .models import AssignmentSerializer, TestFlowSerializer, AssessmentEventSerializer
+from .models import AssignmentSerializer, TestFlowSerializer, AssessmentEventSerializer, ResponseTestSerializer
 import json
 
 
@@ -97,3 +97,17 @@ def serve_add_assessment_event_participant(request):
     add_assessment_event_participation(request_data, user=request.user)
     return Response(data={'message': 'Participants are successfully added'})
 
+
+@require_POST
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def serve_create_response_test(request):
+    """
+    request_data must contain
+    prompt
+    subject
+    """
+    request_data = json.loads(request.body.decode('utf-8'))
+    assignment = create_response_test(request_data, request.user)
+    response_data = ResponseTestSerializer(assignment).data
+    return Response(data=response_data)

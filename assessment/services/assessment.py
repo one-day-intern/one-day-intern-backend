@@ -1,8 +1,8 @@
 from django.contrib.auth.models import User
 from users.models import Assessor
 from . import utils
-from ..models import Assignment
-from one_day_intern.exceptions import RestrictedAccessException, InvalidAssignmentRegistration
+from ..models import Assignment, ResponseTest
+from one_day_intern.exceptions import RestrictedAccessException, InvalidAssignmentRegistration, InvalidResponseTestRegistration
 
 
 def get_assessor_or_raise_exception(user: User):
@@ -48,3 +48,38 @@ def create_assignment(request_data, user):
     validate_assignment(request_data)
     assignment = save_assignment_to_database(request_data, assessor)
     return assignment
+
+def validate_response_test(request_data):
+    """
+    response test MUST have subject and prompt
+    """
+    if len(request_data.get('prompt').split()) == 0:
+        raise InvalidResponseTestRegistration('Prompt Should Not Be Empty')
+    if len(request_data.get('subject').split()) == 0:
+        raise InvalidResponseTestRegistration('Subject Should Not Be Empty')
+
+
+def save_response_test_to_database(request_data: dict, assessor: Assessor):
+    name = request_data.get('name')
+    description = request_data.get('description')
+    owning_company = assessor.associated_company
+    prompt = request_data.get('prompt')
+    subject = request_data.get('subject')
+    sender = assessor
+    assignment = ResponseTest.objects.create(
+        name=name,
+        description=description,
+        owning_company=owning_company,
+        prompt=prompt,
+        subject=subject,
+        sender=sender
+    )
+    return assignment
+
+
+def create_response_test(request_data, user):
+    assessor = get_assessor_or_raise_exception(user)
+    validate_assessment_tool(request_data)
+    validate_response_test(request_data)
+    response_test = save_response_test_to_database(request_data, assessor)
+    return response_test
