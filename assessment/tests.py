@@ -1327,14 +1327,14 @@ class AssessmentEventParticipationTest(TestCase):
         response = fetch_and_get_response(
             path=ADD_PARTICIPANT_URL,
             request_data=request_data,
-            authenticated_user=self.company_1
+            authenticated_user=self.company_2
         )
         self.add_participant_assert_correctness_when_request_is_invalid(
             response=response,
             expected_status_code=HTTPStatus.FORBIDDEN,
             expected_message=ASSESSMENT_EVENT_OWNERSHIP_INVALID.format(
                 request_data['assessment_event_id'],
-                self.company_1
+                self.company_2.company_id
             )
         )
 
