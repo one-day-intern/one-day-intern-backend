@@ -1,9 +1,7 @@
 from datetime import datetime
-from one_day_intern.exceptions import RestrictedAccessException
-from users.models import Company
 from one_day_intern import utils as odi_utils
 from ..exceptions.exceptions import TestFlowDoesNotExist, InvalidAssessmentEventRegistration
-from ..models import TestFlow, AssessmentEvent
+from ..models import AssessmentEvent
 from . import utils
 
 
