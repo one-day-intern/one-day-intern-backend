@@ -8,3 +8,11 @@ class AssessmentToolDoesNotExist(ObjectDoesNotExist):
 
 class InvalidTestFlowRegistration(InvalidRequestException):
     pass
+
+
+class InvalidAssessmentEventRegistration(InvalidRequestException):
+    pass
+
+
+class TestFlowDoesNotExist(ObjectDoesNotExist):
+    pass

@@ -4,7 +4,8 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from .services.assessment import create_assignment
 from .services.test_flow import create_test_flow
-from .models import AssignmentSerializer, TestFlowSerializer
+from .services.assessment_event import create_assessment_event
+from .models import AssignmentSerializer, TestFlowSerializer, AssessmentEventSerializer
 import json
 
 
@@ -50,5 +51,22 @@ def serve_create_test_flow(request):
     request_data = json.loads(request.body.decode('utf-8'))
     test_flow = create_test_flow(request_data, user=request.user)
     response_data = TestFlowSerializer(test_flow).data
+    return Response(data=response_data)
+
+
+@require_POST
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def serve_create_assessment_event(request):
+    """
+    Endpoint can only be accessed by company/assessor,
+    request_data must contain
+    name,
+    start_date,
+    test_flow_id
+    """
+    request_data = json.loads(request.body.decode('utf-8'))
+    assessment_event = create_assessment_event(request_data, user=request.user)
+    response_data = AssessmentEventSerializer(assessment_event).data
     return Response(data=response_data)
 

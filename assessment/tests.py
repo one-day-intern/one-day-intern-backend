@@ -1,5 +1,6 @@
 from django.test import TestCase
 from django.urls import reverse
+from freezegun import freeze_time
 from http import HTTPStatus
 from one_day_intern.exceptions import RestrictedAccessException, InvalidAssignmentRegistration
 from rest_framework.test import APIClient
@@ -11,9 +12,13 @@ from users.models import (
     AuthenticationService,
     AssessorSerializer
 )
-from .exceptions.exceptions import AssessmentToolDoesNotExist, InvalidTestFlowRegistration
-from .models import Assignment, AssignmentSerializer, TestFlow, TestFlowTool
-from .services import assessment, utils, test_flow
+from .exceptions.exceptions import (
+    AssessmentToolDoesNotExist,
+    InvalidTestFlowRegistration,
+    InvalidAssessmentEventRegistration
+)
+from .models import Assignment, AssignmentSerializer, TestFlow, TestFlowTool, AssessmentEvent
+from .services import assessment, utils, test_flow, assessment_event
 import datetime
 import json
 import uuid
@@ -21,9 +26,12 @@ import uuid
 EXCEPTION_NOT_RAISED = 'Exception not raised'
 TEST_FLOW_INVALID_NAME = 'Test Flow name must exist and must be at most 50 characters'
 TEST_FLOW_OF_COMPANY_DOES_NOT_EXIST_FORMAT = 'Assessment tool with id {} belonging to company {} does not exist'
-TEST_FLOW_INVALID_DATE_FORMAT = '{} is not a valid ISO date string'
+ASSESSMENT_EVENT_INVALID_NAME = 'Assessment Event name must be minimum of length 3 and at most 50 characters'
+ACTIVE_TEST_FLOW_NOT_FOUND = 'Active test flow of id {} belonging to {} does not exist'
+INVALID_DATE_FORMAT = '{} is not a valid ISO date string'
 CREATE_ASSIGNMENT_URL = '/assessment/create/assignment/'
 CREATE_TEST_FLOW_URL = reverse('test-flow-create')
+CREATE_ASSESSMENT_EVENT_URL = reverse('assessment-event-create')
 OK_RESPONSE_STATUS_CODE = 200
 
 
@@ -188,11 +196,11 @@ class AssessmentTest(TestCase):
         self.assertEqual(response_content.get('owning_company_name'), self.company.company_name)
 
 
-def fetch_create_test_flow(request_data, authenticated_user):
+def fetch_and_get_response(path, request_data, authenticated_user):
     client = APIClient()
     client.force_authenticate(user=authenticated_user)
-    test_flow_data = json.dumps(request_data)
-    response = client.post(CREATE_TEST_FLOW_URL, data=test_flow_data, content_type='application/json')
+    request_data_json = json.dumps(request_data)
+    response = client.post(path, data=request_data_json, content_type='application/json')
     return response
 
 
@@ -551,7 +559,11 @@ class TestFlowTest(TestCase):
         request_data = self.base_request_data.copy()
         request_data['tools_used'] = []
 
-        response = fetch_create_test_flow(request_data=request_data, authenticated_user=self.company_1)
+        response = fetch_and_get_response(
+            path=CREATE_TEST_FLOW_URL,
+            request_data=request_data,
+            authenticated_user=self.company_1
+        )
         self.flow_assert_response_correctness_when_request_is_valid(
             response=response,
             request_data=request_data,
@@ -563,7 +575,11 @@ class TestFlowTest(TestCase):
     def test_create_test_flow_when_no_tools_used_field_and_user_is_company(self):
         request_data = self.base_request_data.copy()
         del request_data['tools_used']
-        response = fetch_create_test_flow(request_data=request_data, authenticated_user=self.company_1)
+        response = fetch_and_get_response(
+            path=CREATE_TEST_FLOW_URL,
+            request_data=request_data,
+            authenticated_user=self.company_1
+        )
         self.flow_assert_response_correctness_when_request_is_valid(
             response=response,
             request_data=request_data,
@@ -583,7 +599,11 @@ class TestFlowTest(TestCase):
             }
         ]
 
-        response = fetch_create_test_flow(request_data=request_data, authenticated_user=self.company_1)
+        response = fetch_and_get_response(
+            path=CREATE_TEST_FLOW_URL,
+            request_data=request_data,
+            authenticated_user=self.company_1
+        )
         self.flow_assert_response_correctness_when_request_is_invalid(
             response=response,
             expected_status_code=HTTPStatus.BAD_REQUEST,
@@ -602,7 +622,11 @@ class TestFlowTest(TestCase):
             }
         ]
 
-        response = fetch_create_test_flow(request_data=request_data, authenticated_user=self.company_1)
+        response = fetch_and_get_response(
+            path=CREATE_TEST_FLOW_URL,
+            request_data=request_data,
+            authenticated_user=self.company_1
+        )
         self.flow_assert_response_correctness_when_request_is_invalid(
             response=response,
             expected_status_code=HTTPStatus.BAD_REQUEST,
@@ -610,7 +634,6 @@ class TestFlowTest(TestCase):
         )
 
     def test_create_test_flow_when_tool_start_working_time_is_invalid_and_user_is_company(self):
-        # CHANGE
         invalid_iso_datetime = '20211-02-01033:03T'
         request_data = self.base_request_data.copy()
         request_data['tools_used'] = [
@@ -621,7 +644,11 @@ class TestFlowTest(TestCase):
             }
         ]
 
-        response = fetch_create_test_flow(request_data=request_data, authenticated_user=self.company_1)
+        response = fetch_and_get_response(
+            path=CREATE_TEST_FLOW_URL,
+            request_data=request_data,
+            authenticated_user=self.company_1
+        )
         self.flow_assert_response_correctness_when_request_is_invalid(
             response=response,
             expected_status_code=HTTPStatus.BAD_REQUEST,
@@ -637,7 +664,11 @@ class TestFlowTest(TestCase):
 
     def test_create_test_flow_when_request_is_valid_and_user_is_company(self):
         request_data = self.base_request_data.copy()
-        response = fetch_create_test_flow(request_data=request_data, authenticated_user=self.company_1)
+        response = fetch_and_get_response(
+            path=CREATE_TEST_FLOW_URL,
+            request_data=request_data,
+            authenticated_user=self.company_1
+        )
         self.flow_assert_response_correctness_when_request_is_valid(
             response=response,
             request_data=request_data,
@@ -657,7 +688,11 @@ class TestFlowTest(TestCase):
 
     def test_create_test_flow_when_user_does_not_own_assessment_tool(self):
         request_data = self.base_request_data.copy()
-        response = fetch_create_test_flow(request_data=request_data, authenticated_user=self.company_2)
+        response = fetch_and_get_response(
+            path=CREATE_TEST_FLOW_URL,
+            request_data=request_data,
+            authenticated_user=self.company_2
+        )
         self.flow_assert_response_correctness_when_request_is_invalid(
             response=response,
             expected_status_code=HTTPStatus.BAD_REQUEST,
@@ -667,4 +702,342 @@ class TestFlowTest(TestCase):
         )
 
 
+class AssessmentEventTest(TestCase):
+    def setUp(self) -> None:
+        self.assessee = Assessee.objects.create_user(
+            email='assessee_event@email.com',
+            password='Password123'
+        )
+
+        self.company_1 = Company.objects.create_user(
+            email='assessment_company@email.com',
+            password='Password123',
+            company_name='Company 1',
+            description='Description',
+            address='Company 1 address'
+        )
+
+        self.company_2 = Company.objects.create_user(
+            email='assessment_company2@email.com',
+            password='Password123',
+            company_name='Company 2',
+            description='Description 2',
+            address='Company 2 address'
+        )
+
+        self.assessment_tool = Assignment.objects.create(
+            name='Assignment 1',
+            description='Assignment Description',
+            owning_company=self.company_1,
+            expected_file_format='pdf',
+            duration_in_minutes=120
+        )
+
+        self.test_flow_1 = TestFlow.objects.create(
+            name='Test Flow 1',
+            owning_company=self.company_1
+        )
+
+        self.test_flow_2 = TestFlow.objects.create(
+            name='Test Flow 2',
+            owning_company=self.company_1
+        )
+
+        self.test_flow_1.add_tool(
+            self.assessment_tool,
+            release_time=datetime.time(10, 20),
+            start_working_time=datetime.time(11, 00)
+        )
+
+        self.start_date = datetime.datetime(year=2022, month=12, day=2)
+
+        self.base_request_data = {
+            'name': 'Assessment Manajer Tingkat 1 TE 2022',
+            'start_date': '2022-12-02',
+            'test_flow_id': str(self.test_flow_1.test_flow_id)
+        }
+
+    @freeze_time('2022-12-01')
+    def test_validate_assessment_event_when_name_is_does_not_exist(self):
+        request_data = self.base_request_data.copy()
+        del request_data['name']
+        try:
+            assessment_event.validate_assessment_event(request_data, self.company_1)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidAssessmentEventRegistration as exception:
+            self.assertEqual(
+                str(exception), ASSESSMENT_EVENT_INVALID_NAME
+            )
+
+    @freeze_time('2022-12-01')
+    def test_validate_assessment_event_when_name_is_too_short(self):
+        request_data = self.base_request_data.copy()
+        request_data['name'] = 'AB'
+        try:
+            assessment_event.validate_assessment_event(request_data, self.company_1)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidAssessmentEventRegistration as exception:
+            self.assertEqual(str(exception), ASSESSMENT_EVENT_INVALID_NAME)
+
+    @freeze_time('2022-12-01')
+    def test_validate_assessment_event_when_name_is_too_long(self):
+        request_data = self.base_request_data.copy()
+        request_data['name'] = 'asjdnakjsdnaksjdnaskdnaskjdnaksdnasjdnaksdjansjdkansdkjnsad'
+        try:
+            assessment_event.validate_assessment_event(request_data, self.company_1)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidAssessmentEventRegistration as exception:
+            self.assertEqual(str(exception), ASSESSMENT_EVENT_INVALID_NAME)
+
+    @freeze_time('2022-12-01')
+    def test_validate_assessment_event_when_start_date_does_not_exist(self):
+        request_data = self.base_request_data.copy()
+        del request_data['start_date']
+        try:
+            assessment_event.validate_assessment_event(request_data, self.company_1)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidAssessmentEventRegistration as exception:
+            self.assertEqual(str(exception), 'Assessment Event should have a start date')
+
+    @freeze_time('2022-12-01')
+    def test_validate_assessment_event_when_test_flow_id_does_not_exist(self):
+        request_data = self.base_request_data.copy()
+        del request_data['test_flow_id']
+        try:
+            assessment_event.validate_assessment_event(request_data, self.company_1)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidAssessmentEventRegistration as exception:
+            self.assertEqual(str(exception), 'Assessment Event should use a test flow')
+
+    @freeze_time('2022-12-01')
+    def test_validate_assessment_event_when_start_date_is_invalid_iso(self):
+        request_data = self.base_request_data.copy()
+        request_data['start_date'] = '2022-01-99T01:01:01'
+        try:
+            assessment_event.validate_assessment_event(request_data, self.company_1)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidAssessmentEventRegistration as exception:
+            self.assertEqual(str(exception), INVALID_DATE_FORMAT.format(request_data['start_date']))
+
+    @freeze_time('2022-12-03')
+    def test_validate_assessment_event_when_start_date_is_a_previous_date(self):
+        request_data = self.base_request_data.copy()
+        try:
+            assessment_event.validate_assessment_event(request_data, self.company_1)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidAssessmentEventRegistration as exception:
+            self.assertEqual(str(exception), 'The assessment event must not begin on a previous date.')
+
+    @freeze_time('2022-12-01')
+    def test_validate_assessment_event_when_test_flow_is_not_owned_by_company(self):
+        request_data = self.base_request_data.copy()
+        expected_message = ACTIVE_TEST_FLOW_NOT_FOUND.format(request_data["test_flow_id"], self.company_2.company_name)
+
+        try:
+            assessment_event.validate_assessment_event(request_data, self.company_2)
+        except InvalidAssessmentEventRegistration as exception:
+            self.assertEqual(
+                str(exception),
+                expected_message
+            )
+
+    @freeze_time('2022-12-01')
+    def test_validate_assessment_event_when_test_flow_is_not_active(self):
+        request_data = self.base_request_data.copy()
+        request_data['test_flow_id'] = str(self.test_flow_2.test_flow_id)
+        expected_message = ACTIVE_TEST_FLOW_NOT_FOUND.format(request_data["test_flow_id"], self.company_2.company_name)
+
+        try:
+            assessment_event.validate_assessment_event(request_data, self.company_2)
+        except InvalidAssessmentEventRegistration as exception:
+            self.assertEqual(
+                str(exception),
+                expected_message
+            )
+
+    @freeze_time('2022-12-01')
+    def test_validate_assessment_event_when_request_is_valid(self):
+        request_data = self.base_request_data.copy()
+        try:
+            assessment_event.validate_assessment_event(request_data, self.company_1)
+        except Exception as exception:
+            self.fail(f'{exception} is raised')
+
+    @patch.object(AssessmentEvent, 'save')
+    def test_save_assessment_event_called_save(self, mocked_save):
+        request_data = self.base_request_data.copy()
+        assessment_event.save_assessment_event(request_data, self.company_1)
+        mocked_save.assert_called_once()
+
+    def test_save_assessment_event_add_event_to_company(self):
+        request_data = self.base_request_data.copy()
+        saved_event = assessment_event.save_assessment_event(request_data, self.company_1)
+        self.assertEqual(saved_event.owning_company, self.company_1)
+        self.assertEqual(len(self.company_1.assessmenttool_set.all()), 1)
+
+    def assessment_event_assert_correctness_when_request_is_invalid(self, response, expected_status_code,
+                                                                    expected_message):
+        self.assertEqual(response.status_code, expected_status_code)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), expected_message)
+
+    def test_create_assessment_event_when_name_does_not_exist(self):
+        request_data = self.base_request_data.copy()
+        del request_data['name']
+        response = fetch_and_get_response(
+            path=CREATE_ASSESSMENT_EVENT_URL,
+            request_data=request_data,
+            authenticated_user=self.company_1
+        )
+        self.assessment_event_assert_correctness_when_request_is_invalid(
+            response=response,
+            expected_status_code=HTTPStatus.BAD_REQUEST,
+            expected_message=ASSESSMENT_EVENT_INVALID_NAME
+        )
+
+    def test_create_assessment_event_when_name_is_too_short(self):
+        request_data = self.base_request_data.copy()
+        request_data['name'] = 'AB'
+        response = fetch_and_get_response(
+            path=CREATE_ASSESSMENT_EVENT_URL,
+            request_data=request_data,
+            authenticated_user=self.company_1
+        )
+        self.assessment_event_assert_correctness_when_request_is_invalid(
+            response=response,
+            expected_status_code=HTTPStatus.BAD_REQUEST,
+            expected_message=ASSESSMENT_EVENT_INVALID_NAME
+        )
+
+    def test_create_assessment_event_when_name_is_too_long(self):
+        request_data = self.base_request_data.copy()
+        request_data['name'] = 'abcdefghijklmnop1234jabcdefghijklmnop123456abcdefghijklmnop1234jabcdefghijklmnop123456'
+        response = fetch_and_get_response(
+            path=CREATE_ASSESSMENT_EVENT_URL,
+            request_data=request_data,
+            authenticated_user=self.company_1
+        )
+        self.assessment_event_assert_correctness_when_request_is_invalid(
+            response=response,
+            expected_status_code=HTTPStatus.BAD_REQUEST,
+            expected_message=ASSESSMENT_EVENT_INVALID_NAME
+        )
+
+    def test_create_assessment_when_start_date_does_not_exist(self):
+        request_data = self.base_request_data.copy()
+        del request_data['start_date']
+        response = fetch_and_get_response(
+            path=CREATE_ASSESSMENT_EVENT_URL,
+            request_data=request_data,
+            authenticated_user=self.company_1
+        )
+        self.assessment_event_assert_correctness_when_request_is_invalid(
+            response=response,
+            expected_status_code=HTTPStatus.BAD_REQUEST,
+            expected_message='Assessment Event should have a start date'
+        )
+
+    def test_create_assessment_when_test_flow_id_does_not_exist(self):
+        request_data = self.base_request_data.copy()
+        del request_data['test_flow_id']
+        response = fetch_and_get_response(
+            path=CREATE_ASSESSMENT_EVENT_URL,
+            request_data=request_data,
+            authenticated_user=self.company_1
+        )
+        self.assessment_event_assert_correctness_when_request_is_invalid(
+            response=response,
+            expected_status_code=HTTPStatus.BAD_REQUEST,
+            expected_message='Assessment Event should use a test flow'
+        )
+
+    def test_create_assessment_event_when_start_date_is_invalid_iso(self):
+        request_data = self.base_request_data.copy()
+        request_data['start_date'] = '0000-00-00'
+        response = fetch_and_get_response(
+            path=CREATE_ASSESSMENT_EVENT_URL,
+            request_data=request_data,
+            authenticated_user=self.company_1
+        )
+        self.assessment_event_assert_correctness_when_request_is_invalid(
+            response=response,
+            expected_status_code=HTTPStatus.BAD_REQUEST,
+            expected_message=INVALID_DATE_FORMAT.format(request_data['start_date'])
+        )
+
+    @freeze_time('2022-12-03')
+    def test_create_assessment_event_when_start_date_is_a_previous_date(self):
+        request_data = self.base_request_data.copy()
+        response = fetch_and_get_response(
+            path=CREATE_ASSESSMENT_EVENT_URL,
+            request_data=request_data,
+            authenticated_user=self.company_1
+        )
+        self.assessment_event_assert_correctness_when_request_is_invalid(
+            response=response,
+            expected_status_code=HTTPStatus.BAD_REQUEST,
+            expected_message='The assessment event must not begin on a previous date.'
+        )
+
+    def test_create_assessment_event_when_test_flow_is_not_active(self):
+        request_data = self.base_request_data.copy()
+        request_data['test_flow_id'] = str(self.test_flow_2.test_flow_id)
+        response = fetch_and_get_response(
+            path=CREATE_ASSESSMENT_EVENT_URL,
+            request_data=request_data,
+            authenticated_user=self.company_1
+        )
+        self.assessment_event_assert_correctness_when_request_is_invalid(
+            response=response,
+            expected_status_code=HTTPStatus.BAD_REQUEST,
+            expected_message=ACTIVE_TEST_FLOW_NOT_FOUND.format(
+                request_data["test_flow_id"],
+                self.company_1.company_name
+            )
+        )
+
+    def test_create_assessment_event_when_test_flow_does_not_belong_to_company(self):
+        request_data = self.base_request_data.copy()
+        response = fetch_and_get_response(
+            path=CREATE_ASSESSMENT_EVENT_URL,
+            request_data=request_data,
+            authenticated_user=self.company_2
+        )
+        self.assessment_event_assert_correctness_when_request_is_invalid(
+            response=response,
+            expected_status_code=HTTPStatus.BAD_REQUEST,
+            expected_message=ACTIVE_TEST_FLOW_NOT_FOUND.format(
+                request_data["test_flow_id"],
+                self.company_2.company_name
+            )
+        )
+
+    def test_create_assessment_event_when_user_is_assessee(self):
+        request_data = self.base_request_data.copy()
+        response = fetch_and_get_response(
+            path=CREATE_ASSESSMENT_EVENT_URL,
+            request_data=request_data,
+            authenticated_user=self.assessee
+        )
+        self.assessment_event_assert_correctness_when_request_is_invalid(
+            response=response,
+            expected_status_code=HTTPStatus.FORBIDDEN,
+            expected_message=f'User with email {self.assessee.email} is not a company or an assessor'
+        )
+
+    def test_create_assessment_event_when_request_is_valid(self):
+        request_data = self.base_request_data.copy()
+        expected_start_date_in_response = request_data['start_date'] + 'T00:00:00Z'
+        response = fetch_and_get_response(
+            path=CREATE_ASSESSMENT_EVENT_URL,
+            request_data=request_data,
+            authenticated_user=self.company_1
+        )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertIsNotNone(response_content.get('event_id'))
+        self.assertEqual(response_content.get('name'), request_data['name'])
+        self.assertEqual(response_content.get('start_date_time'), expected_start_date_in_response)
+        self.assertEqual(response_content.get('owning_company_id'), str(self.company_1.company_id))
+        self.assertEqual(response_content.get('test_flow_id'), request_data['test_flow_id'])
 
