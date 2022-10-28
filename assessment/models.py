@@ -99,13 +99,29 @@ class AssessmentEvent(models.Model):
     test_flow_used = models.ForeignKey('assessment.TestFlow', on_delete=models.RESTRICT)
 
     def check_company_ownership(self, company):
-        pass
+        return self.owning_company.company_id == company.company_id
 
     def add_participant(self, assessee, assessor):
-        pass
+        if not self.check_assessee_participation(assessee):
+            assessment_event_participation = AssessmentEventParticipation.objects.create(
+                assessment_event=self,
+                assessee=assessee,
+                assessor=assessor
+            )
+
+            TestFlowAttempt.objects.create(
+                event_participation=assessment_event_participation,
+                test_flow_attempted=self.test_flow_used
+            )
+
+            return assessment_event_participation
 
     def check_assessee_participation(self, assessee):
-        pass
+        found_assessees = AssessmentEventParticipation.objects.filter(
+            assessment_event=self,
+            assessee=assessee
+        )
+        return found_assessees.exists()
 
 
 class AssessmentEventSerializer(serializers.ModelSerializer):

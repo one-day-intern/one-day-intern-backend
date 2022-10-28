@@ -16,3 +16,7 @@ class InvalidAssessmentEventRegistration(InvalidRequestException):
 
 class TestFlowDoesNotExist(ObjectDoesNotExist):
     pass
+
+
+class EventDoesNotExist(ObjectDoesNotExist):
+    pass

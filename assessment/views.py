@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from .services.assessment import create_assignment
 from .services.test_flow import create_test_flow
-from .services.assessment_event import create_assessment_event
+from .services.assessment_event import create_assessment_event, add_assessment_event_participation
 from .models import AssignmentSerializer, TestFlowSerializer, AssessmentEventSerializer
 import json
 
@@ -93,5 +93,7 @@ def serve_add_assessment_event_participant(request):
         ]
     }
     """
-    return Response(data=None)
+    request_data = json.loads(request.body.decode('utf-8'))
+    add_assessment_event_participation(request_data, user=request.user)
+    return Response(data={'message': 'Participants are successfully added'})
 
