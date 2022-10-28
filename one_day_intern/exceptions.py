@@ -27,3 +27,6 @@ class InvalidGoogleIDTokenException(Exception):
 
 class InvalidGoogleLoginException(Exception):
     pass
+
+class InvalidResponseTestRegistration(Exception):
+    pass

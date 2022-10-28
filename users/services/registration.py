@@ -1,13 +1,12 @@
-import imp
-import uuid
 from .utils import validate_phone_number
 from ..models import OdiUser, Company, CompanyOneTimeLinkCode, Assessor, Assessee
 from one_day_intern.exceptions import InvalidRegistrationException, EmailNotFoundException
 from . import utils
+import uuid
 
 
 def validate_user_registration_data(request_data):
-    email = request_data.get('email')
+    email = request_data.get('email').lower()
     password = request_data.get('password')
 
     if not email:
@@ -49,6 +48,21 @@ def validate_user_assessee_registration_data(request_data):
     if not utils.validate_date_format(request_data.get('date_of_birth')):
         raise InvalidRegistrationException('Invalid date of birth format')
 
+
+
+def validate_user_assessee_registration_data(request_data):
+    if not request_data.get('first_name'):
+        raise InvalidRegistrationException('Assessee first name must not be null')
+    if not request_data.get('last_name'):
+        raise InvalidRegistrationException('Assessee last name must not be null')
+    if not request_data.get('phone_number'):
+        raise InvalidRegistrationException('Assessee phone number must not be null')
+    if not utils.validate_phone_number(request_data.get('phone_number')):
+        raise InvalidRegistrationException('Phone number is invalid')
+    if not request_data.get('date_of_birth'):
+        raise InvalidRegistrationException('Assessee date of birth must not be null')
+    if not utils.validate_date_format(request_data.get('date_of_birth')):
+        raise InvalidRegistrationException('Invalid date of birth format')
 
 
 def validate_user_assessor_registration_data(request_data):
@@ -115,6 +129,27 @@ def save_assessee_from_request_data(request_data):
     )
 
     return assessee
+
+def save_assessee_from_request_data(request_data):
+    email = request_data.get('email')
+    password = request_data.get('password')
+    first_name = request_data.get('first_name')
+    last_name = request_data.get('last_name')
+    phone_number = request_data.get('phone_number')
+    date_of_birth_text = request_data.get('date_of_birth')
+    date_of_birth = utils.get_date_from_string(date_of_birth_text)
+
+    assessee = Assessee.objects.create_user(
+        email=email,
+        password=password,
+        first_name=first_name,
+        last_name=last_name,
+        phone_number=phone_number,
+        date_of_birth=date_of_birth,
+    )
+
+    return assessee
+
 
 def save_assessor_from_request_data(request_data):
     email = request_data.get('email')
