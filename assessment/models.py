@@ -98,6 +98,15 @@ class AssessmentEvent(models.Model):
     owning_company = models.ForeignKey('users.Company', on_delete=models.CASCADE)
     test_flow_used = models.ForeignKey('assessment.TestFlow', on_delete=models.RESTRICT)
 
+    def check_company_ownership(self, company):
+        pass
+
+    def add_participant(self, assessee, assessor):
+        pass
+
+    def check_assessee_participation(self, assessee):
+        pass
+
 
 class AssessmentEventSerializer(serializers.ModelSerializer):
     owning_company_id = serializers.ReadOnlyField(source='owning_company.company_id')
