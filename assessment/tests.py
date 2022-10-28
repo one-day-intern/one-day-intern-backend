@@ -1,3 +1,4 @@
+from django.core.exceptions import ObjectDoesNotExist
 from django.test import TestCase
 from django.urls import reverse
 from freezegun import freeze_time
@@ -17,14 +18,17 @@ from .exceptions.exceptions import (
     InvalidTestFlowRegistration,
     InvalidAssessmentEventRegistration
 )
-from .models import (Assignment,
-                     AssignmentSerializer,
-                     TestFlow,
-                     TestFlowTool,
-                     AssessmentEvent,
-                     InteractiveQuizSerializer, InteractiveQuiz,
-                     MultipleChoiceQuestion, MultipleChoiceAnswerOption, TextQuestion, TextQuestionSerializer, \
-                     MultipleChoiceQuestionSerializer
+from .models import (
+    Assignment,
+    AssignmentSerializer,
+    TestFlow,
+    TestFlowTool,
+    AssessmentEvent,
+    TestFlowAttempt,
+    AssessmentEventParticipation
+    InteractiveQuizSerializer, InteractiveQuiz,
+    MultipleChoiceQuestion, MultipleChoiceAnswerOption, TextQuestion, TextQuestionSerializer,
+    MultipleChoiceQuestionSerializer
 )
 from .services import assessment, utils, test_flow, assessment_event
 import datetime
@@ -37,10 +41,12 @@ TEST_FLOW_OF_COMPANY_DOES_NOT_EXIST_FORMAT = 'Assessment tool with id {} belongi
 ASSESSMENT_EVENT_INVALID_NAME = 'Assessment Event name must be minimum of length 3 and at most 50 characters'
 ACTIVE_TEST_FLOW_NOT_FOUND = 'Active test flow of id {} belonging to {} does not exist'
 INVALID_DATE_FORMAT = '{} is not a valid ISO date string'
+ASSESSMENT_EVENT_OWNERSHIP_INVALID = 'Event with id {} does not belong to company with id {}'
 CREATE_ASSIGNMENT_URL = '/assessment/create/assignment/'
 CREATE_INTERACTIVE_QUIZ_URL = '/assessment/create/interactive-quiz/'
 CREATE_TEST_FLOW_URL = reverse('test-flow-create')
 CREATE_ASSESSMENT_EVENT_URL = reverse('assessment-event-create')
+ADD_PARTICIPANT_URL = reverse('event-add-participation')
 OK_RESPONSE_STATUS_CODE = 200
 
 
@@ -1283,3 +1289,314 @@ class AssessmentEventTest(TestCase):
         self.assertEqual(response_content.get('owning_company_id'), str(self.company_1.company_id))
         self.assertEqual(response_content.get('test_flow_id'), request_data['test_flow_id'])
 
+
+class AssessmentEventParticipationTest(TestCase):
+    def setUp(self) -> None:
+        self.company_1 = Company.objects.create_user(
+            email='assessment_company_participation@email.com',
+            password='Password123',
+            company_name='Company 1',
+            description='Description',
+            address='Company 1 address'
+        )
+
+        self.company_2 = Company.objects.create_user(
+            email='assessment_company_participation2@email.com',
+            password='Password123',
+            company_name='Company 2',
+            description='Description 2',
+            address='Company 2 address'
+        )
+
+        self.assessor_1 = Assessor.objects.create_user(
+            email='assessor_1@email.com',
+            password='Password123',
+            first_name='Assessor First',
+            last_name='Assessor Last',
+            phone_number='+11234567',
+            associated_company=self.company_1,
+            authentication_service=AuthenticationService.DEFAULT
+        )
+
+        self.assessee = Assessee.objects.create_user(
+            email='assessee@email.com',
+            password='Password123'
+        )
+
+        self.assessment_tool = Assignment.objects.create(
+            name='Assignment Participation',
+            description='Assignment Description',
+            owning_company=self.company_1,
+            expected_file_format='pdf',
+            duration_in_minutes=120
+        )
+
+        self.test_flow_1 = TestFlow.objects.create(
+            name='Test Flow Participation',
+            owning_company=self.company_1
+        )
+
+        self.test_flow_1.add_tool(
+            self.assessment_tool,
+            release_time=datetime.time(10, 20),
+            start_working_time=datetime.time(11, 00)
+        )
+
+        self.assessment_event = AssessmentEvent.objects.create(
+            name='Assessment Event',
+            start_date_time=datetime.datetime.now(),
+            owning_company=self.company_1,
+            test_flow_used=self.test_flow_1
+        )
+
+        self.base_request_data = {
+            'assessment_event_id': str(self.assessment_event.event_id),
+            'list_of_participants': [
+                {
+                    'assessee_email': self.assessee.email,
+                    'assessor_email': self.assessor_1.email
+                }
+            ]
+        }
+
+        self.list_of_participants = [
+            (self.assessee, self.assessor_1)
+        ]
+
+    @patch.object(AssessmentEventParticipation.objects, 'create')
+    @patch.object(AssessmentEvent, 'check_assessee_participation')
+    def test_add_participation_when_assessee_has_not_been_registered(self, mocked_check, mocked_create):
+        mocked_check.return_value = True
+        self.assessment_event.add_participant(self.assessee, self.assessor_1)
+        mocked_create.assert_not_called()
+
+    @patch.object(TestFlowAttempt.objects, 'create')
+    @patch.object(AssessmentEventParticipation.objects, 'create')
+    @patch.object(AssessmentEvent, 'check_assessee_participation')
+    def test_add_participation_when_assessee_has_been_registered(self, mocked_check, mocked_create_participation,
+                                                                 mocked_create_attempt):
+        mocked_check.return_value = False
+        self.assessment_event.add_participant(self.assessee, self.assessor_1)
+        mocked_create_participation.assert_called_once()
+
+    def test_get_assessee_from_email_when_assessee_exist(self):
+        found_assessee = utils.get_assessee_from_email(self.assessee.email)
+        self.assertEqual(found_assessee, self.assessee)
+
+    def test_get_assessee_from_email_when_assessee_does_not_exist(self):
+        try:
+            utils.get_assessee_from_email('email12@email.com')
+            self.fail(EXCEPTION_NOT_RAISED)
+        except ObjectDoesNotExist as exception:
+            self.assertEqual(str(exception), f'Assessee with email email12@email.com not found')
+
+    def test_get_assessor_from_email_when_assessor_exist(self):
+        found_assessor = utils.get_company_assessor_from_email(self.assessor_1.email, self.company_1)
+        self.assertEqual(found_assessor, self.assessor_1)
+
+    def test_get_assessor_from_email_when_assessor_does_not_exist(self):
+        try:
+            utils.get_company_assessor_from_email('email@email.com', self.company_1)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except ObjectDoesNotExist as exception:
+            self.assertEqual(
+                str(exception),
+                f'Assessor with email email@email.com associated with {self.company_1.company_name} is not found'
+            )
+
+    def test_get_assessor_from_email_when_assessor_exist_but_is_not_associated_with_company(self):
+        try:
+            utils.get_company_assessor_from_email(self.assessor_1, self.company_2)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except ObjectDoesNotExist as exception:
+            self.assertEqual(
+                str(exception),
+                f'Assessor with email {self.assessor_1.email} associated with {self.company_2.company_name} is not found'
+            )
+
+    def test_validate_add_event_participation_when_assessment_event_id_not_present(self):
+        request_data = self.base_request_data.copy()
+        del request_data['assessment_event_id']
+        try:
+            assessment_event.validate_add_assessment_participant(request_data)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidAssessmentEventRegistration as exception:
+            self.assertEqual(str(exception), 'Assessment Event Id should be present in the request body')
+
+    def test_validate_add_event_participation_when_list_of_participants_not_present(self):
+        request_data = self.base_request_data.copy()
+        del request_data['list_of_participants']
+        try:
+            assessment_event.validate_add_assessment_participant(request_data)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidAssessmentEventRegistration as exception:
+            self.assertEqual(str(exception), 'The request should include a list of participants')
+
+    def test_validate_add_event_participation_when_list_of_participants_not_a_list(self):
+        request_data = self.base_request_data.copy()
+        request_data['list_of_participants'] = 'email@email.com'
+        try:
+            assessment_event.validate_add_assessment_participant(request_data)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidAssessmentEventRegistration as exception:
+            self.assertEqual(str(exception), 'List of participants should be a list')
+
+    def test_validate_add_event_participation_when_request_is_valid(self):
+        request_data = self.base_request_data.copy()
+        try:
+            assessment_event.validate_add_assessment_participant(request_data)
+        except Exception as exception:
+            self.fail(f'{exception} is raised')
+
+    def test_validate_assessment_event_ownership_when_assessment_event_does_not_belong_to_company(self):
+        try:
+            assessment_event.validate_assessment_event_ownership(self.assessment_event, self.company_2)
+        except RestrictedAccessException as exception:
+            self.assertEqual(
+                str(exception),
+                ASSESSMENT_EVENT_OWNERSHIP_INVALID.format(self.assessment_event.event_id, self.company_2.company_id)
+            )
+
+    def test_validate_assessment_event_ownership_when_assessment_event_belongs_to_company(self):
+        try:
+            assessment_event.validate_assessment_event_ownership(self.assessment_event, self.company_1)
+        except Exception as exception:
+            self.fail(f'{exception} is raised')
+
+    def test_convert_list_of_participants_emails_to_user_objects_when_participants_inexist(self):
+        converted_list = assessment_event.convert_list_of_participants_emails_to_user_objects([], self.company_1)
+        self.assertEqual(converted_list, [])
+
+    @patch.object(utils, 'get_company_assessor_from_email')
+    @patch.object(utils, 'get_assessee_from_email')
+    def test_convert_list_of_participants_emails_to_user_objects_when_participants_exist(self, mocked_get_assessee,
+                                                                                         mocked_get_assessor):
+        mocked_get_assessee.return_value = self.assessee
+        mocked_get_assessor.return_value = self.assessor_1
+        request_data = self.base_request_data.copy()
+
+        converted_list = assessment_event.convert_list_of_participants_emails_to_user_objects(
+            request_data.get('list_of_participants'),
+            self.company_1
+        )
+
+        self.assertEqual(len(converted_list), 1)
+        self.assertTrue(isinstance(converted_list[0], tuple))
+        converted_assessee = converted_list[0][0]
+        converted_assessor = converted_list[0][1]
+        self.assertEqual(converted_assessee, self.assessee)
+        self.assertEqual(converted_assessor, self.assessor_1)
+
+    @patch.object(utils, 'get_company_assessor_from_email')
+    @patch.object(utils, 'get_assessee_from_email')
+    def test_convert_list_of_participants_emails_to_user_objects_when_user_does_not_exist(self, mocked_get_assessee,                                                                              mocked_get_assessor):
+        expected_message = f'Assessor with email {self.assessee.email} not found'
+        request_data = self.base_request_data.copy()
+        mocked_get_assessee.side_effect = ObjectDoesNotExist(expected_message)
+        try:
+            assessment_event.convert_list_of_participants_emails_to_user_objects(
+                request_data.get('list_of_participants'), self.company_1
+            )
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidAssessmentEventRegistration as exception:
+            self.assertEqual(str(exception), expected_message)
+
+    @patch.object(AssessmentEvent, 'add_participant')
+    def test_add_list_of_participants_to_event_when_list_of_participants_empty(self, mocked_add_participant):
+        assessment_event.add_list_of_participants_to_event(self.assessment_event, [])
+        mocked_add_participant.assert_not_called()
+
+    @patch.object(AssessmentEvent, 'add_participant')
+    def test_add_list_of_participants_to_event_when_list_of_participants_not_empty(self, mocked_add_participant):
+        assessment_event.add_list_of_participants_to_event(self.assessment_event, self.list_of_participants)
+        mocked_add_participant.assert_called_with(assessee=self.assessee, assessor=self.assessor_1)
+
+    def add_participant_assert_correctness_when_request_is_invalid(self, response, expected_status_code,
+                                                                   expected_message):
+        self.assertEqual(response.status_code, expected_status_code)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), expected_message)
+
+    def test_add_assessment_event_participation_when_assessment_event_id_does_not_exist(self):
+        request_data = self.base_request_data.copy()
+        del request_data['assessment_event_id']
+        response = fetch_and_get_response(
+            path=ADD_PARTICIPANT_URL,
+            request_data=request_data,
+            authenticated_user=self.company_1
+        )
+        self.add_participant_assert_correctness_when_request_is_invalid(
+            response=response,
+            expected_status_code=HTTPStatus.BAD_REQUEST,
+            expected_message='Assessment Event Id should be present in the request body'
+        )
+
+    def test_add_assessment_event_participation_when_list_of_participants_does_not_exist(self):
+        request_data = self.base_request_data.copy()
+        del request_data['list_of_participants']
+        response = fetch_and_get_response(
+            path=ADD_PARTICIPANT_URL,
+            request_data=request_data,
+            authenticated_user=self.company_1
+        )
+        self.add_participant_assert_correctness_when_request_is_invalid(
+            response=response,
+            expected_status_code=HTTPStatus.BAD_REQUEST,
+            expected_message='The request should include a list of participants'
+        )
+
+    def test_add_assessment_event_participation_when_list_of_participants_is_not_a_list(self):
+        request_data = self.base_request_data.copy()
+        request_data['list_of_participants'] = 'email1@gmail.com'
+        response = fetch_and_get_response(
+            path=ADD_PARTICIPANT_URL,
+            request_data=request_data,
+            authenticated_user=self.company_1
+        )
+        self.add_participant_assert_correctness_when_request_is_invalid(
+            response=response,
+            expected_status_code=HTTPStatus.BAD_REQUEST,
+            expected_message='List of participants should be a list'
+        )
+
+    def test_add_assessment_event_participation_when_assessment_event_is_not_owned_by_company(self):
+        request_data = self.base_request_data.copy()
+        response = fetch_and_get_response(
+            path=ADD_PARTICIPANT_URL,
+            request_data=request_data,
+            authenticated_user=self.company_2
+        )
+        self.add_participant_assert_correctness_when_request_is_invalid(
+            response=response,
+            expected_status_code=HTTPStatus.FORBIDDEN,
+            expected_message=ASSESSMENT_EVENT_OWNERSHIP_INVALID.format(
+                request_data['assessment_event_id'],
+                self.company_2.company_id
+            )
+        )
+
+    def test_add_assessment_event_participation_when_user_is_assessee(self):
+        request_data = self.base_request_data.copy()
+        response = fetch_and_get_response(
+            path=ADD_PARTICIPANT_URL,
+            request_data=request_data,
+            authenticated_user=self.assessee
+        )
+        self.add_participant_assert_correctness_when_request_is_invalid(
+            response=response,
+            expected_status_code=HTTPStatus.FORBIDDEN,
+            expected_message=f'User with email {self.assessee.email} is not a company or an assessor'
+        )
+
+    def test_add_assessment_event_participation_when_request_is_valid(self):
+        request_data = self.base_request_data.copy()
+        response = fetch_and_get_response(
+            path=ADD_PARTICIPANT_URL,
+            request_data=request_data,
+            authenticated_user=self.company_1
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), 'Participants are successfully added')
+        self.assertTrue(self.assessment_event.check_assessee_participation(self.assessee))

@@ -1,6 +1,9 @@
 from datetime import datetime
+from django.core.exceptions import ObjectDoesNotExist
 from one_day_intern import utils as odi_utils
-from ..exceptions.exceptions import TestFlowDoesNotExist, InvalidAssessmentEventRegistration
+from one_day_intern.exceptions import RestrictedAccessException
+from users.models import Company
+from ..exceptions.exceptions import TestFlowDoesNotExist, InvalidAssessmentEventRegistration, EventDoesNotExist
 from ..models import AssessmentEvent
 from . import utils
 
@@ -50,3 +53,53 @@ def create_assessment_event(request_data, user):
     validate_assessment_event(request_data, company)
     assessment_event = save_assessment_event(request_data, company)
     return assessment_event
+
+
+def validate_add_assessment_participant(request_data):
+    if not request_data.get('assessment_event_id'):
+        raise InvalidAssessmentEventRegistration('Assessment Event Id should be present in the request body')
+    if not request_data.get('list_of_participants'):
+        raise InvalidAssessmentEventRegistration('The request should include a list of participants')
+    if not isinstance(request_data.get('list_of_participants'), list):
+        raise InvalidAssessmentEventRegistration('List of participants should be a list')
+
+    try:
+        utils.get_assessment_event_from_id(request_data.get('assessment_event_id'))
+    except EventDoesNotExist as exception:
+        raise InvalidAssessmentEventRegistration(str(exception))
+
+
+def validate_assessment_event_ownership(assessment_event: AssessmentEvent, company: Company):
+    if not assessment_event.check_company_ownership(company):
+        raise RestrictedAccessException(
+            f'Event with id {assessment_event.event_id} does not belong to company with id {company.company_id}'
+        )
+
+
+def convert_list_of_participants_emails_to_user_objects(list_of_participants, creating_company):
+    converted_list_of_participants = []
+
+    try:
+        for participant_data in list_of_participants:
+            assessee = utils.get_assessee_from_email(participant_data.get('assessee_email'))
+            assessor = utils.get_company_assessor_from_email(participant_data.get('assessor_email'), creating_company)
+            converted_list_of_participants.append((assessee, assessor))
+    except ObjectDoesNotExist as exception:
+        raise InvalidAssessmentEventRegistration(str(exception))
+
+    return converted_list_of_participants
+
+
+def add_list_of_participants_to_event(event: AssessmentEvent, list_of_participants: list):
+    for assessee, assessor in list_of_participants:
+        event.add_participant(assessee=assessee, assessor=assessor)
+
+
+def add_assessment_event_participation(request_data, user):
+    validate_add_assessment_participant(request_data)
+    company = utils.get_company_or_assessor_associated_company_from_user(user)
+    event = utils.get_assessment_event_from_id(request_data.get('assessment_event_id'))
+    validate_assessment_event_ownership(event, company)
+    converted_list_of_participants = \
+        convert_list_of_participants_emails_to_user_objects(request_data.get('list_of_participants'), company)
+    add_list_of_participants_to_event(event, converted_list_of_participants)

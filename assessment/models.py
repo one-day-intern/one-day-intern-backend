@@ -205,6 +205,31 @@ class AssessmentEvent(models.Model):
     owning_company = models.ForeignKey('users.Company', on_delete=models.CASCADE)
     test_flow_used = models.ForeignKey('assessment.TestFlow', on_delete=models.RESTRICT)
 
+    def check_company_ownership(self, company):
+        return self.owning_company.company_id == company.company_id
+
+    def add_participant(self, assessee, assessor):
+        if not self.check_assessee_participation(assessee):
+            assessment_event_participation = AssessmentEventParticipation.objects.create(
+                assessment_event=self,
+                assessee=assessee,
+                assessor=assessor
+            )
+
+            TestFlowAttempt.objects.create(
+                event_participation=assessment_event_participation,
+                test_flow_attempted=self.test_flow_used
+            )
+
+            return assessment_event_participation
+
+    def check_assessee_participation(self, assessee):
+        found_assessees = AssessmentEventParticipation.objects.filter(
+            assessment_event=self,
+            assessee=assessee
+        )
+        return found_assessees.exists()
+
 
 class AssessmentEventSerializer(serializers.ModelSerializer):
     owning_company_id = serializers.ReadOnlyField(source='owning_company.company_id')
@@ -213,3 +238,18 @@ class AssessmentEventSerializer(serializers.ModelSerializer):
     class Meta:
         model = AssessmentEvent
         fields = ['event_id', 'name', 'start_date_time', 'owning_company_id', 'test_flow_id']
+
+
+class AssessmentEventParticipation(models.Model):
+    assessment_event = models.ForeignKey('assessment.AssessmentEvent', on_delete=models.CASCADE)
+    assessee = models.ForeignKey('users.Assessee', on_delete=models.CASCADE)
+    assessor = models.ForeignKey('users.Assessor', on_delete=models.RESTRICT)
+    attempt = models.OneToOneField('assessment.TestFlowAttempt', on_delete=models.CASCADE, null=True)
+
+
+class TestFlowAttempt(models.Model):
+    attempt_id = models.UUIDField(default=uuid.uuid4, primary_key=True)
+    note = models.TextField(null=True)
+    grade = models.FloatField(default=0)
+    event_participation = models.ForeignKey('assessment.AssessmentEventParticipation', on_delete=models.CASCADE)
+    test_flow_attempted = models.ForeignKey('assessment.TestFlow', on_delete=models.RESTRICT)
