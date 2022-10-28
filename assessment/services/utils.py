@@ -2,6 +2,7 @@ from django.contrib.auth.models import User
 from datetime import time, datetime
 from users.models import Company, Assessor
 from one_day_intern.exceptions import RestrictedAccessException
+from ..models import TestFlow
 from ..exceptions.exceptions import AssessmentToolDoesNotExist
 
 
@@ -41,3 +42,11 @@ def get_company_or_assessor_associated_company_from_user(user: User) -> Company:
         return assessor.associated_company
 
     raise RestrictedAccessException(f'User with email {user.email} is not a company or an assessor')
+
+
+def get_date_from_date_time_string(iso_datetime):
+    return None
+
+
+def get_active_test_flow_of_company_from_id(test_flow_id, owning_company) -> TestFlow:
+    raise Exception

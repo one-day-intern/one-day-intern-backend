@@ -89,3 +89,11 @@ class TestFlowSerializer(serializers.ModelSerializer):
     class Meta:
         model = TestFlow
         fields = ['test_flow_id', 'name', 'owning_company_id', 'is_usable', 'tools']
+
+
+class AssessmentEvent(models.Model):
+    event_id = models.UUIDField(default=uuid.uuid4, auto_created=True)
+    name = models.CharField(max_length=50)
+    start_date_time = models.DateTimeField()
+    owning_company = models.ForeignKey('users.Company', on_delete=models.CASCADE)
+    test_flow_used = models.ForeignKey('assessment.TestFlow', on_delete=models.RESTRICT)

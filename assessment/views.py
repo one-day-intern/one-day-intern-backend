@@ -52,3 +52,17 @@ def serve_create_test_flow(request):
     response_data = TestFlowSerializer(test_flow).data
     return Response(data=response_data)
 
+
+@require_POST
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def serve_create_assessment_event(request):
+    """
+    Endpoint can only be accessed by company/assessor,
+    request_data must contain
+    name,
+    start_date,
+    test_flow_id
+    """
+    return Response(data=None)
+
