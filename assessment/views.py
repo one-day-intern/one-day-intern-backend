@@ -70,3 +70,28 @@ def serve_create_assessment_event(request):
     response_data = AssessmentEventSerializer(assessment_event).data
     return Response(data=response_data)
 
+
+@require_POST
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def serve_add_assessment_event_participant(request):
+    """
+    Endpoint can only be accessed by assessor
+    request_data must contain
+    assessment_event_id,
+    list_of_participants,
+    containing the assessee_id and assessor_id
+    of the assessor assigned to the assessee
+    A valid request looks like this.
+    {
+        assessment_event_id: <AssessmentEventId>
+        list_of_participants: [
+            {
+                assessee_email: <AssesseeEmail>,
+                assessor_email: <AssessorEmail>
+            }
+        ]
+    }
+    """
+    return Response(data=None)
+

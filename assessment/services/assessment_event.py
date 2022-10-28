@@ -1,5 +1,6 @@
 from datetime import datetime
 from one_day_intern import utils as odi_utils
+from users.models import Company
 from ..exceptions.exceptions import TestFlowDoesNotExist, InvalidAssessmentEventRegistration
 from ..models import AssessmentEvent
 from . import utils
@@ -50,3 +51,28 @@ def create_assessment_event(request_data, user):
     validate_assessment_event(request_data, company)
     assessment_event = save_assessment_event(request_data, company)
     return assessment_event
+
+
+def validate_add_assessment_participant(request_data):
+    if not request_data.get('assessment_event_id'):
+        raise InvalidAssessmentEventRegistration('Assessment Event Id should be present in the request body')
+    if not request_data.get('list_of_participants'):
+        raise InvalidAssessmentEventRegistration('The request should include a list of participants')
+    if not isinstance(request_data.get('list_of_participants'), list):
+        raise InvalidAssessmentEventRegistration('List of participants should be a list')
+
+
+def validate_assessment_event_ownership(assessment_event: AssessmentEvent, company: Company):
+    raise Exception
+
+
+def convert_list_of_participants_emails_to_user_objects(list_of_participants, creating_company):
+    raise Exception
+
+
+def add_list_of_participants_to_event(event: AssessmentEvent, list_of_participants: list):
+    pass
+
+
+def add_assessment_event_participation(request_data, user):
+    pass

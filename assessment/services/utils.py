@@ -62,3 +62,11 @@ def get_active_test_flow_of_company_from_id(test_flow_id, owning_company) -> Tes
         raise TestFlowDoesNotExist(
             f'Active test flow of id {test_flow_id} belonging to {owning_company.company_name} does not exist'
         )
+
+
+def get_assessee_from_email(email):
+    return None
+
+
+def get_company_assessor_from_email(email, company: Company):
+    return None

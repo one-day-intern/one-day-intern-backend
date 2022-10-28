@@ -106,3 +106,18 @@ class AssessmentEventSerializer(serializers.ModelSerializer):
     class Meta:
         model = AssessmentEvent
         fields = ['event_id', 'name', 'start_date_time', 'owning_company_id', 'test_flow_id']
+
+
+class AssessmentEventParticipation(models.Model):
+    assessment_event = models.ForeignKey('assessment.AssessmentEvent', on_delete=models.CASCADE)
+    assessee = models.ForeignKey('users.Assessee', on_delete=models.CASCADE)
+    assessor = models.ForeignKey('users.Assessor', on_delete=models.RESTRICT)
+    attempt = models.OneToOneField('assessment.TestFlowAttempt', on_delete=models.CASCADE, null=True)
+
+
+class TestFlowAttempt(models.Model):
+    attempt_id = models.UUIDField(default=uuid.uuid4, primary_key=True)
+    note = models.TextField(null=True)
+    grade = models.FloatField(default=0)
+    event_participation = models.ForeignKey('assessment.AssessmentEventParticipation', on_delete=models.CASCADE)
+    test_flow_attempted = models.ForeignKey('assessment.TestFlow', on_delete=models.RESTRICT)
