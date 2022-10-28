@@ -196,7 +196,7 @@ class AssessmentTest(TestCase):
 
         response = client.post(CREATE_ASSIGNMENT_URL, data=assignment_data, content_type='application/json')
         self.assertEqual(response.status_code, OK_RESPONSE_STATUS_CODE)
-        print(response)
+
         response_content = json.loads(response.content)
         self.assertTrue(len(response_content) > 0)
         self.assertIsNotNone(response_content.get('assessment_id'))
@@ -1464,11 +1464,11 @@ class ResponseTestTest(TestCase):
         client = APIClient()
         client.force_authenticate(user=self.assessor)
         response = client.post(CREATE_RESPONSE_TEST_URL, data=assignment_data, content_type='application/json')
-        print(response)
+
         self.assertEqual(response.status_code, OK_RESPONSE_STATUS_CODE)
 
         response_content = json.loads(response.content)
-        print(response_content)
+
         self.assertTrue(len(response_content) > 0)
         self.assertIsNotNone(response_content.get('assessment_id'))
         self.assertEqual(response_content.get('name'), self.expected_response_test_data.get('name'))
