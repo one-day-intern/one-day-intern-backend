@@ -18,6 +18,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-m!=vw$!g^85#yna0&*sgn^9c9881f*9dk5w!7h-c(s!ja38um%'
 
 ALLOWED_HOSTS = ['*']
+CORS_ALLOW_HEADERS = ['*']
 CORS_ALLOW_ALL_ORIGINS = True
 CLOUDRUN_SERVICE_URL = os.getenv('CLOUDRUN_SERVICE_URL')
 

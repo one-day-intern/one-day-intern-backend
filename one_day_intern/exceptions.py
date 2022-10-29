@@ -26,5 +26,9 @@ class InvalidGoogleIDTokenException(Exception):
     pass
 
 
+class AuthorizationException(Exception):
+    pass
+
+
 class InvalidGoogleLoginException(Exception):
     pass
