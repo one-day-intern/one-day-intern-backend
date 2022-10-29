@@ -4,15 +4,23 @@ from django.http.response import HttpResponse, StreamingHttpResponse
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from assessment.services.assessment_tool import get_assessment_tool_by_company
 from one_day_intern.exceptions import AuthorizationException, RestrictedAccessException
 from users.services import utils as user_utils
 from .services.assessment import create_assignment
 from .services.test_flow import create_test_flow
 from .services.assessment_event import create_assessment_event, add_assessment_event_participation
 from .services.assessment_event_attempt import subscribe_to_assessment_flow
-from .models import AssignmentSerializer, TestFlowSerializer, AssessmentEventSerializer
+from .models import AssessmentToolSerializer, AssignmentSerializer, TestFlowSerializer, AssessmentEventSerializer
 import json
 
+@require_GET
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_assessment_tool(request):
+    assignments = get_assessment_tool_by_company(request.user)
+    response_data =[AssessmentToolSerializer(assignment).data for assignment in assignments]
+    return Response(data=response_data)
 
 @require_POST
 @api_view(['POST'])
