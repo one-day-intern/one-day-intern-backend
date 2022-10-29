@@ -1,3 +1,5 @@
+from typing import List
+
 from django.db import models
 from rest_framework import serializers
 from polymorphic.models import PolymorphicModel
@@ -11,6 +13,9 @@ class AssessmentTool(PolymorphicModel):
     description = models.TextField(null=True)
     owning_company = models.ForeignKey('users.Company', on_delete=models.CASCADE)
 
+    def get_tool_data(self) -> dict:
+        return None
+
 
 class AssessmentToolSerializer(serializers.ModelSerializer):
     owning_company_id = serializers.ReadOnlyField(source='owning_company.company_id')
@@ -23,6 +28,9 @@ class AssessmentToolSerializer(serializers.ModelSerializer):
 class Assignment(AssessmentTool):
     expected_file_format = models.CharField(max_length=5, null=True)
     duration_in_minutes = models.IntegerField(null=False)
+
+    def get_tool_data(self) -> dict:
+        return None
 
 
 class AssignmentSerializer(serializers.ModelSerializer):
@@ -61,6 +69,9 @@ class TestFlow(models.Model):
     def get_is_usable(self):
         return self.is_usable
 
+    def get_tools_data(self) -> List[dict]:
+        return None
+
 
 class TestFlowTool(models.Model):
     assessment_tool = models.ForeignKey('assessment.AssessmentTool', on_delete=models.CASCADE)
@@ -71,6 +82,9 @@ class TestFlowTool(models.Model):
     class Meta:
         ordering = ['release_time']
         get_latest_by = 'release_time'
+
+    def get_release_time_and_assessment_data(self) -> (str, dict):
+        return None
 
 
 class TestFlowToolSerializer(serializers.ModelSerializer):
@@ -122,6 +136,9 @@ class AssessmentEvent(models.Model):
             assessee=assessee
         )
         return found_assessees.exists()
+
+    def get_task_generator(self):
+        return None
 
 
 class AssessmentEventSerializer(serializers.ModelSerializer):

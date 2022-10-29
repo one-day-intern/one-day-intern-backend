@@ -1,5 +1,6 @@
-from rest_framework.decorators import api_view, permission_classes
 from django.views.decorators.http import require_POST
+from django.http.response import HttpResponse
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from .services.assessment import create_assignment
@@ -96,4 +97,8 @@ def serve_add_assessment_event_participant(request):
     request_data = json.loads(request.body.decode('utf-8'))
     add_assessment_event_participation(request_data, user=request.user)
     return Response(data={'message': 'Participants are successfully added'})
+
+
+def serve_subscribe_to_assessment_flow(request):
+    return HttpResponse()
 

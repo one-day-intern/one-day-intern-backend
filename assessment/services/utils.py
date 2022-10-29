@@ -88,3 +88,11 @@ def get_assessment_event_from_id(assessment_event_id) -> AssessmentEvent:
         return found_events[0]
     else:
         raise EventDoesNotExist(f'Assessment Event with ID {assessment_event_id} does not exist')
+
+
+def get_active_assessment_event_from_id(event_id):
+    return None
+
+
+def get_assessee_from_user(user: User) -> Assessee:
+    return None

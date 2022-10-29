@@ -1,10 +1,11 @@
 from django.core.exceptions import ObjectDoesNotExist
-from django.test import TestCase
+from django.test import TestCase, Client
 from django.urls import reverse
 from freezegun import freeze_time
 from http import HTTPStatus
 from one_day_intern.exceptions import RestrictedAccessException, InvalidAssignmentRegistration
 from rest_framework.test import APIClient
+from rest_framework_simplejwt.tokens import RefreshToken
 from unittest.mock import patch, call
 from users.models import (
     Company,
@@ -19,6 +20,7 @@ from .exceptions.exceptions import (
     InvalidAssessmentEventRegistration
 )
 from .models import (
+    AssessmentTool,
     Assignment,
     AssignmentSerializer,
     TestFlow,
@@ -27,9 +29,10 @@ from .models import (
     TestFlowAttempt,
     AssessmentEventParticipation
 )
-from .services import assessment, utils, test_flow, assessment_event
+from .services import assessment, utils, test_flow, assessment_event, assessment_event_attempt, TaskGenerator
 import datetime
 import json
+import schedule
 import uuid
 
 EXCEPTION_NOT_RAISED = 'Exception not raised'
@@ -39,10 +42,12 @@ ASSESSMENT_EVENT_INVALID_NAME = 'Assessment Event name must be minimum of length
 ACTIVE_TEST_FLOW_NOT_FOUND = 'Active test flow of id {} belonging to {} does not exist'
 INVALID_DATE_FORMAT = '{} is not a valid ISO date string'
 ASSESSMENT_EVENT_OWNERSHIP_INVALID = 'Event with id {} does not belong to company with id {}'
+NOT_PART_OF_EVENT = 'Assessee with email {} is not part of assessment with id {}'
 CREATE_ASSIGNMENT_URL = '/assessment/create/assignment/'
 CREATE_TEST_FLOW_URL = reverse('test-flow-create')
 CREATE_ASSESSMENT_EVENT_URL = reverse('assessment-event-create')
 ADD_PARTICIPANT_URL = reverse('event-add-participation')
+EVENT_SUBSCRIPTION_URL = reverse('event-subscription')
 OK_RESPONSE_STATUS_CODE = 200
 
 
@@ -222,7 +227,7 @@ class TestFlowTest(TestCase):
             password='password',
             company_name='Company',
             description='Company Description',
-            address='JL. Company Levinson Durbin Householder'
+            address='JL. Company Levinson Durbin Householder 2'
         )
 
         self.assessment_tool_1 = Assignment.objects.create(
@@ -274,7 +279,7 @@ class TestFlowTest(TestCase):
             email='companytestflow2@company.com',
             password='Password12',
             company_name='Company',
-            description='Company Description',
+            description='Company Description 2',
             address='JL. Company Levinson Hermitian Householder'
         )
 
@@ -1363,3 +1368,247 @@ class AssessmentEventParticipationTest(TestCase):
         response_content = json.loads(response.content)
         self.assertEqual(response_content.get('message'), 'Participants are successfully added')
         self.assertTrue(self.assessment_event.check_assessee_participation(self.assessee))
+
+
+
+class AssesseeSubscribeToAssessmentEvent(TestCase):
+    def setUp(self) -> None:
+        self.assessee = Assessee.objects.create_user(
+            email='assessee_subs@assessee.com',
+            password='Password123',
+            first_name='Assessee',
+            last_name='Lamb',
+            phone_number='+62123141203',
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+        self.assessee_token = RefreshToken.for_user(self.assessee)
+
+        self.assessee_2 = Assessee.objects.create_user(
+            email='assessee_subs_2@assessee.com',
+            password='Password123',
+            first_name='Assessee',
+            last_name='Sauce',
+            phone_number='+2123141203',
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+        self.assessee_2_token = RefreshToken.for_user(self.assessee_2)
+
+        self.company = Company.objects.create_user(
+            email='company@company.com',
+            password='password',
+            company_name='Company',
+            description='Company Description A',
+            address='JL. Company Levinson Durbin Householder'
+        )
+        self.company_token = RefreshToken.for_user(user=self.company)
+
+        self.assignment_1 = AssessmentTool.objects.create(
+            name='Base Assessment Tool',
+            description='Base assessment description',
+            owning_company=self.company
+        )
+
+        self.assignment_1 = Assignment.objects.create(
+            name='Assignment Name',
+            description='Assignment description',
+            owning_company=self.company,
+            expected_file_format='pdf',
+            duration_in_minutes=120
+        )
+        self.tool_1_release_time = datetime.time(10, 20)
+
+        self.assignment_2 = Assignment.objects.create(
+            name='Assignment Name 2',
+            description='Assignment 2 description',
+            owning_company=self.company,
+            expected_file_format='docx',
+            duration_in_minutes=30
+        )
+        self.tool_2_release_time = datetime.time(10, 30)
+
+        self.test_flow = TestFlow.objects.create(
+            name='Asisten Manajer Sub Divisi 5',
+            owning_company=self.company
+        )
+
+        self.test_flow.add_tool(
+            assessment_tool=self.assignment_1,
+            release_time=self.tool_1_release_time,
+            start_working_time=datetime.time(10, 30)
+        )
+
+        self.test_flow.add_tool(
+            assessment_tool=self.assignment_2,
+            release_time=self.tool_2_release_time,
+            start_working_time=datetime.time(11, 50)
+        )
+
+        self.tool_1_expected_data = {
+            'type': 'assignment',
+            'name': self.assignment_1.name,
+            'description': self.assignment_1.description,
+            'additional_info': {
+                'duration': self.assignment_1.duration_in_minutes
+            }
+        }
+
+        self.tool_2_expected_data = {
+            'type': 'assignment',
+            'name': self.assignment_2.name,
+            'description': self.assignment_2.description,
+            'additional_info': {
+                'duration': self.assignment_2.duration_in_minutes
+            }
+        }
+
+        self.assessment_event = AssessmentEvent.objects.create(
+            name='Assessment Event 2022',
+            start_date_time=datetime.datetime(2022, 3, 30),
+            owning_company=self.company,
+            test_flow_used=self.test_flow
+        )
+
+        self.assessor = Assessor.objects.create_user(
+            email='assessor_1@gmail.com',
+            password='password12A',
+            first_name='Assessor',
+            last_name='A',
+            phone_number='+12312312312',
+            associated_company=self.company,
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.assessment_event.add_participant(
+            assessee=self.assessee,
+            assessor=self.assessor
+        )
+
+    def test_get_tool_data_of_assessment_tool(self):
+        tool_data = self.assignment_1.get_tool_data()
+        self.assertTrue(isinstance(tool_data, dict))
+        self.assertEqual(tool_data.get('name'), self.assignment_1.name)
+        self.assertEqual(tool_data.get('description'), self.assignment_1.description)
+
+    def test_get_tool_data_of_assignment(self):
+        tool_data = self.assignment_1.get_tool_data()
+        self.assertTrue(isinstance(tool_data, dict))
+        self.assertDictEqual(tool_data, self.tool_1_expected_data)
+
+    def test_get_tools_data_of_test_flow(self):
+        tools_data = self.test_flow.get_tools_data()
+        self.assertTrue(isinstance(tools_data, list))
+        self.assertEqual(len(tools_data), 2)
+
+        flow_tool_1_data = tools_data[0]
+        tool_1_release_time = flow_tool_1_data.get('release_time')
+        self.assertEqual(tool_1_release_time, str(self.tool_1_release_time))
+        assessment_data_1 = flow_tool_1_data.get('assessment_data')
+        self.assertDictEqual(assessment_data_1, self.tool_1_expected_data)
+
+        flow_tool_2_data = tools_data[1]
+        tool_2_release_time = flow_tool_2_data.get('release_time')
+        self.assertEqual(tool_2_release_time,  str(self.tool_2_release_time))
+        assessment_data_2 = flow_tool_2_data.get('assessment_data')
+        self.assertDictEqual(assessment_data_2, self.tool_2_expected_data)
+
+    @patch.object(schedule.Job, 'at')
+    def test_task_generator_of_assessment_event(self, mocked_job_at):
+        task_generator = TaskGenerator.TaskGenerator()
+        expected_job_do_call = call().do(task_generator._get_message_to_returned_value, 'message')
+        task_generator.add_task(message='message', time_to_send='10:10:10')
+        mocked_job_at.assert_called_with('10:10:10')
+        job_do_call = mocked_job_at.mock_calls[1]
+        self.assertEqual(job_do_call, expected_job_do_call)
+
+    @patch.object(TaskGenerator.TaskGenerator, 'add_task')
+    def test_get_task_generator(self, mocked_add_task):
+        expected_calls = [
+            call(self.assignment_1.get_tool_data(), str(self.tool_1_release_time)),
+            call(self.assignment_2.get_tool_data(), str(self.tool_2_release_time))
+        ]
+        self.assessment_event.get_task_generator()
+        mocked_add_task.assert_has_calls(expected_calls)
+
+    def test_check_assessee_participation_when_assessee_is_a_participant(self):
+        self.assertTrue(self.assessment_event.check_assessee_participation(self.assessee))
+
+    def test_check_assessee_participation_when_assessee_is_not_a_participant(self):
+        self.assertFalse(self.assessment_event.check_assessee_participation(self.assessee_2))
+
+    @patch.object(AssessmentEvent, 'check_assessee_participation')
+    def test_validate_user_participation_when_user_participates_in_test_flow(self, mocked_check_participation):
+        mocked_check_participation.return_value = True
+        try:
+            assessment_event_attempt.validate_user_participation(self.assessment_event, self.assessee)
+        except Exception as exception:
+            self.fail(f'{exception} is raised')
+
+    @patch.object(AssessmentEvent, 'check_assessee_participation')
+    def test_validate_user_participation_when_user_does_not_participate_in_test_flow(self, mocked_check_participation):
+        mocked_check_participation.return_value = False
+        try:
+            assessment_event_attempt.validate_user_participation(self.assessment_event, self.assessee_2)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except RestrictedAccessException as exception:
+            self.assertEqual(str(exception), NOT_PART_OF_EVENT.format(self.assessee_2, self.assessment_event.event_id))
+
+    def test_subscribe_when_user_is_not_an_assessee(self):
+        client = Client()
+        auth_headers = {'HTTP_AUTHORIZATION': 'Bearer ' + str(self.company_token.access_token)}
+        response = client.get(
+            EVENT_SUBSCRIPTION_URL + '?assessment-event-id=' + str(self.assessment_event.event_id),
+            **auth_headers
+        )
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), 'User with email company@company.com is not an assessee')
+
+    def test_subscribe_when_assessee_does_not_participate_in_event(self):
+        client = Client()
+        auth_headers = {'HTTP_AUTHORIZATION': 'Bearer ' + str(self.assessee_2_token.access_token)}
+        response = client.get(
+            EVENT_SUBSCRIPTION_URL + '?assessment-event-id=' + str(self.assessment_event.event_id),
+            **auth_headers
+        )
+        self.assertEqual(response.status_code, HTTPStatus.UNAUTHORIZED)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            f'Assessee with email {self.assessee_2} is not part of assessment with id {self.assessment_event.event_id}'
+        )
+
+    def test_subscribe_when_assessment_id_is_not_present(self):
+        invalid_assessment_id = str(uuid.uuid4())
+        client = Client()
+        auth_headers = {'HTTP_AUTHORIZATION': 'Bearer ' + str(self.assessee_token.access_token)}
+        response = client.get(
+            EVENT_SUBSCRIPTION_URL + '?assessment-event-id=' + invalid_assessment_id,
+            **auth_headers
+        )
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            f'Assessment with id {invalid_assessment_id} does not exist'
+        )
+
+    def test_subscribe_when_assessment_id_is_random_string(self):
+        invalid_assessment_id = 'assessment-id'
+        client = Client()
+        auth_headers = {'HTTP_AUTHORIZATION': 'Bearer ' + str(self.assessee_token.access_token)}
+        response = client.get(
+            EVENT_SUBSCRIPTION_URL + '?assessment-event-id=' + invalid_assessment_id,
+            **auth_headers
+        )
+        self.assertEqual(response.status_code, HTTPStatus.INTERNAL_SERVER_ERROR)
+
+    @patch.object(TaskGenerator.TaskGenerator, 'generate')
+    def test_subscribe_when_request_is_valid(self, mocked_generate):
+        client = Client()
+        auth_headers = {'HTTP_AUTHORIZATION': 'Bearer ' + str(self.assessee_token.access_token)}
+        response = client.get(
+            EVENT_SUBSCRIPTION_URL + '?assessment-event-id=' + str(self.assessment_event.event_id),
+            **auth_headers
+        )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        mocked_generate.assert_called_once()
