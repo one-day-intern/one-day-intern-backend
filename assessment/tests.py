@@ -1552,24 +1552,31 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
         except RestrictedAccessException as exception:
             self.assertEqual(str(exception), NOT_PART_OF_EVENT.format(self.assessee_2, self.assessment_event.event_id))
 
-    def test_subscribe_when_user_is_not_an_assessee(self):
+    def fetch_and_get_response_subscription(self, access_token, assessment_event_id):
         client = Client()
-        auth_headers = {'HTTP_AUTHORIZATION': 'Bearer ' + str(self.company_token.access_token)}
+        auth_headers = {'HTTP_AUTHORIZATION': 'Bearer ' + str(access_token)}
         response = client.get(
-            EVENT_SUBSCRIPTION_URL + '?assessment-event-id=' + str(self.assessment_event.event_id),
+            EVENT_SUBSCRIPTION_URL + '?assessment-event-id=' + str(assessment_event_id),
             **auth_headers
         )
+        return response
+
+    def test_subscribe_when_user_is_not_an_assessee(self):
+        response = self.fetch_and_get_response_subscription(
+            access_token=self.company_token.access_token,
+            assessment_event_id=self.assessment_event.event_id,
+        )
+
         self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
         response_content = json.loads(response.content)
         self.assertEqual(response_content.get('message'), 'User with email company@company.com is not an assessee')
 
     def test_subscribe_when_assessee_does_not_participate_in_event(self):
-        client = Client()
-        auth_headers = {'HTTP_AUTHORIZATION': 'Bearer ' + str(self.assessee_2_token.access_token)}
-        response = client.get(
-            EVENT_SUBSCRIPTION_URL + '?assessment-event-id=' + str(self.assessment_event.event_id),
-            **auth_headers
+        response = self.fetch_and_get_response_subscription(
+            access_token=self.assessee_2_token.access_token,
+            assessment_event_id=self.assessment_event.event_id
         )
+
         self.assertEqual(response.status_code, HTTPStatus.UNAUTHORIZED)
         response_content = json.loads(response.content)
         self.assertEqual(
@@ -1579,12 +1586,11 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
 
     def test_subscribe_when_assessment_id_is_not_present(self):
         invalid_assessment_id = str(uuid.uuid4())
-        client = Client()
-        auth_headers = {'HTTP_AUTHORIZATION': 'Bearer ' + str(self.assessee_token.access_token)}
-        response = client.get(
-            EVENT_SUBSCRIPTION_URL + '?assessment-event-id=' + invalid_assessment_id,
-            **auth_headers
+        response = self.fetch_and_get_response_subscription(
+            access_token=self.assessee_token.access_token,
+            assessment_event_id=invalid_assessment_id
         )
+
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
         self.assertEqual(
@@ -1594,21 +1600,19 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
 
     def test_subscribe_when_assessment_id_is_random_string(self):
         invalid_assessment_id = 'assessment-id'
-        client = Client()
-        auth_headers = {'HTTP_AUTHORIZATION': 'Bearer ' + str(self.assessee_token.access_token)}
-        response = client.get(
-            EVENT_SUBSCRIPTION_URL + '?assessment-event-id=' + invalid_assessment_id,
-            **auth_headers
+        response = self.fetch_and_get_response_subscription(
+            access_token=self.assessee_token.access_token,
+            assessment_event_id=invalid_assessment_id
         )
+
         self.assertEqual(response.status_code, HTTPStatus.INTERNAL_SERVER_ERROR)
 
     @patch.object(TaskGenerator.TaskGenerator, 'generate')
     def test_subscribe_when_request_is_valid(self, mocked_generate):
-        client = Client()
-        auth_headers = {'HTTP_AUTHORIZATION': 'Bearer ' + str(self.assessee_token.access_token)}
-        response = client.get(
-            EVENT_SUBSCRIPTION_URL + '?assessment-event-id=' + str(self.assessment_event.event_id),
-            **auth_headers
+        response = self.fetch_and_get_response_subscription(
+            access_token=self.assessee_token.access_token,
+            assessment_event_id=self.assessment_event.event_id
         )
+
         self.assertEqual(response.status_code, HTTPStatus.OK)
         mocked_generate.assert_called_once()

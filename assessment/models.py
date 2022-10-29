@@ -1,17 +1,21 @@
-from typing import List
 from django.db import models
 from rest_framework import serializers
 from polymorphic.models import PolymorphicModel
 from .services.TaskGenerator import TaskGenerator
+from typing import List
 import datetime
 import uuid
+
+
+USERS_COMPANY = 'users.Company'
+OWNING_COMPANY_COMPANY_ID = 'owning_company.company_id'
 
 
 class AssessmentTool(PolymorphicModel):
     assessment_id = models.UUIDField(primary_key=True, auto_created=True, default=uuid.uuid4)
     name = models.CharField(max_length=50, null=False)
     description = models.TextField(null=True)
-    owning_company = models.ForeignKey('users.Company', on_delete=models.CASCADE)
+    owning_company = models.ForeignKey(USERS_COMPANY, on_delete=models.CASCADE)
 
     def get_tool_data(self) -> dict:
         return {
@@ -21,7 +25,7 @@ class AssessmentTool(PolymorphicModel):
 
 
 class AssessmentToolSerializer(serializers.ModelSerializer):
-    owning_company_id = serializers.ReadOnlyField(source='owning_company.company_id')
+    owning_company_id = serializers.ReadOnlyField(source=OWNING_COMPANY_COMPANY_ID)
 
     class Meta:
         model = AssessmentTool
@@ -60,7 +64,7 @@ class AssignmentSerializer(serializers.ModelSerializer):
 class TestFlow(models.Model):
     test_flow_id = models.UUIDField(default=uuid.uuid4, auto_created=True)
     name = models.CharField(max_length=50)
-    owning_company = models.ForeignKey('users.Company', on_delete=models.CASCADE)
+    owning_company = models.ForeignKey(USERS_COMPANY, on_delete=models.CASCADE)
     tools = models.ManyToManyField(AssessmentTool, through='TestFlowTool')
     is_usable = models.BooleanField(default=False)
 
@@ -109,7 +113,7 @@ class TestFlowToolSerializer(serializers.ModelSerializer):
 
 
 class TestFlowSerializer(serializers.ModelSerializer):
-    owning_company_id = serializers.ReadOnlyField(source='owning_company.company_id')
+    owning_company_id = serializers.ReadOnlyField(source=OWNING_COMPANY_COMPANY_ID)
     tools = TestFlowToolSerializer(source='testflowtool_set', read_only=True, many=True)
 
     class Meta:
@@ -121,7 +125,7 @@ class AssessmentEvent(models.Model):
     event_id = models.UUIDField(default=uuid.uuid4, auto_created=True)
     name = models.CharField(max_length=50)
     start_date_time = models.DateTimeField()
-    owning_company = models.ForeignKey('users.Company', on_delete=models.CASCADE)
+    owning_company = models.ForeignKey(USERS_COMPANY, on_delete=models.CASCADE)
     test_flow_used = models.ForeignKey('assessment.TestFlow', on_delete=models.RESTRICT)
 
     def check_company_ownership(self, company):
@@ -162,11 +166,11 @@ class AssessmentEvent(models.Model):
         return task_generator
 
     def is_active(self) -> bool:
-        return True
+        return self.start_date_time <= datetime.datetime.now(datetime.timezone.utc)
 
 
 class AssessmentEventSerializer(serializers.ModelSerializer):
-    owning_company_id = serializers.ReadOnlyField(source='owning_company.company_id')
+    owning_company_id = serializers.ReadOnlyField(source=OWNING_COMPANY_COMPANY_ID)
     test_flow_id = serializers.ReadOnlyField(source='test_flow_used.test_flow_id')
 
     class Meta:

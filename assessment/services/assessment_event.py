@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, date
 from django.core.exceptions import ObjectDoesNotExist
 from one_day_intern import utils as odi_utils
 from one_day_intern.exceptions import RestrictedAccessException
@@ -25,7 +25,7 @@ def validate_assessment_event(request_data, creating_company):
     except ValueError as exception:
         raise InvalidAssessmentEventRegistration(str(exception))
 
-    if start_date < datetime.today():
+    if start_date.date() < date.today():
         raise InvalidAssessmentEventRegistration('The assessment event must not begin on a previous date.')
 
     try:

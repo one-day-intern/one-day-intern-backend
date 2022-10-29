@@ -1,5 +1,5 @@
 from django.core.exceptions import ObjectDoesNotExist
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_GET
 from django.http.response import HttpResponse, StreamingHttpResponse
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
@@ -103,6 +103,7 @@ def serve_add_assessment_event_participant(request):
     return Response(data={'message': 'Participants are successfully added'})
 
 
+@require_GET
 def serve_subscribe_to_assessment_flow(request):
     """
         Endpoint can only be accessed by assessee
