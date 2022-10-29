@@ -14,12 +14,17 @@ from .services.assessment_event_attempt import subscribe_to_assessment_flow
 from .models import AssessmentToolSerializer, AssignmentSerializer, TestFlowSerializer, AssessmentEventSerializer
 import json
 
+def serializeDataUsingSerializer(assignment):
+    data = AssessmentToolSerializer(assignment).data
+    data["type"] = type(assignment).__name__.lower()
+    return data
+
 @require_GET
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def get_assessment_tool(request):
     assignments = get_assessment_tool_by_company(request.user)
-    response_data =[AssessmentToolSerializer(assignment).data for assignment in assignments]
+    response_data =[serializeDataUsingSerializer(assignment) for assignment in assignments]
     return Response(data=response_data)
 
 @require_POST
