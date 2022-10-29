@@ -1,8 +1,8 @@
 from typing import List
-
 from django.db import models
 from rest_framework import serializers
 from polymorphic.models import PolymorphicModel
+from .services.TaskGenerator import TaskGenerator
 import datetime
 import uuid
 
@@ -14,7 +14,10 @@ class AssessmentTool(PolymorphicModel):
     owning_company = models.ForeignKey('users.Company', on_delete=models.CASCADE)
 
     def get_tool_data(self) -> dict:
-        return None
+        return {
+            'name': self.name,
+            'description': self.description
+        }
 
 
 class AssessmentToolSerializer(serializers.ModelSerializer):
@@ -30,7 +33,12 @@ class Assignment(AssessmentTool):
     duration_in_minutes = models.IntegerField(null=False)
 
     def get_tool_data(self) -> dict:
-        return None
+        tool_base_data = super().get_tool_data()
+        tool_base_data['type'] = 'assignment'
+        tool_base_data['additional_info'] = {
+            'duration': self.duration_in_minutes
+        }
+        return tool_base_data
 
 
 class AssignmentSerializer(serializers.ModelSerializer):
@@ -70,7 +78,8 @@ class TestFlow(models.Model):
         return self.is_usable
 
     def get_tools_data(self) -> List[dict]:
-        return None
+        test_flow_tools = TestFlowTool.objects.filter(test_flow=self)
+        return [test_flow_tool.get_release_time_and_assessment_data() for test_flow_tool in test_flow_tools]
 
 
 class TestFlowTool(models.Model):
@@ -84,7 +93,10 @@ class TestFlowTool(models.Model):
         get_latest_by = 'release_time'
 
     def get_release_time_and_assessment_data(self) -> (str, dict):
-        return None
+        return {
+            'release_time': str(self.release_time),
+            'assessment_data': self.assessment_tool.get_tool_data()
+        }
 
 
 class TestFlowToolSerializer(serializers.ModelSerializer):
@@ -138,7 +150,19 @@ class AssessmentEvent(models.Model):
         return found_assessees.exists()
 
     def get_task_generator(self):
-        return None
+        task_generator = TaskGenerator()
+        test_flow = self.test_flow_used
+        tools_release_and_assignment_data = test_flow.get_tools_data()
+
+        for tool_release_and_assignment_datum in tools_release_and_assignment_data:
+            release_time = tool_release_and_assignment_datum['release_time']
+            assessment_data = tool_release_and_assignment_datum['assessment_data']
+            task_generator.add_task(assessment_data, release_time)
+
+        return task_generator
+
+    def is_active(self) -> bool:
+        return True
 
 
 class AssessmentEventSerializer(serializers.ModelSerializer):

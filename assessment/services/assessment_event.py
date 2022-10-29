@@ -25,7 +25,7 @@ def validate_assessment_event(request_data, creating_company):
     except ValueError as exception:
         raise InvalidAssessmentEventRegistration(str(exception))
 
-    if start_date < datetime.now():
+    if start_date < datetime.today():
         raise InvalidAssessmentEventRegistration('The assessment event must not begin on a previous date.')
 
     try:

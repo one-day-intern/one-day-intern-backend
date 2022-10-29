@@ -2,7 +2,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.contrib.auth.models import User
 from datetime import time, datetime
 from users.models import Company, Assessor, Assessee
-from one_day_intern.exceptions import RestrictedAccessException
+from one_day_intern.exceptions import RestrictedAccessException, AuthorizationException
 from ..models import TestFlow, AssessmentEvent
 from ..exceptions.exceptions import AssessmentToolDoesNotExist, TestFlowDoesNotExist, EventDoesNotExist
 
@@ -91,8 +91,23 @@ def get_assessment_event_from_id(assessment_event_id) -> AssessmentEvent:
 
 
 def get_active_assessment_event_from_id(event_id):
-    return None
+    found_events = AssessmentEvent.objects.filter(event_id=event_id)
+
+    if found_events:
+        found_event: AssessmentEvent = found_events[0]
+    else:
+        raise EventDoesNotExist(f'Assessment with id {event_id} does not exist')
+
+    if found_event.is_active():
+        return found_event
+    else:
+        raise EventDoesNotExist(f'Assessment with id {event_id} is not active')
 
 
 def get_assessee_from_user(user: User) -> Assessee:
-    return None
+    found_assessees = Assessee.objects.filter(email=user.email)
+
+    if found_assessees:
+        return found_assessees[0]
+    else:
+        raise AuthorizationException(f'User with email {user.email} is not an assessee')

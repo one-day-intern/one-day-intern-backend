@@ -1,11 +1,15 @@
+from django.core.exceptions import ObjectDoesNotExist
 from django.views.decorators.http import require_POST
-from django.http.response import HttpResponse
+from django.http.response import HttpResponse, StreamingHttpResponse
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from one_day_intern.exceptions import AuthorizationException, RestrictedAccessException
+from users.services import utils as user_utils
 from .services.assessment import create_assignment
 from .services.test_flow import create_test_flow
 from .services.assessment_event import create_assessment_event, add_assessment_event_participation
+from .services.assessment_event_attempt import subscribe_to_assessment_flow
 from .models import AssignmentSerializer, TestFlowSerializer, AssessmentEventSerializer
 import json
 
@@ -100,5 +104,28 @@ def serve_add_assessment_event_participant(request):
 
 
 def serve_subscribe_to_assessment_flow(request):
-    return HttpResponse()
+    """
+        Endpoint can only be accessed by assessee
+        Endpoint will return an event stream,
+        returning the assessment tool data at each designated time.
+        A valid request looks like this.
+        /assessment-event-id=<AssessmentEventId>
+        """
+    try:
+        request_data = request.GET
+        user = user_utils.get_user_from_request(request)
+        task_generator = subscribe_to_assessment_flow(request_data, user=user)
+        return StreamingHttpResponse(task_generator.generate(), status=200, content_type='text/event-stream')
+    except AuthorizationException as exception:
+        response_content = {'message': str(exception)}
+        return HttpResponse(content=json.dumps(response_content), status=403)
+    except RestrictedAccessException as exception:
+        response_content = {'message': str(exception)}
+        return HttpResponse(content=json.dumps(response_content), status=401)
+    except ObjectDoesNotExist as exception:
+        response_content = {'message': str(exception)}
+        return HttpResponse(content=json.dumps(response_content), status=400)
+    except Exception as exception:
+        response_content = {'message': str(exception)}
+        return HttpResponse(content=json.dumps(response_content), status=500)
 
