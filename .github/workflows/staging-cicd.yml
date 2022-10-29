@@ -19,12 +19,31 @@ jobs:
       - name: Collect Static Files
         run: python manage.py collectstatic --no-input
       - name: Run Test
-        run: python manage.py test
+        run: python manage.py test --no-input
         env:
           DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          GOOGLE_AUTH_CLIENT_ID: ${{ secrets.GOOGLE_AUTH_CLIENT_ID }}
+          GOOGLE_AUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_AUTH_CLIENT_SECRET }}
+          GOOGLE_AUTH_LOGIN_REDIRECT_URI: ${{ secrets.GOOGLE_AUTH_LOGIN_REDIRECT_URI }}
+          GOOGLE_AUTH_REGISTER_ASSESSEE_REDIRECT_URI: ${{ secrets.GOOGLE_AUTH_REGISTER_ASSESSEE_REDIRECT_URI }}
+          GOOGLE_AUTH_CLIENT_CALLBACK_URL: ${{ secrets.GOOGLE_AUTH_CLIENT_CALLBACK_URL }}
+
+  sonarcloud:
+    name: SonarCloud
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}  # Needed to get PR information, if any
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   staging:
-    needs: test
+    needs: sonarcloud
     if: github.ref == 'refs/heads/staging'
     name: Staging to Cloud Run
     runs-on: ubuntu-latest
