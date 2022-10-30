@@ -15,4 +15,4 @@ def serialize_assignment_list_using_serializer(assignments):
         data = AssessmentToolSerializer(assignment).data
         data["type"] = type(assignment).__name__.lower()
         serialized_assignment_list.append(data)
-    return data
+    return serialized_assignment_list
