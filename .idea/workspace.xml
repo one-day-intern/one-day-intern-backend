@@ -4,26 +4,13 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="e2156b0c-3e0e-4b00-b0af-bb331cb30b5a" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/assessment/exceptions/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/assessment/migrations/0003_alter_assessmenttool_options_and_more.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/assessment/migrations/0004_testflow_testflowtool_testflow_tools.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/assessment/services/test_flow.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/one_day_intern/utils.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/users/services/user_info.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+    <list default="true" id="e2156b0c-3e0e-4b00-b0af-bb331cb30b5a" name="Changes" comment="Changes">
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/one-day-intern-backend.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/one-day-intern-backend.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/assessment/exceptions/exceptions.py" beforeDir="false" afterPath="$PROJECT_DIR$/assessment/exceptions/exceptions.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/assessment/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/assessment/models.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/assessment/services/assessment.py" beforeDir="false" afterPath="$PROJECT_DIR$/assessment/services/assessment.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/assessment/services/utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/assessment/services/utils.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/assessment/tests.py" beforeDir="false" afterPath="$PROJECT_DIR$/assessment/tests.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/assessment/urls.py" beforeDir="false" afterPath="$PROJECT_DIR$/assessment/urls.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/assessment/views.py" beforeDir="false" afterPath="$PROJECT_DIR$/assessment/views.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/one_day_intern/exceptions.py" beforeDir="false" afterPath="$PROJECT_DIR$/one_day_intern/exceptions.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/one_day_intern/settings.py" beforeDir="false" afterPath="$PROJECT_DIR$/one_day_intern/settings.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/requirements.txt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/users/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/users/models.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/users/services/registration.py" beforeDir="false" afterPath="$PROJECT_DIR$/users/services/registration.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/users/services/utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/users/services/utils.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/users/tests.py" beforeDir="false" afterPath="$PROJECT_DIR$/users/tests.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/users/urls.py" beforeDir="false" afterPath="$PROJECT_DIR$/users/urls.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/users/views.py" beforeDir="false" afterPath="$PROJECT_DIR$/users/views.py" afterDir="false" />
@@ -185,8 +172,6 @@
         </entry>
       </map>
     </option>
-  </component>
-  <component name="VcsManagerConfiguration">
-    <MESSAGE value="[CHORES] delete migrations for users and assessment module" />
+    <option name="oldMeFiltersMigrated" value="true" />
   </component>
 </project>
