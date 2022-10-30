@@ -60,7 +60,7 @@ GET_RELEASED_ASSIGNMENTS = reverse('event-active-assignments') + '?assessment-ev
 OK_RESPONSE_STATUS_CODE = 200
 CREATE_RESPONSE_TEST_URL = '/assessment/create/response-test/'
 GET_TOOLS_URL="/assessment/tools/"
-
+REQUEST_CONTENT_TYPE = 'application/json'
 
 class AssessmentTest(TestCase):
     def setUp(self) -> None:
@@ -440,7 +440,7 @@ class InteractiveQuizTest(TestCase):
         client = APIClient()
         client.force_authenticate(user=self.assessor)
 
-        response = client.post(CREATE_INTERACTIVE_QUIZ_URL, data=interactive_quiz_data, content_type='application/json')
+        response = client.post(CREATE_INTERACTIVE_QUIZ_URL, data=interactive_quiz_data, content_type=REQUEST_CONTENT_TYPE)
         self.assertEqual(response.status_code, OK_RESPONSE_STATUS_CODE)
         response_content = json.loads(response.content)
         self.assertTrue(len(response_content) > 0)
@@ -461,7 +461,7 @@ def fetch_and_get_response(path, request_data, authenticated_user):
     client = APIClient()
     client.force_authenticate(user=authenticated_user)
     request_data_json = json.dumps(request_data)
-    response = client.post(path, data=request_data_json, content_type='application/json')
+    response = client.post(path, data=request_data_json, content_type=REQUEST_CONTENT_TYPE)
     return response
 
 
@@ -2140,7 +2140,7 @@ class ResponseTestTest(TestCase):
         assignment_data = json.dumps(self.request_data.copy())
         client = APIClient()
         client.force_authenticate(user=self.assessor)
-        response = client.post(CREATE_RESPONSE_TEST_URL, data=assignment_data, content_type='application/json')
+        response = client.post(CREATE_RESPONSE_TEST_URL, data=assignment_data, content_type=REQUEST_CONTENT_TYPE)
         response_content = json.loads(response.content)
         self.assertEqual(response.status_code, OK_RESPONSE_STATUS_CODE)
         self.assertTrue(len(response_content) > 0)

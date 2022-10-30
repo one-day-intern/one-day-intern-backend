@@ -34,6 +34,10 @@ REGISTER_COMPANY_URL = '/users/register-company/'
 REGISTER_ASSESSEE_URL = '/users/register-assessee/'
 PASSWORD_INVALID_NO_UPPER = 'Password length must contain at least 1 uppercase character'
 EXCEPTION_NOT_RAISED = 'Exception not raised'
+ASSESSEE_PHONE_NUMBER_MUST_NOT_NULL = 'Assessee phone number must not be null'
+ASSESSEE_FIRST_NAME_MUST_NOT_NULL = 'Assessee first name must not be null'
+ASSESSEE_DATE_OF_BIRTH_MUST_NOT_NULL = 'Assessee date of birth must not be null'
+INVALID_BIRTH_DATE = 'Invalid date of birth format'
 
 REGISTER_COMPANY_URL = '/users/register-company/'
 REGISTER_ASSESSEE_URL = '/users/register-assessee/'
@@ -488,7 +492,7 @@ class AssesseeRegistrationTest(TestCase):
             self.fail(f'{exception} is raised.')
 
     def test_validate_user_assessee_registration_data_when_assessee_first_name_is_not_valid(self):
-        exception_error_message = 'Assessee first name must not be null'
+        exception_error_message = ASSESSEE_FIRST_NAME_MUST_NOT_NULL
         request_data_missing_name = self.base_request_data.copy()
         request_data_missing_name['first_name'] = ''
 
@@ -510,7 +514,7 @@ class AssesseeRegistrationTest(TestCase):
             self.assertEqual(str(exception), exception_error_message)
 
     def test_validate_user_assessee_registration_data_when_assessee_phone_number_is_not_valid(self):
-        exception_error_message = 'Assessee phone number must not be null'
+        exception_error_message = ASSESSEE_PHONE_NUMBER_MUST_NOT_NULL
         request_data_missing_phone_number = self.base_request_data.copy()
         request_data_missing_phone_number['phone_number'] = ''
 
@@ -521,7 +525,7 @@ class AssesseeRegistrationTest(TestCase):
             self.assertEqual(str(exception), exception_error_message)
 
     def test_validate_user_assessee_registration_data_when_date_of_birth_is_invalid(self):
-        exception_error_message = 'Assessee date of birth must not be null'
+        exception_error_message = ASSESSEE_DATE_OF_BIRTH_MUST_NOT_NULL
         request_data_missing_dob = self.base_request_data.copy()
         request_data_missing_dob['date_of_birth'] = ''
 
@@ -531,7 +535,7 @@ class AssesseeRegistrationTest(TestCase):
         except InvalidRegistrationException as exception:
             self.assertEqual(str(exception), exception_error_message)
 
-        exception_error_message = 'Invalid date of birth format'
+        exception_error_message = INVALID_BIRTH_DATE
         request_data_invalid_dob = self.base_request_data.copy()
         request_data_invalid_dob['date_of_birth'] = '08-29-1990'
 
@@ -601,7 +605,7 @@ class AssesseeRegistrationTest(TestCase):
             self.fail(f'{exception} is raised.')
 
     def test_validate_user_assessee_registration_data_when_assessee_first_name_is_not_valid(self):
-        exception_error_message = 'Assessee first name must not be null'
+        exception_error_message = ASSESSEE_FIRST_NAME_MUST_NOT_NULL
         request_data_missing_name = self.base_request_data.copy()
         request_data_missing_name['first_name'] = ''
 
@@ -623,7 +627,7 @@ class AssesseeRegistrationTest(TestCase):
             self.assertEqual(str(exception), exception_error_message)
 
     def test_validate_user_assessee_registration_data_when_assessee_phone_number_is_not_valid(self):
-        exception_error_message = 'Assessee phone number must not be null'
+        exception_error_message = ASSESSEE_PHONE_NUMBER_MUST_NOT_NULL
         request_data_missing_phone_number = self.base_request_data.copy()
         request_data_missing_phone_number['phone_number'] = ''
 
@@ -634,7 +638,7 @@ class AssesseeRegistrationTest(TestCase):
             self.assertEqual(str(exception), exception_error_message)
 
     def test_validate_user_assessee_registration_data_when_date_of_birth_is_invalid(self):
-        exception_error_message = 'Assessee date of birth must not be null'
+        exception_error_message = ASSESSEE_DATE_OF_BIRTH_MUST_NOT_NULL
         request_data_missing_dob = self.base_request_data.copy()
         request_data_missing_dob['date_of_birth'] = ''
 
@@ -644,7 +648,7 @@ class AssesseeRegistrationTest(TestCase):
         except InvalidRegistrationException as exception:
             self.assertEqual(str(exception), exception_error_message)
 
-        exception_error_message = 'Invalid date of birth format'
+        exception_error_message = INVALID_BIRTH_DATE
         request_data_invalid_dob = self.base_request_data.copy()
         request_data_invalid_dob['date_of_birth'] = '08-29-1990'
 
@@ -1163,7 +1167,7 @@ class AssesseeViewsTestCase(TestCase):
         registration_data = self.registration_base_data.copy()
         registration_data['first_name'] = ''
         response = self.fetch_with_data(registration_data, REGISTER_ASSESSEE_URL)
-        expected_message = 'Assessee first name must not be null'
+        expected_message = ASSESSEE_FIRST_NAME_MUST_NOT_NULL
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
         self.assertEqual(response_content['message'], expected_message)
@@ -1172,7 +1176,7 @@ class AssesseeViewsTestCase(TestCase):
         registration_data = self.registration_base_data.copy()
         registration_data['phone_number'] = ''
         response = self.fetch_with_data(registration_data, REGISTER_ASSESSEE_URL)
-        expected_message = 'Assessee phone number must not be null'
+        expected_message = ASSESSEE_PHONE_NUMBER_MUST_NOT_NULL
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
         self.assertEqual(response_content['message'], expected_message)
@@ -1181,7 +1185,7 @@ class AssesseeViewsTestCase(TestCase):
         registration_data = self.registration_base_data.copy()
         registration_data['date_of_birth'] = ''
         response = self.fetch_with_data(registration_data, REGISTER_ASSESSEE_URL)
-        expected_message = 'Assessee date of birth must not be null'
+        expected_message = ASSESSEE_DATE_OF_BIRTH_MUST_NOT_NULL
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
         self.assertEqual(response_content['message'], expected_message)
@@ -1189,7 +1193,7 @@ class AssesseeViewsTestCase(TestCase):
         registration_data = self.registration_base_data.copy()
         registration_data['date_of_birth'] = '09-1994-30T10:37:35.849Z'
         response = self.fetch_with_data(registration_data, REGISTER_ASSESSEE_URL)
-        expected_message = 'Invalid date of birth format'
+        expected_message = INVALID_BIRTH_DATE
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
         self.assertEqual(response_content['message'], expected_message)
