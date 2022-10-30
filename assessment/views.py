@@ -10,7 +10,7 @@ from users.services import utils as user_utils
 from .services.test_flow import create_test_flow
 from .services.assessment_event import create_assessment_event, add_assessment_event_participation
 from .services.assessment_event_attempt import subscribe_to_assessment_flow
-from .models import AssignmentSerializer, TestFlowSerializer, AssessmentEventSerializer
+from .models import AssignmentSerializer, TestFlowSerializer, AssessmentEventSerializer, InteractiveQuizSerializer
 import json
 
 
@@ -146,4 +146,5 @@ def serve_subscribe_to_assessment_flow(request):
     except Exception as exception:
         response_content = {'message': str(exception)}
         return HttpResponse(content=json.dumps(response_content), status=500)
+
 

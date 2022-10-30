@@ -1,7 +1,9 @@
 from django.contrib.auth.models import User
-
-from one_day_intern.exceptions import RestrictedAccessException, InvalidAssignmentRegistration, \
+from one_day_intern.exceptions import (
+    RestrictedAccessException,
+    InvalidAssignmentRegistration,
     InvalidInteractiveQuizRegistration
+)
 from users.models import Assessor
 from . import utils
 from ..models import Assignment, MultipleChoiceQuestion, InteractiveQuiz, TextQuestion
@@ -164,3 +166,4 @@ def create_interactive_quiz(request_data, user):
         save_question_to_database(q, interactive_quiz)
 
     return interactive_quiz
+

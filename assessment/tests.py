@@ -27,10 +27,12 @@ from .models import (
     TestFlowTool,
     AssessmentEvent,
     TestFlowAttempt,
-    AssessmentEventParticipation
-    InteractiveQuizSerializer, InteractiveQuiz,
-    MultipleChoiceQuestion, MultipleChoiceAnswerOption, TextQuestion, TextQuestionSerializer,
-    MultipleChoiceQuestionSerializer
+    AssessmentEventParticipation,
+    MultipleChoiceAnswerOption,
+    TextQuestion,
+    MultipleChoiceQuestion,
+    InteractiveQuizSerializer,
+    InteractiveQuiz, MultipleChoiceQuestionSerializer, TextQuestionSerializer
 )
 from .services import assessment, utils, test_flow, assessment_event, assessment_event_attempt, TaskGenerator
 import datetime
@@ -58,11 +60,11 @@ OK_RESPONSE_STATUS_CODE = 200
 class AssessmentTest(TestCase):
     def setUp(self) -> None:
         self.company = Company.objects.create_user(
-            email='company@company.com',
+            email='company63@company.com',
             password='password',
             company_name='Company',
-            description='Company Description',
-            address='JL. Company Levinson Durbin Householder'
+            description='Company Description 66',
+            address='JL. Company Levinson Durbin Householder 67'
         )
 
         self.assessor = Assessor.objects.create_user(
@@ -194,18 +196,19 @@ class AssessmentTest(TestCase):
         self.assertDictEqual(returned_assignment_data, self.expected_assignment_data)
 
     def test_create_assignment_when_complete_status_200(self):
-        assignment_data = json.dumps(self.request_data.copy())
-        client = APIClient()
-        client.force_authenticate(user=self.assessor)
+        assignment_data = self.request_data.copy()
+        response = fetch_and_get_response(
+            path=CREATE_ASSIGNMENT_URL,
+            request_data=assignment_data,
+            authenticated_user=self.assessor
+        )
 
-        response = client.post(CREATE_ASSIGNMENT_URL, data=assignment_data, content_type='application/json')
         self.assertEqual(response.status_code, OK_RESPONSE_STATUS_CODE)
-
         response_content = json.loads(response.content)
         self.assertTrue(len(response_content) > 0)
-        self.assertIsNotNone(response_content.get('assessment_id'))
         self.assertEqual(response_content.get('name'), self.expected_assignment_data.get('name'))
         self.assertEqual(response_content.get('description'), self.expected_assignment_data.get('description'))
+        self.assertIsNotNone(response_content.get('assessment_id'))
         self.assertEqual(
             response_content.get('expected_file_format'), self.expected_assignment_data.get('expected_file_format')
         )
@@ -433,7 +436,6 @@ class InteractiveQuizTest(TestCase):
 
         response = client.post(CREATE_INTERACTIVE_QUIZ_URL, data=interactive_quiz_data, content_type='application/json')
         self.assertEqual(response.status_code, OK_RESPONSE_STATUS_CODE)
-
         response_content = json.loads(response.content)
         self.assertTrue(len(response_content) > 0)
         self.assertIsNotNone(response_content.get('assessment_id'))
@@ -1853,3 +1855,4 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
 
         self.assertEqual(response.status_code, HTTPStatus.OK)
         mocked_generate.assert_called_once()
+
