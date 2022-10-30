@@ -9,6 +9,7 @@ class InvalidAssignmentRegistration(Exception):
 class InvalidRequestException(Exception):
     pass
 
+
 class InvalidRegistrationException(Exception):
     pass
 
@@ -22,6 +23,10 @@ class InvalidGoogleAuthCodeException(Exception):
 
 
 class InvalidGoogleIDTokenException(Exception):
+    pass
+
+
+class AuthorizationException(Exception):
     pass
 
 
