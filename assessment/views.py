@@ -1,13 +1,26 @@
+from django.core.exceptions import ObjectDoesNotExist
+from django.http.response import HttpResponse, StreamingHttpResponse
+from django.views.decorators.http import require_POST, require_GET
 from rest_framework.decorators import api_view, permission_classes
-from django.views.decorators.http import require_POST
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from .services.assessment import create_assignment, create_response_test
+from assessment.services.assessment_tool import get_assessment_tool_by_company, serialize_assignment_list_using_serializer
+from .services.assessment import create_assignment, create_interactive_quiz, create_response_test
+from one_day_intern.exceptions import AuthorizationException, RestrictedAccessException
+from users.services import utils as user_utils
 from .services.test_flow import create_test_flow
 from .services.assessment_event import create_assessment_event, add_assessment_event_participation
-from .models import AssignmentSerializer, TestFlowSerializer, AssessmentEventSerializer, ResponseTestSerializer
+from .services.assessment_event_attempt import subscribe_to_assessment_flow
+from .models import AssignmentSerializer, TestFlowSerializer, AssessmentEventSerializer, InteractiveQuizSerializer, ResponseTestSerializer
 import json
 
+@require_GET
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def serve_get_assessment_tool(request):
+    assignments = get_assessment_tool_by_company(request.user)
+    response_data = serialize_assignment_list_using_serializer(assignments)
+    return Response(data=response_data)
 
 @require_POST
 @api_view(['POST'])
@@ -23,6 +36,23 @@ def serve_create_assignment(request):
     request_data = json.loads(request.body.decode('utf-8'))
     assignment = create_assignment(request_data, request.user)
     response_data = AssignmentSerializer(assignment).data
+    return Response(data=response_data)
+
+
+@require_POST
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def serve_create_interactive_quiz(request):
+    """
+    request_data must contain
+    name (string),
+    description (string),
+    duration_in_minutes (integer),
+    total_points (integer)
+    """
+    request_data = json.loads(request.body.decode('utf-8'))
+    interactive_quiz = create_interactive_quiz(request_data, request.user)
+    response_data = InteractiveQuizSerializer(interactive_quiz).data
     return Response(data=response_data)
 
 
@@ -111,3 +141,31 @@ def serve_create_response_test(request):
     assignment = create_response_test(request_data, request.user)
     response_data = ResponseTestSerializer(assignment).data
     return Response(data=response_data)
+@require_GET
+def serve_subscribe_to_assessment_flow(request):
+    """
+        Endpoint can only be accessed by assessee
+        Endpoint will return an event stream,
+        returning the assessment tool data at each designated time.
+        A valid request looks like this.
+        /assessment-event-id=<AssessmentEventId>
+        """
+    try:
+        request_data = request.GET
+        user = user_utils.get_user_from_request(request)
+        task_generator = subscribe_to_assessment_flow(request_data, user=user)
+        return StreamingHttpResponse(task_generator.generate(), status=200, content_type='text/event-stream')
+    except AuthorizationException as exception:
+        response_content = {'message': str(exception)}
+        return HttpResponse(content=json.dumps(response_content), status=403)
+    except RestrictedAccessException as exception:
+        response_content = {'message': str(exception)}
+        return HttpResponse(content=json.dumps(response_content), status=401)
+    except ObjectDoesNotExist as exception:
+        response_content = {'message': str(exception)}
+        return HttpResponse(content=json.dumps(response_content), status=400)
+    except Exception as exception:
+        response_content = {'message': str(exception)}
+        return HttpResponse(content=json.dumps(response_content), status=500)
+
+

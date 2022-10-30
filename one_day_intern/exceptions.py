@@ -2,11 +2,15 @@ class RestrictedAccessException(Exception):
     pass
 
 
-class InvalidAssignmentRegistration(Exception):
+class InvalidRequestException(Exception):
     pass
 
 
-class InvalidRequestException(Exception):
+class InvalidAssignmentRegistration(InvalidRequestException):
+    pass
+
+
+class InvalidInteractiveQuizRegistration(InvalidRequestException):
     pass
 
 class InvalidRegistrationException(Exception):
@@ -22,6 +26,10 @@ class InvalidGoogleAuthCodeException(Exception):
 
 
 class InvalidGoogleIDTokenException(Exception):
+    pass
+
+
+class AuthorizationException(Exception):
     pass
 
 
