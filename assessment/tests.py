@@ -8,8 +8,6 @@ from one_day_intern.exceptions import RestrictedAccessException, InvalidAssignme
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 from unittest.mock import patch, call
-from rest_framework.test import APIClient
-from http import HTTPStatus
 from users.models import (
     Company,
     Assessor,
@@ -1764,9 +1762,6 @@ class AssessmentToolTest(TestCase):
             expected_file_format='pptx',
             duration_in_minutes=50
         )
-        
-        self.assessor_1_token = RefreshToken.for_user(self.assessor_1)
-        self.assessor_2_token = RefreshToken.for_user(self.assessor_2)
 
     def test_get_tool_from_authorised_user(self):
         assessment_tool = get_assessment_tool_by_company(self.assessor_1)

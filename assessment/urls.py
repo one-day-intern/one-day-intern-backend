@@ -1,6 +1,6 @@
 from django.urls import path
 from .views import (
-    get_assessment_tool,
+    serve_get_assessment_tool,
     serve_create_assignment,
     serve_create_test_flow,
     serve_create_assessment_event,
@@ -10,7 +10,7 @@ from .views import (
 
 
 urlpatterns = [
-    path('tools/', get_assessment_tool),
+    path('tools/', serve_get_assessment_tool),
     path('create/assignment/', serve_create_assignment),
     path('test-flow/create/', serve_create_test_flow, name='test-flow-create'),
     path('assessment-event/create/', serve_create_assessment_event, name='assessment-event-create'),

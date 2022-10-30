@@ -22,7 +22,7 @@ def serializeDataUsingSerializer(assignment):
 @require_GET
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
-def get_assessment_tool(request):
+def serve_get_assessment_tool(request):
     assignments = get_assessment_tool_by_company(request.user)
     response_data =[serializeDataUsingSerializer(assignment) for assignment in assignments]
     return Response(data=response_data)
