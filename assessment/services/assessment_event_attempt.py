@@ -1,6 +1,5 @@
 from django.contrib.auth.models import User
 from one_day_intern.exceptions import RestrictedAccessException, AuthorizationException, InvalidRequestException
-from one_day_intern.exceptions import RestrictedAccessException, AuthorizationException
 from users.models import Assessee
 from ..exceptions.exceptions import EventDoesNotExist
 from ..models import AssessmentEvent

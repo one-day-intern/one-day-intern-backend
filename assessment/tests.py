@@ -1724,7 +1724,7 @@ class ActiveAssessmentToolTest(TestCase):
         self.assertFalse(test_flow_tool.release_time_has_passed())
 
     @freeze_time("2012-01-14 10:30")
-    def test_release_time_has_passed_when_time_has_not_passed(self):
+    def test_release_time_has_passed_when_time_has_passed(self):
         test_flow_tool = self.test_flow.testflowtool_set.all()[0]
         self.assertTrue(test_flow_tool.release_time_has_passed())
 
