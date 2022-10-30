@@ -1,4 +1,3 @@
-from urllib import request
 from django.core.exceptions import ObjectDoesNotExist
 from django.test import TestCase, Client
 from django.urls import reverse
@@ -2068,7 +2067,7 @@ class ResponseTestTest(TestCase):
             assessment.validate_response_test(valid_request_data)
         except InvalidResponseTestRegistration as exception:
             self.fail(f'{exception} is raised')
-    
+
     def test_validate_response_test_when_subject_is_invalid(self):
         request_data_with_no_subject = self.request_data.copy()
         request_data_with_no_subject['subject'] = ''

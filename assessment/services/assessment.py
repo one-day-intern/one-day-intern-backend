@@ -2,11 +2,11 @@ from django.contrib.auth.models import User
 from one_day_intern.exceptions import (
     RestrictedAccessException,
     InvalidAssignmentRegistration,
-    InvalidInteractiveQuizRegistration
+    InvalidInteractiveQuizRegistration,
+    InvalidResponseTestRegistration
 )
 from users.models import Assessor
 from . import utils
-from one_day_intern.exceptions import RestrictedAccessException, InvalidAssignmentRegistration, InvalidResponseTestRegistration
 from ..models import Assignment, MultipleChoiceQuestion, InteractiveQuiz, TextQuestion, ResponseTest
 
 

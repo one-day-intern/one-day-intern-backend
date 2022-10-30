@@ -303,7 +303,7 @@ class ResponseTest(AssessmentTool):
     sender = models.ForeignKey('users.Assessor', on_delete=models.CASCADE)
     subject = models.TextField(null=False)
     prompt = models.TextField(null=False)
-    
+
 class ResponseTestSerializer(serializers.ModelSerializer):
     owning_company_name = serializers.ReadOnlyField(source='owning_company.company_name')
     sender = serializers.ReadOnlyField(source='sender.email')
