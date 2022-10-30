@@ -1,9 +1,10 @@
 from django.contrib.auth.models import User
 from one_day_intern.exceptions import RestrictedAccessException, AuthorizationException, InvalidRequestException
+from one_day_intern.exceptions import RestrictedAccessException, AuthorizationException
 from users.models import Assessee
-from .TaskGenerator import TaskGenerator
-from ..models import AssessmentEvent
 from ..exceptions.exceptions import EventDoesNotExist
+from ..models import AssessmentEvent
+from .TaskGenerator import TaskGenerator
 from . import utils
 
 

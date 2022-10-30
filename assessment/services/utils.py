@@ -12,6 +12,14 @@ def sanitize_file_format(file_format: str):
         return file_format.strip('.')
 
 
+def get_interactive_quiz_total_points(questions):
+    total_points = 0
+    for q in questions:
+        total_points += q.get('points')
+
+    return total_points
+
+
 def get_time_from_date_time_string(iso_datetime) -> time:
     iso_datetime = iso_datetime.strip('Z') if iso_datetime else None
     try:
