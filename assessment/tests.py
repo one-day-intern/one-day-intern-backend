@@ -3,7 +3,7 @@ from django.test import TestCase, Client
 from django.urls import reverse
 from freezegun import freeze_time
 from http import HTTPStatus
-from one_day_intern.exceptions import RestrictedAccessException, InvalidAssignmentRegistration
+from one_day_intern.exceptions import RestrictedAccessException, InvalidAssignmentRegistration, InvalidInteractiveQuizRegistration
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 from unittest.mock import patch, call
@@ -27,7 +27,12 @@ from .models import (
     TestFlowTool,
     AssessmentEvent,
     TestFlowAttempt,
-    AssessmentEventParticipation
+    AssessmentEventParticipation,
+    MultipleChoiceAnswerOption,
+    TextQuestion,
+    MultipleChoiceQuestion,
+    InteractiveQuizSerializer,
+    InteractiveQuiz, MultipleChoiceQuestionSerializer, TextQuestionSerializer
 )
 from .services import assessment, utils, test_flow, assessment_event, assessment_event_attempt, TaskGenerator
 import datetime
@@ -44,6 +49,7 @@ INVALID_DATE_FORMAT = '{} is not a valid ISO date string'
 ASSESSMENT_EVENT_OWNERSHIP_INVALID = 'Event with id {} does not belong to company with id {}'
 NOT_PART_OF_EVENT = 'Assessee with email {} is not part of assessment with id {}'
 CREATE_ASSIGNMENT_URL = '/assessment/create/assignment/'
+CREATE_INTERACTIVE_QUIZ_URL = '/assessment/create/interactive-quiz/'
 CREATE_TEST_FLOW_URL = reverse('test-flow-create')
 CREATE_ASSESSMENT_EVENT_URL = reverse('assessment-event-create')
 ADD_PARTICIPANT_URL = reverse('event-add-participation')
@@ -55,11 +61,11 @@ OK_RESPONSE_STATUS_CODE = 200
 class AssessmentTest(TestCase):
     def setUp(self) -> None:
         self.company = Company.objects.create_user(
-            email='company@company.com',
+            email='company63@company.com',
             password='password',
             company_name='Company',
-            description='Company Description',
-            address='JL. Company Levinson Durbin Householder'
+            description='Company Description 66',
+            address='JL. Company Levinson Durbin Householder 67'
         )
 
         self.assessor = Assessor.objects.create_user(
@@ -191,23 +197,257 @@ class AssessmentTest(TestCase):
         self.assertDictEqual(returned_assignment_data, self.expected_assignment_data)
 
     def test_create_assignment_when_complete_status_200(self):
-        assignment_data = json.dumps(self.request_data.copy())
-        client = APIClient()
-        client.force_authenticate(user=self.assessor)
+        assignment_data = self.request_data.copy()
+        response = fetch_and_get_response(
+            path=CREATE_ASSIGNMENT_URL,
+            request_data=assignment_data,
+            authenticated_user=self.assessor
+        )
 
-        response = client.post(CREATE_ASSIGNMENT_URL, data=assignment_data, content_type='application/json')
         self.assertEqual(response.status_code, OK_RESPONSE_STATUS_CODE)
-
         response_content = json.loads(response.content)
         self.assertTrue(len(response_content) > 0)
-        self.assertIsNotNone(response_content.get('assessment_id'))
         self.assertEqual(response_content.get('name'), self.expected_assignment_data.get('name'))
         self.assertEqual(response_content.get('description'), self.expected_assignment_data.get('description'))
+        self.assertIsNotNone(response_content.get('assessment_id'))
         self.assertEqual(
             response_content.get('expected_file_format'), self.expected_assignment_data.get('expected_file_format')
         )
         self.assertEqual(
             response_content.get('duration_in_minutes'), self.expected_assignment_data.get('duration_in_minutes')
+        )
+        self.assertEqual(response_content.get('owning_company_id'), self.company.id)
+        self.assertEqual(response_content.get('owning_company_name'), self.company.company_name)
+
+
+class InteractiveQuizTest(TestCase):
+    def setUp(self) -> None:
+        self.company = Company.objects.create_user(
+            email='company@company.com',
+            password='password',
+            company_name='Company',
+            description='Company Description',
+            address='JL. Company Levinson Durbin Householder'
+        )
+
+        self.assessor = Assessor.objects.create_user(
+            email='assessor@assessor.com',
+            password='password',
+            first_name='Levinson',
+            last_name='Durbin',
+            phone_number='+6282312345678',
+            employee_id='A&EX4NDER',
+            associated_company=self.company,
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.request_data = {
+            'name': 'Data Cleaning Test',
+            'description': 'This is a data cleaning test',
+            'duration_in_minutes': 55,
+            'total_points': 10,
+            'questions': [
+                {
+                    'prompt': 'What is data cleaning?',
+                    'points': 5,
+                    'question_type': 'multiple_choice',
+                    'answer_options': [
+                        {
+                            'content': 'Cleaning data',
+                            'correct': True,
+                        },
+                        {
+                            'content': 'Creating new features',
+                            'correct': False,
+                        },
+
+                    ]
+                },
+                {
+                    'prompt': 'Have you ever done data cleaning with Pandas?',
+                    'points': 5,
+                    'question_type': 'text',
+                    'answer_key': 'Yes, I have',
+                }
+            ]
+        }
+
+        self.expected_interactive_quiz = InteractiveQuiz.objects.create(
+            name=self.request_data.get('name'),
+            description=self.request_data.get('description'),
+            owning_company=self.assessor.associated_company,
+            total_points=self.request_data.get('total_points'),
+            duration_in_minutes=self.request_data.get('duration_in_minutes')
+        )
+
+        self.expected_interactive_quiz_data = InteractiveQuizSerializer(self.expected_interactive_quiz).data
+
+        self.mc_question_data = self.request_data.get('questions')[0]
+
+        self.expected_mc_question = MultipleChoiceQuestion(
+            interactive_quiz=self.expected_interactive_quiz,
+            prompt=self.mc_question_data.get('prompt'),
+            points=self.mc_question_data.get('points'),
+            question_type=self.mc_question_data.get('question_type')
+        )
+
+        self.correct_answer_option_data = self.mc_question_data.get('answer_options')[0]
+
+        self.expected_correct_answer_option = MultipleChoiceAnswerOption(
+            question=self.expected_mc_question,
+            content=self.correct_answer_option_data.get('content'),
+            correct=self.correct_answer_option_data.get('correct'),
+        )
+
+        self.incorrect_answer_option_data = self.mc_question_data.get('answer_options')[1]
+
+        self.expected_incorrect_answer_option = MultipleChoiceAnswerOption(
+            question=self.expected_mc_question,
+            content=self.correct_answer_option_data.get('content'),
+            correct=self.correct_answer_option_data.get('correct'),
+        )
+
+        self.text_question_data = self.request_data.get('questions')[1]
+
+        self.expected_text_question = TextQuestion(
+            interactive_quiz=self.expected_interactive_quiz,
+            prompt=self.text_question_data.get('prompt'),
+            points=self.text_question_data.get('points'),
+            question_type=self.text_question_data.get('question_type'),
+            answer_key=self.text_question_data.get('answer_key')
+        )
+
+    def test_validate_interactive_quiz_when_request_is_valid(self):
+        valid_request_data = self.request_data.copy()
+        try:
+            self.assertEqual(type(valid_request_data), dict)
+            assessment.validate_interactive_quiz(valid_request_data)
+        except InvalidAssignmentRegistration as exception:
+            self.fail(f'{exception} is raised')
+
+    def test_interactive_quiz_when_request_duration_is_invalid(self):
+        request_data_with_no_duration = self.request_data.copy()
+        request_data_with_no_duration['duration_in_minutes'] = ''
+        expected_message = 'Interactive Quiz should have a duration'
+        try:
+            assessment.validate_interactive_quiz(request_data_with_no_duration)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidInteractiveQuizRegistration as exception:
+            self.assertEqual(str(exception), expected_message)
+
+        request_data_with_non_numeric_duration = self.request_data.copy()
+        request_data_with_non_numeric_duration['duration_in_minutes'] = '1a'
+        expected_message = 'Interactive Quiz duration must only be of type numeric'
+        try:
+            assessment.validate_interactive_quiz(request_data_with_non_numeric_duration)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidInteractiveQuizRegistration as exception:
+            self.assertEqual(str(exception), expected_message)
+
+    def test_interactive_quiz_when_request_total_points_is_invalid(self):
+        request_data_with_no_duration = self.request_data.copy()
+        request_data_with_no_duration['total_points'] = None
+        expected_message = 'Interactive Quiz should have total points'
+        try:
+            assessment.validate_interactive_quiz(request_data_with_no_duration)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidInteractiveQuizRegistration as exception:
+            self.assertEqual(str(exception), expected_message)
+
+        request_data_with_non_numeric_duration = self.request_data.copy()
+        request_data_with_non_numeric_duration['total_points'] = '1a'
+        expected_message = 'Interactive Quiz total points must only be of type numeric'
+        try:
+            assessment.validate_interactive_quiz(request_data_with_non_numeric_duration)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidInteractiveQuizRegistration as exception:
+            self.assertEqual(str(exception), expected_message)
+
+    @patch.object(InteractiveQuiz.objects, 'create')
+    def test_save_interactive_quiz_to_database(self, mocked_create):
+        mocked_create.return_value = self.expected_interactive_quiz
+        returned_interactive_quiz = assessment.save_interactive_quiz_to_database(self.request_data, self.assessor)
+        returned_interactive_quiz_data = InteractiveQuizSerializer(returned_interactive_quiz).data
+        mocked_create.assert_called_once()
+        self.assertDictEqual(returned_interactive_quiz_data, self.expected_interactive_quiz_data)
+
+    @patch.object(MultipleChoiceAnswerOption.objects, 'create')
+    @patch.object(MultipleChoiceAnswerOption.objects, 'create')
+    @patch.object(MultipleChoiceQuestion.objects, 'create')
+    def test_save_mc_question_to_database(self, mocked_create_mc_question, mocked_create_incorrect_answer_option,
+                                          mocked_create_correct_answer_option):
+
+        mocked_create_correct_answer_option.return_value = self.expected_correct_answer_option
+        mocked_create_incorrect_answer_option.return_value = self.expected_incorrect_answer_option
+        mocked_create_mc_question.return_value = self.expected_mc_question
+
+        returned_mc_question = assessment.save_question_to_database(self.mc_question_data,
+                                                                    self.expected_interactive_quiz)
+        returned_mc_question_data = MultipleChoiceQuestionSerializer(returned_mc_question).data
+        mocked_create_mc_question.assert_called_once()
+        mocked_create_correct_answer_option.called_once()
+        mocked_create_incorrect_answer_option.called_once()
+
+        keys = ['prompt', 'points', 'question_type']
+        self.expected_mc_question_data = {key: self.mc_question_data[key] for key in keys}
+        self.assertDictEqual(returned_mc_question_data, self.expected_mc_question_data)
+
+    @patch.object(TextQuestion.objects, 'create')
+    def test_save_text_question_to_database(self, mocked_create_text_question):
+
+        mocked_create_text_question.return_value = self.expected_text_question
+
+        returned_question = assessment.save_question_to_database(self.text_question_data,
+                                                                 self.expected_interactive_quiz)
+        returned_question_data = TextQuestionSerializer(returned_question).data
+        mocked_create_text_question.assert_called_once()
+        self.assertDictEqual(returned_question_data, self.text_question_data)
+
+    @patch.object(utils, 'get_interactive_quiz_total_points')
+    @patch.object(assessment, 'save_question_to_database')
+    @patch.object(assessment, 'save_interactive_quiz_to_database')
+    @patch.object(assessment, 'validate_answer_option')
+    @patch.object(assessment, 'validate_question')
+    @patch.object(assessment, 'validate_interactive_quiz')
+    @patch.object(assessment, 'validate_assessment_tool')
+    @patch.object(assessment, 'get_assessor_or_raise_exception')
+    def test_create_interactive_quiz(self, mocked_get_assessor, mocked_validate_assessment_tool,
+                                     mocked_validate_interactive_quiz, mocked_validate_question,
+                                     mocked_validate_answer_option, mocked_save_interactive_quiz,
+                                     mocked_save_questions, mocked_get_interactive_quiz_total_points):
+        mocked_get_assessor.return_value = self.assessor
+
+        mocked_validate_assessment_tool.return_value = None
+        mocked_validate_interactive_quiz.return_value = None
+        mocked_validate_question.return_value = None
+        mocked_validate_answer_option.return_value = None
+
+        mocked_save_interactive_quiz.return_value = self.expected_interactive_quiz
+        mocked_save_questions.return_value = None
+
+        mocked_get_interactive_quiz_total_points.return_value = 10
+
+        returned_interactive_quiz = assessment.create_interactive_quiz(self.request_data, self.assessor)
+        returned_interactive_quiz_data = InteractiveQuizSerializer(returned_interactive_quiz).data
+        self.assertDictEqual(returned_interactive_quiz_data, self.expected_interactive_quiz_data)
+
+    def test_create_interactive_quiz_when_complete_status_200(self):
+        interactive_quiz_data = json.dumps(self.request_data.copy())
+        client = APIClient()
+        client.force_authenticate(user=self.assessor)
+
+        response = client.post(CREATE_INTERACTIVE_QUIZ_URL, data=interactive_quiz_data, content_type='application/json')
+        self.assertEqual(response.status_code, OK_RESPONSE_STATUS_CODE)
+        response_content = json.loads(response.content)
+        self.assertTrue(len(response_content) > 0)
+        self.assertIsNotNone(response_content.get('assessment_id'))
+        self.assertEqual(response_content.get('name'), self.expected_interactive_quiz_data.get('name'))
+        self.assertEqual(response_content.get('description'), self.expected_interactive_quiz_data.get('description'))
+        self.assertEqual(
+            response_content.get('total_points'), self.expected_interactive_quiz_data.get('total_points')
+        )
+        self.assertEqual(
+            response_content.get('duration_in_minutes'), self.expected_interactive_quiz_data.get('duration_in_minutes')
         )
         self.assertEqual(response_content.get('owning_company_id'), self.company.id)
         self.assertEqual(response_content.get('owning_company_name'), self.company.company_name)
