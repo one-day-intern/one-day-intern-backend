@@ -1620,6 +1620,13 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
         mocked_generate.assert_called_once()
 
 
+def fetch_all_active_assignment(event_id, authenticated_user):
+    client = APIClient()
+    client.force_authenticate(user=authenticated_user)
+    response = client.get(GET_RELEASED_ASSIGNMENTS + event_id)
+    return response
+
+
 class ActiveAssessmentToolTest(TestCase):
     def setUp(self) -> None:
         self.assessee = Assessee.objects.create_user(
@@ -1743,22 +1750,16 @@ class ActiveAssessmentToolTest(TestCase):
         released_assignments_data = self.assessment_event.get_released_assignments()
         self.assertEqual(released_assignments_data, [])
 
-    def fetch_all_active_assignment(self, event_id, authenticated_user):
-        client = APIClient()
-        client.force_authenticate(user=authenticated_user)
-        response = client.get(GET_RELEASED_ASSIGNMENTS + event_id)
-        return response
-
     def test_get_all_active_assignment_when_event_id_is_invalid(self):
         invalid_event_id = str(uuid.uuid4())
-        response = self.fetch_all_active_assignment(invalid_event_id, authenticated_user=self.assessee)
+        response = fetch_all_active_assignment(invalid_event_id, authenticated_user=self.assessee)
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
         self.assertEqual(response_content.get('message'), f'Assessment with id {invalid_event_id} does not exist')
 
     @freeze_time("2022-02-27")
     def test_get_all_active_assignment_when_event_is_not_active(self):
-        response = self.fetch_all_active_assignment(
+        response = fetch_all_active_assignment(
             event_id=str(self.assessment_event.event_id),
             authenticated_user=self.assessee
         )
@@ -1771,7 +1772,7 @@ class ActiveAssessmentToolTest(TestCase):
 
     @freeze_time("2022-03-30 11:00:00")
     def test_get_all_active_assignment_when_user_not_assessee(self):
-        response = self.fetch_all_active_assignment(
+        response = fetch_all_active_assignment(
             event_id=str(self.assessment_event.event_id),
             authenticated_user=self.assessor
         )
@@ -1784,7 +1785,7 @@ class ActiveAssessmentToolTest(TestCase):
 
     @freeze_time("2022-03-30 11:00:00")
     def test_get_all_active_assignment_when_user_is_not_a_participant(self):
-        response = self.fetch_all_active_assignment(
+        response = fetch_all_active_assignment(
             event_id=str(self.assessment_event.event_id),
             authenticated_user=self.assessee_2
         )
@@ -1792,7 +1793,7 @@ class ActiveAssessmentToolTest(TestCase):
 
     @freeze_time("2022-03-30 11:00:00")
     def test_get_all_active_assignment_when_request_is_valid(self):
-        response = self.fetch_all_active_assignment(
+        response = fetch_all_active_assignment(
             event_id=str(self.assessment_event.event_id),
             authenticated_user=self.assessee
         )
