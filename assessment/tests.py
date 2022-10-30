@@ -43,6 +43,7 @@ ACTIVE_TEST_FLOW_NOT_FOUND = 'Active test flow of id {} belonging to {} does not
 INVALID_DATE_FORMAT = '{} is not a valid ISO date string'
 ASSESSMENT_EVENT_OWNERSHIP_INVALID = 'Event with id {} does not belong to company with id {}'
 NOT_PART_OF_EVENT = 'Assessee with email {} is not part of assessment with id {}'
+ASSESSOR_OF_COMPANY_NOT_FOUND = 'Assessor with email {} associated with {} is not found'
 CREATE_ASSIGNMENT_URL = '/assessment/create/assignment/'
 CREATE_TEST_FLOW_URL = reverse('test-flow-create')
 CREATE_ASSESSMENT_EVENT_URL = reverse('assessment-event-create')
@@ -442,7 +443,7 @@ class TestFlowTest(TestCase):
         invalid_datetime_string = '2020-Monday-OctoberT01:01:01'
         expected_error_message = f'{invalid_datetime_string} is not a valid ISO date string'
         mocked_get_tool.return_value = None
-        mocked_get_tool.side_effect = ValueError(expected_error_message)
+        mocked_get_time.side_effect = ValueError(expected_error_message)
 
         request_data = self.base_request_data.copy()
         request_data['tool_id'] = [{
@@ -624,8 +625,9 @@ class TestFlowTest(TestCase):
         self.flow_assert_response_correctness_when_request_is_invalid(
             response=response,
             expected_status_code=HTTPStatus.BAD_REQUEST,
-            expected_message=
-            TEST_FLOW_OF_COMPANY_DOES_NOT_EXIST_FORMAT.format(non_exist_tool_id, self.company_1.company_name)
+            expected_message=TEST_FLOW_OF_COMPANY_DOES_NOT_EXIST_FORMAT.format(
+                non_exist_tool_id, self.company_1.company_name
+            )
         )
 
     def test_create_test_flow_when_tool_release_time_is_invalid_and_user_is_company(self):
@@ -1170,7 +1172,7 @@ class AssessmentEventParticipationTest(TestCase):
         except ObjectDoesNotExist as exception:
             self.assertEqual(
                 str(exception),
-                f'Assessor with email email@email.com associated with {self.company_1.company_name} is not found'
+                ASSESSOR_OF_COMPANY_NOT_FOUND.format('email@email.com', self.company_1.company_name)
             )
 
     def test_get_assessor_from_email_when_assessor_exist_but_is_not_associated_with_company(self):
@@ -1180,7 +1182,7 @@ class AssessmentEventParticipationTest(TestCase):
         except ObjectDoesNotExist as exception:
             self.assertEqual(
                 str(exception),
-                f'Assessor with email {self.assessor_1.email} associated with {self.company_2.company_name} is not found'
+                ASSESSOR_OF_COMPANY_NOT_FOUND.format(self.assessor_1.email, self.company_2.company_name)
             )
 
     def test_validate_add_event_participation_when_assessment_event_id_not_present(self):
@@ -1258,7 +1260,8 @@ class AssessmentEventParticipationTest(TestCase):
 
     @patch.object(utils, 'get_company_assessor_from_email')
     @patch.object(utils, 'get_assessee_from_email')
-    def test_convert_list_of_participants_emails_to_user_objects_when_user_does_not_exist(self, mocked_get_assessee,                                                                              mocked_get_assessor):
+    def test_convert_list_of_participants_emails_to_user_objects_when_user_does_not_exist(self, mocked_get_assessee,
+                                                                                          mocked_get_assessor):
         expected_message = f'Assessor with email {self.assessee.email} not found'
         request_data = self.base_request_data.copy()
         mocked_get_assessee.side_effect = ObjectDoesNotExist(expected_message)
@@ -1369,6 +1372,16 @@ class AssessmentEventParticipationTest(TestCase):
         response_content = json.loads(response.content)
         self.assertEqual(response_content.get('message'), 'Participants are successfully added')
         self.assertTrue(self.assessment_event.check_assessee_participation(self.assessee))
+
+
+def fetch_and_get_response_subscription(access_token, assessment_event_id):
+    client = Client()
+    auth_headers = {'HTTP_AUTHORIZATION': 'Bearer ' + str(access_token)}
+    response = client.get(
+        EVENT_SUBSCRIPTION_URL + '?assessment-event-id=' + str(assessment_event_id),
+        **auth_headers
+    )
+    return response
 
 
 class AssesseeSubscribeToAssessmentEvent(TestCase):
@@ -1554,17 +1567,8 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
         except RestrictedAccessException as exception:
             self.assertEqual(str(exception), NOT_PART_OF_EVENT.format(self.assessee_2, self.assessment_event.event_id))
 
-    def fetch_and_get_response_subscription(self, access_token, assessment_event_id):
-        client = Client()
-        auth_headers = {'HTTP_AUTHORIZATION': 'Bearer ' + str(access_token)}
-        response = client.get(
-            EVENT_SUBSCRIPTION_URL + '?assessment-event-id=' + str(assessment_event_id),
-            **auth_headers
-        )
-        return response
-
     def test_subscribe_when_user_is_not_an_assessee(self):
-        response = self.fetch_and_get_response_subscription(
+        response = fetch_and_get_response_subscription(
             access_token=self.company_token.access_token,
             assessment_event_id=self.assessment_event.event_id,
         )
@@ -1574,7 +1578,7 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
         self.assertEqual(response_content.get('message'), 'User with email company@company.com is not an assessee')
 
     def test_subscribe_when_assessee_does_not_participate_in_event(self):
-        response = self.fetch_and_get_response_subscription(
+        response = fetch_and_get_response_subscription(
             access_token=self.assessee_2_token.access_token,
             assessment_event_id=self.assessment_event.event_id
         )
@@ -1588,7 +1592,7 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
 
     def test_subscribe_when_assessment_id_is_not_present(self):
         invalid_assessment_id = str(uuid.uuid4())
-        response = self.fetch_and_get_response_subscription(
+        response = fetch_and_get_response_subscription(
             access_token=self.assessee_token.access_token,
             assessment_event_id=invalid_assessment_id
         )
@@ -1602,7 +1606,7 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
 
     def test_subscribe_when_assessment_id_is_random_string(self):
         invalid_assessment_id = 'assessment-id'
-        response = self.fetch_and_get_response_subscription(
+        response = fetch_and_get_response_subscription(
             access_token=self.assessee_token.access_token,
             assessment_event_id=invalid_assessment_id
         )
@@ -1611,13 +1615,20 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
 
     @patch.object(TaskGenerator.TaskGenerator, 'generate')
     def test_subscribe_when_request_is_valid(self, mocked_generate):
-        response = self.fetch_and_get_response_subscription(
+        response = fetch_and_get_response_subscription(
             access_token=self.assessee_token.access_token,
             assessment_event_id=self.assessment_event.event_id
         )
 
         self.assertEqual(response.status_code, HTTPStatus.OK)
         mocked_generate.assert_called_once()
+
+
+def fetch_all_active_assignment(event_id, authenticated_user):
+    client = APIClient()
+    client.force_authenticate(user=authenticated_user)
+    response = client.get(GET_RELEASED_ASSIGNMENTS + event_id)
+    return response
 
 
 class ActiveAssessmentToolTest(TestCase):
@@ -1743,22 +1754,16 @@ class ActiveAssessmentToolTest(TestCase):
         released_assignments_data = self.assessment_event.get_released_assignments()
         self.assertEqual(released_assignments_data, [])
 
-    def fetch_all_active_assignment(self, event_id, authenticated_user):
-        client = APIClient()
-        client.force_authenticate(user=authenticated_user)
-        response = client.get(GET_RELEASED_ASSIGNMENTS + event_id)
-        return response
-
     def test_get_all_active_assignment_when_event_id_is_invalid(self):
         invalid_event_id = str(uuid.uuid4())
-        response = self.fetch_all_active_assignment(invalid_event_id, authenticated_user=self.assessee)
+        response = fetch_all_active_assignment(invalid_event_id, authenticated_user=self.assessee)
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
         self.assertEqual(response_content.get('message'), f'Assessment with id {invalid_event_id} does not exist')
 
     @freeze_time("2022-02-27")
     def test_get_all_active_assignment_when_event_is_not_active(self):
-        response = self.fetch_all_active_assignment(
+        response = fetch_all_active_assignment(
             event_id=str(self.assessment_event.event_id),
             authenticated_user=self.assessee
         )
@@ -1771,7 +1776,7 @@ class ActiveAssessmentToolTest(TestCase):
 
     @freeze_time("2022-03-30 11:00:00")
     def test_get_all_active_assignment_when_user_not_assessee(self):
-        response = self.fetch_all_active_assignment(
+        response = fetch_all_active_assignment(
             event_id=str(self.assessment_event.event_id),
             authenticated_user=self.assessor
         )
@@ -1784,7 +1789,7 @@ class ActiveAssessmentToolTest(TestCase):
 
     @freeze_time("2022-03-30 11:00:00")
     def test_get_all_active_assignment_when_user_is_not_a_participant(self):
-        response = self.fetch_all_active_assignment(
+        response = fetch_all_active_assignment(
             event_id=str(self.assessment_event.event_id),
             authenticated_user=self.assessee_2
         )
@@ -1792,7 +1797,7 @@ class ActiveAssessmentToolTest(TestCase):
 
     @freeze_time("2022-03-30 11:00:00")
     def test_get_all_active_assignment_when_request_is_valid(self):
-        response = self.fetch_all_active_assignment(
+        response = fetch_all_active_assignment(
             event_id=str(self.assessment_event.event_id),
             authenticated_user=self.assessee
         )
