@@ -19,6 +19,7 @@ def get_interactive_quiz_total_points(questions):
 
     return total_points
 
+
 def get_time_from_date_time_string(iso_datetime) -> time:
     iso_datetime = iso_datetime.strip('Z') if iso_datetime else None
     try:
