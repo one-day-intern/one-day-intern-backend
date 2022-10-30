@@ -7,5 +7,4 @@ def get_assessment_tool_by_company(user) -> list:
     assessor: Assessor = get_assessor_or_raise_exception(user)
     company: Company = assessor.associated_company
     list_of_assessment_tools = AssessmentTool.objects.filter(owning_company=company)
-    
     return list_of_assessment_tools
