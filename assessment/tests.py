@@ -1373,18 +1373,18 @@ class AssessmentEventParticipationTest(TestCase):
 class ResponseTestTest(TestCase):
     def setUp(self) -> None:
         self.company = Company.objects.create_user(
-            email='company@company.com',
-            password='password',
-            company_name='Company',
-            description='Company Description',
-            address='JL. Company Levinson Durbin Householder'
+            email='company123@company.com',
+            password='password123',
+            company_name='Company123',
+            description='Company123 Description',
+            address='JL. Company Levinson Durbin 123'
         )
 
         self.assessor = Assessor.objects.create_user(
-            email='assessor@assessor.com',
+            email='vandermonde@assessor.com',
             password='password',
-            first_name='Levinson',
-            last_name='Durbin',
+            first_name='VanDer',
+            last_name='Monde',
             phone_number='+6282312345678',
             employee_id='A&EX4NDER',
             associated_company=self.company,
