@@ -3,12 +3,7 @@ from django.test import TestCase, Client
 from django.urls import reverse
 from freezegun import freeze_time
 from http import HTTPStatus
-from assessment.services.assessment_tool import get_assessment_tool_by_company
-from one_day_intern.exceptions import (
-    RestrictedAccessException,
-    InvalidAssignmentRegistration,
-    InvalidInteractiveQuizRegistration
-)
+from one_day_intern.exceptions import RestrictedAccessException, InvalidAssignmentRegistration
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 from unittest.mock import patch, call
@@ -32,20 +27,13 @@ from .models import (
     TestFlowTool,
     AssessmentEvent,
     TestFlowAttempt,
-    AssessmentEventParticipation,
-    MultipleChoiceAnswerOption,
-    TextQuestion,
-    MultipleChoiceQuestion,
-    InteractiveQuizSerializer,
-    InteractiveQuiz, MultipleChoiceQuestionSerializer, TextQuestionSerializer
+    AssessmentEventParticipation
 )
 from .services import assessment, utils, test_flow, assessment_event, assessment_event_attempt, TaskGenerator
 import datetime
 import json
 import schedule
 import uuid
-
-APPLICATION_JSON = 'application/json'
 
 EXCEPTION_NOT_RAISED = 'Exception not raised'
 TEST_FLOW_INVALID_NAME = 'Test Flow name must exist and must be at most 50 characters'
@@ -55,35 +43,32 @@ ACTIVE_TEST_FLOW_NOT_FOUND = 'Active test flow of id {} belonging to {} does not
 INVALID_DATE_FORMAT = '{} is not a valid ISO date string'
 ASSESSMENT_EVENT_OWNERSHIP_INVALID = 'Event with id {} does not belong to company with id {}'
 NOT_PART_OF_EVENT = 'Assessee with email {} is not part of assessment with id {}'
-ASSESSOR_OF_COMPANY_NOT_FOUND = 'Assessor with email {} associated with {} is not found'
 CREATE_ASSIGNMENT_URL = '/assessment/create/assignment/'
-CREATE_INTERACTIVE_QUIZ_URL = '/assessment/create/interactive-quiz/'
 CREATE_TEST_FLOW_URL = reverse('test-flow-create')
 CREATE_ASSESSMENT_EVENT_URL = reverse('assessment-event-create')
 ADD_PARTICIPANT_URL = reverse('event-add-participation')
 EVENT_SUBSCRIPTION_URL = reverse('event-subscription')
 GET_RELEASED_ASSIGNMENTS = reverse('event-active-assignments') + '?assessment-event-id='
-GET_TOOLS_URL = "/assessment/tools/"
 OK_RESPONSE_STATUS_CODE = 200
 
 
 class AssessmentTest(TestCase):
     def setUp(self) -> None:
         self.company = Company.objects.create_user(
-            email='company63@company.com',
+            email='company@company.com',
             password='password',
             company_name='Company',
-            description='Company Description 66',
-            address='JL. Company Levinson Durbin Householder 67'
+            description='Company Description',
+            address='JL. Company Levinson Durbin Householder'
         )
 
         self.assessor = Assessor.objects.create_user(
-            email='assessor75@assessor.com',
+            email='assessor@assessor.com',
             password='password',
             first_name='Levinson',
             last_name='Durbin',
-            phone_number='+628231234567812',
-            employee_id='A&EX4NDERA',
+            phone_number='+6282312345678',
+            employee_id='A&EX4NDER',
             associated_company=self.company,
             authentication_service=AuthenticationService.DEFAULT.value
         )
@@ -210,7 +195,7 @@ class AssessmentTest(TestCase):
         client = APIClient()
         client.force_authenticate(user=self.assessor)
 
-        response = client.post(CREATE_ASSIGNMENT_URL, data=assignment_data, content_type=APPLICATION_JSON)
+        response = client.post(CREATE_ASSIGNMENT_URL, data=assignment_data, content_type='application/json')
         self.assertEqual(response.status_code, OK_RESPONSE_STATUS_CODE)
 
         response_content = json.loads(response.content)
@@ -223,240 +208,6 @@ class AssessmentTest(TestCase):
         )
         self.assertEqual(
             response_content.get('duration_in_minutes'), self.expected_assignment_data.get('duration_in_minutes')
-        )
-        self.assertEqual(response_content.get('owning_company_id'), self.company.id)
-        self.assertEqual(response_content.get('owning_company_name'), self.company.company_name)
-
-
-class InteractiveQuizTest(TestCase):
-    def setUp(self) -> None:
-        self.company = Company.objects.create_user(
-            email='company230@company.com',
-            password='password',
-            company_name='Company',
-            description='Company Description 233',
-            address='JL. Company Levinson Durbin Householder'
-        )
-
-        self.assessor = Assessor.objects.create_user(
-            email='assessor@assessor.com',
-            password='password',
-            first_name='Levinson',
-            last_name='Durbin',
-            phone_number='+6282312345678242',
-            employee_id='A&EX4NDER',
-            associated_company=self.company,
-            authentication_service=AuthenticationService.DEFAULT.value
-        )
-
-        self.request_data = {
-            'name': 'Data Cleaning Test',
-            'description': 'This is a data cleaning test',
-            'duration_in_minutes': 55,
-            'total_points': 10,
-            'questions': [
-                {
-                    'prompt': 'What is data cleaning?',
-                    'points': 5,
-                    'question_type': 'multiple_choice',
-                    'answer_options': [
-                        {
-                            'content': 'Cleaning data',
-                            'correct': True,
-                        },
-                        {
-                            'content': 'Creating new features',
-                            'correct': False,
-                        },
-
-                    ]
-                },
-                {
-                    'prompt': 'Have you ever done data cleaning with Pandas?',
-                    'points': 5,
-                    'question_type': 'text',
-                    'answer_key': 'Yes, I have',
-                }
-            ]
-        }
-
-        self.expected_interactive_quiz = InteractiveQuiz.objects.create(
-            name=self.request_data.get('name'),
-            description=self.request_data.get('description'),
-            owning_company=self.assessor.associated_company,
-            total_points=self.request_data.get('total_points'),
-            duration_in_minutes=self.request_data.get('duration_in_minutes')
-        )
-
-        self.expected_interactive_quiz_data = InteractiveQuizSerializer(self.expected_interactive_quiz).data
-
-        self.mc_question_data = self.request_data.get('questions')[0]
-
-        self.expected_mc_question = MultipleChoiceQuestion(
-            interactive_quiz=self.expected_interactive_quiz,
-            prompt=self.mc_question_data.get('prompt'),
-            points=self.mc_question_data.get('points'),
-            question_type=self.mc_question_data.get('question_type')
-        )
-
-        self.correct_answer_option_data = self.mc_question_data.get('answer_options')[0]
-
-        self.expected_correct_answer_option = MultipleChoiceAnswerOption(
-            question=self.expected_mc_question,
-            content=self.correct_answer_option_data.get('content'),
-            correct=self.correct_answer_option_data.get('correct'),
-        )
-
-        self.incorrect_answer_option_data = self.mc_question_data.get('answer_options')[1]
-
-        self.expected_incorrect_answer_option = MultipleChoiceAnswerOption(
-            question=self.expected_mc_question,
-            content=self.correct_answer_option_data.get('content'),
-            correct=self.correct_answer_option_data.get('correct'),
-        )
-
-        self.text_question_data = self.request_data.get('questions')[1]
-
-        self.expected_text_question = TextQuestion(
-            interactive_quiz=self.expected_interactive_quiz,
-            prompt=self.text_question_data.get('prompt'),
-            points=self.text_question_data.get('points'),
-            question_type=self.text_question_data.get('question_type'),
-            answer_key=self.text_question_data.get('answer_key')
-        )
-
-    def test_validate_interactive_quiz_when_request_is_valid(self):
-        valid_request_data = self.request_data.copy()
-        try:
-            self.assertEqual(type(valid_request_data), dict)
-            assessment.validate_interactive_quiz(valid_request_data)
-        except InvalidAssignmentRegistration as exception:
-            self.fail(f'{exception} is raised')
-
-    def test_interactive_quiz_when_request_duration_is_invalid(self):
-        request_data_with_no_duration = self.request_data.copy()
-        request_data_with_no_duration['duration_in_minutes'] = ''
-        expected_message = 'Interactive Quiz should have a duration'
-        try:
-            assessment.validate_interactive_quiz(request_data_with_no_duration)
-            self.fail(EXCEPTION_NOT_RAISED)
-        except InvalidInteractiveQuizRegistration as exception:
-            self.assertEqual(str(exception), expected_message)
-
-        request_data_with_non_numeric_duration = self.request_data.copy()
-        request_data_with_non_numeric_duration['duration_in_minutes'] = '1a'
-        expected_message = 'Interactive Quiz duration must only be of type numeric'
-        try:
-            assessment.validate_interactive_quiz(request_data_with_non_numeric_duration)
-            self.fail(EXCEPTION_NOT_RAISED)
-        except InvalidInteractiveQuizRegistration as exception:
-            self.assertEqual(str(exception), expected_message)
-
-    def test_interactive_quiz_when_request_total_points_is_invalid(self):
-        request_data_with_no_duration = self.request_data.copy()
-        request_data_with_no_duration['total_points'] = None
-        expected_message = 'Interactive Quiz should have total points'
-        try:
-            assessment.validate_interactive_quiz(request_data_with_no_duration)
-            self.fail(EXCEPTION_NOT_RAISED)
-        except InvalidInteractiveQuizRegistration as exception:
-            self.assertEqual(str(exception), expected_message)
-
-        request_data_with_non_numeric_duration = self.request_data.copy()
-        request_data_with_non_numeric_duration['total_points'] = '1a'
-        expected_message = 'Interactive Quiz total points must only be of type numeric'
-        try:
-            assessment.validate_interactive_quiz(request_data_with_non_numeric_duration)
-            self.fail(EXCEPTION_NOT_RAISED)
-        except InvalidInteractiveQuizRegistration as exception:
-            self.assertEqual(str(exception), expected_message)
-
-    @patch.object(InteractiveQuiz.objects, 'create')
-    def test_save_interactive_quiz_to_database(self, mocked_create):
-        mocked_create.return_value = self.expected_interactive_quiz
-        returned_interactive_quiz = assessment.save_interactive_quiz_to_database(self.request_data, self.assessor)
-        returned_interactive_quiz_data = InteractiveQuizSerializer(returned_interactive_quiz).data
-        mocked_create.assert_called_once()
-        self.assertDictEqual(returned_interactive_quiz_data, self.expected_interactive_quiz_data)
-
-    @patch.object(MultipleChoiceAnswerOption.objects, 'create')
-    @patch.object(MultipleChoiceAnswerOption.objects, 'create')
-    @patch.object(MultipleChoiceQuestion.objects, 'create')
-    def test_save_mc_question_to_database(self, mocked_create_mc_question, mocked_create_incorrect_answer_option,
-                                          mocked_create_correct_answer_option):
-
-        mocked_create_correct_answer_option.return_value = self.expected_correct_answer_option
-        mocked_create_incorrect_answer_option.return_value = self.expected_incorrect_answer_option
-        mocked_create_mc_question.return_value = self.expected_mc_question
-
-        returned_mc_question = assessment.save_question_to_database(self.mc_question_data,
-                                                                    self.expected_interactive_quiz)
-        returned_mc_question_data = MultipleChoiceQuestionSerializer(returned_mc_question).data
-        mocked_create_mc_question.assert_called_once()
-        mocked_create_correct_answer_option.called_once()
-        mocked_create_incorrect_answer_option.called_once()
-
-        keys = ['prompt', 'points', 'question_type']
-        self.expected_mc_question_data = {key: self.mc_question_data[key] for key in keys}
-        self.assertDictEqual(returned_mc_question_data, self.expected_mc_question_data)
-
-    @patch.object(TextQuestion.objects, 'create')
-    def test_save_text_question_to_database(self, mocked_create_text_question):
-
-        mocked_create_text_question.return_value = self.expected_text_question
-
-        returned_question = assessment.save_question_to_database(self.text_question_data,
-                                                                 self.expected_interactive_quiz)
-        returned_question_data = TextQuestionSerializer(returned_question).data
-        mocked_create_text_question.assert_called_once()
-        self.assertDictEqual(returned_question_data, self.text_question_data)
-
-    @patch.object(utils, 'get_interactive_quiz_total_points')
-    @patch.object(assessment, 'save_question_to_database')
-    @patch.object(assessment, 'save_interactive_quiz_to_database')
-    @patch.object(assessment, 'validate_answer_option')
-    @patch.object(assessment, 'validate_question')
-    @patch.object(assessment, 'validate_interactive_quiz')
-    @patch.object(assessment, 'validate_assessment_tool')
-    @patch.object(assessment, 'get_assessor_or_raise_exception')
-    def test_create_interactive_quiz(self, mocked_get_assessor, mocked_validate_assessment_tool,
-                                     mocked_validate_interactive_quiz, mocked_validate_question,
-                                     mocked_validate_answer_option, mocked_save_interactive_quiz,
-                                     mocked_save_questions, mocked_get_interactive_quiz_total_points):
-        mocked_get_assessor.return_value = self.assessor
-
-        mocked_validate_assessment_tool.return_value = None
-        mocked_validate_interactive_quiz.return_value = None
-        mocked_validate_question.return_value = None
-        mocked_validate_answer_option.return_value = None
-
-        mocked_save_interactive_quiz.return_value = self.expected_interactive_quiz
-        mocked_save_questions.return_value = None
-
-        mocked_get_interactive_quiz_total_points.return_value = 10
-
-        returned_interactive_quiz = assessment.create_interactive_quiz(self.request_data, self.assessor)
-        returned_interactive_quiz_data = InteractiveQuizSerializer(returned_interactive_quiz).data
-        self.assertDictEqual(returned_interactive_quiz_data, self.expected_interactive_quiz_data)
-
-    def test_create_interactive_quiz_when_complete_status_200(self):
-        interactive_quiz_data = json.dumps(self.request_data.copy())
-        client = APIClient()
-        client.force_authenticate(user=self.assessor)
-
-        response = client.post(CREATE_INTERACTIVE_QUIZ_URL, data=interactive_quiz_data, content_type='application/json')
-        self.assertEqual(response.status_code, OK_RESPONSE_STATUS_CODE)
-
-        response_content = json.loads(response.content)
-        self.assertTrue(len(response_content) > 0)
-        self.assertIsNotNone(response_content.get('assessment_id'))
-        self.assertEqual(response_content.get('name'), self.expected_interactive_quiz_data.get('name'))
-        self.assertEqual(response_content.get('description'), self.expected_interactive_quiz_data.get('description'))
-        self.assertEqual(
-            response_content.get('total_points'), self.expected_interactive_quiz_data.get('total_points')
-        )
-        self.assertEqual(
-            response_content.get('duration_in_minutes'), self.expected_interactive_quiz_data.get('duration_in_minutes')
         )
         self.assertEqual(response_content.get('owning_company_id'), self.company.id)
         self.assertEqual(response_content.get('owning_company_name'), self.company.company_name)
@@ -691,7 +442,7 @@ class TestFlowTest(TestCase):
         invalid_datetime_string = '2020-Monday-OctoberT01:01:01'
         expected_error_message = f'{invalid_datetime_string} is not a valid ISO date string'
         mocked_get_tool.return_value = None
-        mocked_get_time.side_effect = ValueError(expected_error_message)
+        mocked_get_tool.side_effect = ValueError(expected_error_message)
 
         request_data = self.base_request_data.copy()
         request_data['tool_id'] = [{
@@ -873,9 +624,8 @@ class TestFlowTest(TestCase):
         self.flow_assert_response_correctness_when_request_is_invalid(
             response=response,
             expected_status_code=HTTPStatus.BAD_REQUEST,
-            expected_message=TEST_FLOW_OF_COMPANY_DOES_NOT_EXIST_FORMAT.format(
-                non_exist_tool_id, self.company_1.company_name
-            )
+            expected_message=
+            TEST_FLOW_OF_COMPANY_DOES_NOT_EXIST_FORMAT.format(non_exist_tool_id, self.company_1.company_name)
         )
 
     def test_create_test_flow_when_tool_release_time_is_invalid_and_user_is_company(self):
@@ -1420,7 +1170,7 @@ class AssessmentEventParticipationTest(TestCase):
         except ObjectDoesNotExist as exception:
             self.assertEqual(
                 str(exception),
-                ASSESSOR_OF_COMPANY_NOT_FOUND.format('email@email.com', self.company_1.company_name)
+                f'Assessor with email email@email.com associated with {self.company_1.company_name} is not found'
             )
 
     def test_get_assessor_from_email_when_assessor_exist_but_is_not_associated_with_company(self):
@@ -1430,7 +1180,7 @@ class AssessmentEventParticipationTest(TestCase):
         except ObjectDoesNotExist as exception:
             self.assertEqual(
                 str(exception),
-                ASSESSOR_OF_COMPANY_NOT_FOUND.format(self.assessor_1.email, self.company_2.company_name)
+                f'Assessor with email {self.assessor_1.email} associated with {self.company_2.company_name} is not found'
             )
 
     def test_validate_add_event_participation_when_assessment_event_id_not_present(self):
@@ -1508,8 +1258,7 @@ class AssessmentEventParticipationTest(TestCase):
 
     @patch.object(utils, 'get_company_assessor_from_email')
     @patch.object(utils, 'get_assessee_from_email')
-    def test_convert_list_of_participants_emails_to_user_objects_when_user_does_not_exist(self, mocked_get_assessee,
-                                                                                          mocked_get_assessor):
+    def test_convert_list_of_participants_emails_to_user_objects_when_user_does_not_exist(self, mocked_get_assessee,                                                                              mocked_get_assessor):
         expected_message = f'Assessor with email {self.assessee.email} not found'
         request_data = self.base_request_data.copy()
         mocked_get_assessee.side_effect = ObjectDoesNotExist(expected_message)
@@ -1620,16 +1369,6 @@ class AssessmentEventParticipationTest(TestCase):
         response_content = json.loads(response.content)
         self.assertEqual(response_content.get('message'), 'Participants are successfully added')
         self.assertTrue(self.assessment_event.check_assessee_participation(self.assessee))
-
-
-def fetch_and_get_response_subscription(access_token, assessment_event_id):
-    client = Client()
-    auth_headers = {'HTTP_AUTHORIZATION': 'Bearer ' + str(access_token)}
-    response = client.get(
-        EVENT_SUBSCRIPTION_URL + '?assessment-event-id=' + str(assessment_event_id),
-        **auth_headers
-    )
-    return response
 
 
 class AssesseeSubscribeToAssessmentEvent(TestCase):
@@ -1815,8 +1554,17 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
         except RestrictedAccessException as exception:
             self.assertEqual(str(exception), NOT_PART_OF_EVENT.format(self.assessee_2, self.assessment_event.event_id))
 
+    def fetch_and_get_response_subscription(self, access_token, assessment_event_id):
+        client = Client()
+        auth_headers = {'HTTP_AUTHORIZATION': 'Bearer ' + str(access_token)}
+        response = client.get(
+            EVENT_SUBSCRIPTION_URL + '?assessment-event-id=' + str(assessment_event_id),
+            **auth_headers
+        )
+        return response
+
     def test_subscribe_when_user_is_not_an_assessee(self):
-        response = fetch_and_get_response_subscription(
+        response = self.fetch_and_get_response_subscription(
             access_token=self.company_token.access_token,
             assessment_event_id=self.assessment_event.event_id,
         )
@@ -1826,7 +1574,7 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
         self.assertEqual(response_content.get('message'), 'User with email company@company.com is not an assessee')
 
     def test_subscribe_when_assessee_does_not_participate_in_event(self):
-        response = fetch_and_get_response_subscription(
+        response = self.fetch_and_get_response_subscription(
             access_token=self.assessee_2_token.access_token,
             assessment_event_id=self.assessment_event.event_id
         )
@@ -1840,7 +1588,7 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
 
     def test_subscribe_when_assessment_id_is_not_present(self):
         invalid_assessment_id = str(uuid.uuid4())
-        response = fetch_and_get_response_subscription(
+        response = self.fetch_and_get_response_subscription(
             access_token=self.assessee_token.access_token,
             assessment_event_id=invalid_assessment_id
         )
@@ -1854,7 +1602,7 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
 
     def test_subscribe_when_assessment_id_is_random_string(self):
         invalid_assessment_id = 'assessment-id'
-        response = fetch_and_get_response_subscription(
+        response = self.fetch_and_get_response_subscription(
             access_token=self.assessee_token.access_token,
             assessment_event_id=invalid_assessment_id
         )
@@ -1863,20 +1611,13 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
 
     @patch.object(TaskGenerator.TaskGenerator, 'generate')
     def test_subscribe_when_request_is_valid(self, mocked_generate):
-        response = fetch_and_get_response_subscription(
+        response = self.fetch_and_get_response_subscription(
             access_token=self.assessee_token.access_token,
             assessment_event_id=self.assessment_event.event_id
         )
 
         self.assertEqual(response.status_code, HTTPStatus.OK)
         mocked_generate.assert_called_once()
-
-
-def fetch_all_active_assignment(event_id, authenticated_user):
-    client = APIClient()
-    client.force_authenticate(user=authenticated_user)
-    response = client.get(GET_RELEASED_ASSIGNMENTS + event_id)
-    return response
 
 
 class ActiveAssessmentToolTest(TestCase):
@@ -2002,16 +1743,22 @@ class ActiveAssessmentToolTest(TestCase):
         released_assignments_data = self.assessment_event.get_released_assignments()
         self.assertEqual(released_assignments_data, [])
 
+    def fetch_all_active_assignment(self, event_id, authenticated_user):
+        client = APIClient()
+        client.force_authenticate(user=authenticated_user)
+        response = client.get(GET_RELEASED_ASSIGNMENTS + event_id)
+        return response
+
     def test_get_all_active_assignment_when_event_id_is_invalid(self):
         invalid_event_id = str(uuid.uuid4())
-        response = fetch_all_active_assignment(invalid_event_id, authenticated_user=self.assessee)
+        response = self.fetch_all_active_assignment(invalid_event_id, authenticated_user=self.assessee)
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
         self.assertEqual(response_content.get('message'), f'Assessment with id {invalid_event_id} does not exist')
 
     @freeze_time("2022-02-27")
     def test_get_all_active_assignment_when_event_is_not_active(self):
-        response = fetch_all_active_assignment(
+        response = self.fetch_all_active_assignment(
             event_id=str(self.assessment_event.event_id),
             authenticated_user=self.assessee
         )
@@ -2024,7 +1771,7 @@ class ActiveAssessmentToolTest(TestCase):
 
     @freeze_time("2022-03-30 11:00:00")
     def test_get_all_active_assignment_when_user_not_assessee(self):
-        response = fetch_all_active_assignment(
+        response = self.fetch_all_active_assignment(
             event_id=str(self.assessment_event.event_id),
             authenticated_user=self.assessor
         )
@@ -2037,7 +1784,7 @@ class ActiveAssessmentToolTest(TestCase):
 
     @freeze_time("2022-03-30 11:00:00")
     def test_get_all_active_assignment_when_user_is_not_a_participant(self):
-        response = fetch_all_active_assignment(
+        response = self.fetch_all_active_assignment(
             event_id=str(self.assessment_event.event_id),
             authenticated_user=self.assessee_2
         )
@@ -2045,7 +1792,7 @@ class ActiveAssessmentToolTest(TestCase):
 
     @freeze_time("2022-03-30 11:00:00")
     def test_get_all_active_assignment_when_request_is_valid(self):
-        response = fetch_all_active_assignment(
+        response = self.fetch_all_active_assignment(
             event_id=str(self.assessment_event.event_id),
             authenticated_user=self.assessee
         )
@@ -2053,72 +1800,3 @@ class ActiveAssessmentToolTest(TestCase):
         response_content = json.loads(response.content)
         self.assertTrue(isinstance(response_content, list))
         self.assertEqual(response_content, [self.expected_flow_tool_data])
-
-
-class AssessmentToolTest(TestCase):
-    def setUp(self) -> None:
-        self.company = Company.objects.create_user(
-            email='company@company.com',
-            password='password',
-            company_name='Company',
-            description='Company Description',
-            address='Jl. Company Not Company'
-        )
-
-        self.company_2 = Company.objects.create_user(
-            email='compan2y@company.com',
-            password='password',
-            company_name='Company2',
-            description='Company Description',
-            address='Jl. Company Not Company'
-        )
-
-        self.assessor_1 = Assessor.objects.create_user(
-            email='assessor@assessor.com',
-            password='password',
-            first_name='Assessor',
-            last_name='Assessor',
-            phone_number='+6282312345678',
-            employee_id='A&EX4NDER',
-            associated_company=self.company,
-            authentication_service=AuthenticationService.DEFAULT.value
-        )
-
-        self.assessor_2 = Assessor.objects.create_user(
-            email='assessor2@assessor.com',
-            password='password',
-            first_name='Assessor2',
-            last_name='Assessor2',
-            phone_number='+6282312345678',
-            employee_id='A&EX4NDER2',
-            associated_company=self.company_2,
-            authentication_service=AuthenticationService.DEFAULT.value
-        )
-
-        self.assessment_tool = Assignment.objects.create(
-            name='Important Presentation',
-            description='Protect this presentation with all your life',
-            owning_company=self.company,
-            expected_file_format='pptx',
-            duration_in_minutes=50
-        )
-
-    def test_get_tool_from_authorised_user(self):
-        assessment_tool = get_assessment_tool_by_company(self.assessor_1)
-        self.assertEqual(assessment_tool[0], self.assessment_tool)
-
-    def test_get_tool_from_company(self):
-        self.assertRaises(RestrictedAccessException, get_assessment_tool_by_company, self.company)
-
-    def test_get_tool_from_different_user(self):
-        assessment_tool = get_assessment_tool_by_company(self.assessor_2)
-        self.assertEqual(len(assessment_tool), 0)
-
-    def test_endpoint_for_getting_tools_list(self):
-        client = APIClient()
-        client.force_authenticate(self.assessor_1)
-        response = client.get(GET_TOOLS_URL)
-        self.assertEqual(response.status_code, HTTPStatus.OK)
-        response_content = json.loads(response.content)
-        self.assertEqual(response_content[0].get("name"), self.assessment_tool.name)
-        self.assertEqual(response_content[0].get("description"), self.assessment_tool.description)
