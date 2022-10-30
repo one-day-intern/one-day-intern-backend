@@ -1371,7 +1371,6 @@ class AssessmentEventParticipationTest(TestCase):
         self.assertTrue(self.assessment_event.check_assessee_participation(self.assessee))
 
 
-
 class AssesseeSubscribeToAssessmentEvent(TestCase):
     def setUp(self) -> None:
         self.assessee = Assessee.objects.create_user(
@@ -1449,7 +1448,8 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
             'name': self.assignment_1.name,
             'description': self.assignment_1.description,
             'additional_info': {
-                'duration': self.assignment_1.duration_in_minutes
+                'duration': self.assignment_1.duration_in_minutes,
+                'expected_file_format': self.assignment_1.expected_file_format
             }
         }
 
@@ -1458,7 +1458,8 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
             'name': self.assignment_2.name,
             'description': self.assignment_2.description,
             'additional_info': {
-                'duration': self.assignment_2.duration_in_minutes
+                'duration': self.assignment_2.duration_in_minutes,
+                'expected_file_format': self.assignment_2.expected_file_format
             }
         }
 

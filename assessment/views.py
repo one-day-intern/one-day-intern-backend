@@ -9,7 +9,7 @@ from users.services import utils as user_utils
 from .services.assessment import create_assignment
 from .services.test_flow import create_test_flow
 from .services.assessment_event import create_assessment_event, add_assessment_event_participation
-from .services.assessment_event_attempt import subscribe_to_assessment_flow
+from .services.assessment_event_attempt import subscribe_to_assessment_flow, get_all_active_assignment
 from .models import AssignmentSerializer, TestFlowSerializer, AssessmentEventSerializer
 import json
 
@@ -140,4 +140,6 @@ def serve_get_all_active_assignment(request):
     Assessee authentication-related information should be present through the JWT.
     URL structure /active-assignment/?assessment-event-id=<assessment-event-id>
     """
-    return Response(data=None)
+    request_data = request.GET
+    active_assignments = get_all_active_assignment(request_data, user=request.user)
+    return Response(data=active_assignments)
