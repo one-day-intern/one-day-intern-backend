@@ -44,6 +44,9 @@ class Assignment(AssessmentTool):
         }
         return tool_base_data
 
+    def get_end_working_time(self, start_time: datetime.time):
+        return None
+
 
 class AssignmentSerializer(serializers.ModelSerializer):
     owning_company_name = serializers.ReadOnlyField(source='owning_company.company_name')
@@ -101,6 +104,12 @@ class TestFlowTool(models.Model):
             'release_time': str(self.release_time),
             'assessment_data': self.assessment_tool.get_tool_data()
         }
+
+    def release_time_has_passed(self):
+        return None
+
+    def get_released_tool_data(self) -> dict:
+        return None
 
 
 class TestFlowToolSerializer(serializers.ModelSerializer):
@@ -167,6 +176,9 @@ class AssessmentEvent(models.Model):
 
     def is_active(self) -> bool:
         return self.start_date_time <= datetime.datetime.now(datetime.timezone.utc)
+
+    def get_released_assignments(self):
+        return None
 
 
 class AssessmentEventSerializer(serializers.ModelSerializer):

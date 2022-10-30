@@ -130,3 +130,14 @@ def serve_subscribe_to_assessment_flow(request):
         response_content = {'message': str(exception)}
         return HttpResponse(content=json.dumps(response_content), status=500)
 
+
+@require_GET
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def serve_get_all_active_assignment(request):
+    """
+    Endpoint that can only be accessed by assessee.
+    Assessee authentication-related information should be present through the JWT.
+    URL structure /active-assignment/?assessment-event-id=<assessment-event-id>
+    """
+    return Response(data=None)

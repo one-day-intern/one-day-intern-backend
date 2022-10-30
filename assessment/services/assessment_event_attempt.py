@@ -1,3 +1,4 @@
+from django.contrib.auth.models import User
 from one_day_intern.exceptions import RestrictedAccessException, AuthorizationException
 from users.models import Assessee
 from .TaskGenerator import TaskGenerator
@@ -19,5 +20,7 @@ def subscribe_to_assessment_flow(request_data, user) -> TaskGenerator:
     return event.get_task_generator()
 
 
+def get_all_active_assignment(request_data: dict, user: User):
+    return None
 
 
