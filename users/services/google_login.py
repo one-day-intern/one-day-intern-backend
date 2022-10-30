@@ -1,3 +1,5 @@
+import uuid
+
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 from one_day_intern.settings import (
@@ -11,9 +13,9 @@ from one_day_intern.exceptions import (
     InvalidGoogleAuthCodeException,
     InvalidGoogleIDTokenException,
     EmailNotFoundException,
-    InvalidGoogleLoginException
+    InvalidGoogleLoginException, InvalidRegistrationException
 )
-from ..models import OdiUser, Assessor, Assessee, AuthenticationService
+from ..models import OdiUser, Assessor, Assessee, AuthenticationService, CompanyOneTimeLinkCode
 from . import utils
 import requests
 import time
@@ -85,6 +87,46 @@ def register_assessee_with_google_data(user_data):
 
     if not found_users.exists():
         return create_assessee_from_data_using_google_auth(user_data)
+    else:
+        try:
+            return get_assessee_assessor_user_with_google_matching_data(user_data)
+        except EmailNotFoundException:
+            raise InvalidGoogleLoginException('User is already registered through the One Day Intern login service.')
+
+
+def create_assessor_from_data_using_google_auth(user_data, otc_data):
+    user_email = user_data.get('email')
+    first_name = user_data.get('given_name')
+    last_name = user_data.get('family_name')
+    one_time_code = uuid.UUID(otc_data.get('one_time_code'))
+
+    found_one_time_code = CompanyOneTimeLinkCode.objects.get(code=one_time_code)
+    if not found_one_time_code:
+        raise InvalidRegistrationException('Registration code is invalid')
+    if not found_one_time_code.is_active:
+        raise InvalidRegistrationException('Registration code is expired')
+
+    associated_company = found_one_time_code.associated_company
+    found_one_time_code.is_active = False
+    found_one_time_code.save()
+
+    assessor = Assessor(
+        email=user_email,
+        first_name=first_name,
+        last_name=last_name,
+        associated_company=associated_company,
+        authentication_service=AuthenticationService.GOOGLE.value
+    )
+    assessor.save()
+    return assessor
+
+
+def register_assessor_with_google_data(user_data, otc_data):
+    user_email = user_data.get('email')
+    found_users = OdiUser.objects.filter(email=user_email)
+
+    if not found_users.exists():
+        return create_assessor_from_data_using_google_auth(user_data, otc_data)
     else:
         try:
             return get_assessee_assessor_user_with_google_matching_data(user_data)

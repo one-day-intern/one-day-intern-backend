@@ -6,7 +6,7 @@ from .views import (
     serve_google_register_assessee,
     serve_register_assessor,
     serve_get_user_info,
-    generate_assessor_one_time_code,
+    generate_assessor_one_time_code, serve_google_register_assessor,
 )
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
@@ -20,6 +20,7 @@ urlpatterns = [
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('google/oauth/login/', serve_google_login_callback),
     path('google/oauth/register/assessee/', serve_google_register_assessee),
+    path('google/oauth/register/assessor/', serve_google_register_assessor),
     path('register-assessee/', serve_register_assessee),
     path('generate-code/', generate_assessor_one_time_code),
     path('get-info/', serve_get_user_info)
