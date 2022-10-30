@@ -30,7 +30,6 @@ EMAIL_MUST_NOT_BE_NULL = 'Email must not be null'
 PASSWORD_MUST_NOT_BE_NULL = 'Password must not be null'
 OK_REQUEST_STATUS_CODE = 200
 BAD_REQUEST_STATUS_CODE = 400
-REGISTER_COMPANY_URL = '/users/register-company/'
 REGISTER_ASSESSEE_URL = '/users/register-assessee/'
 PASSWORD_INVALID_NO_UPPER = 'Password length must contain at least 1 uppercase character'
 EXCEPTION_NOT_RAISED = 'Exception not raised'
@@ -1251,7 +1250,7 @@ class OneTimeCodeViewsTestCase(TestCase):
         }
 
         self.client.post(
-            '/users/register-company/',
+            REGISTER_COMPANY_URL,
             data=json.dumps(registration_data),
             content_type=REQUEST_CONTENT_TYPE
         )

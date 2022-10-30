@@ -4,6 +4,7 @@ from one_day_intern.exceptions import InvalidRegistrationException, EmailNotFoun
 from . import utils
 import uuid
 
+PHONE_NUMBER_INVALID = 'Phone number is invalid'
 
 def validate_user_registration_data(request_data):
     email = request_data.get('email').lower()
@@ -42,7 +43,7 @@ def validate_user_assessee_registration_data(request_data):
     if not request_data.get('phone_number'):
         raise InvalidRegistrationException('Assessee phone number must not be null')
     if not utils.validate_phone_number(request_data.get('phone_number')):
-        raise InvalidRegistrationException('Phone number is invalid')
+        raise InvalidRegistrationException(PHONE_NUMBER_INVALID)
     if not request_data.get('date_of_birth'):
         raise InvalidRegistrationException('Assessee date of birth must not be null')
     if not utils.validate_date_format(request_data.get('date_of_birth')):
@@ -58,7 +59,7 @@ def validate_user_assessee_registration_data(request_data):
     if not request_data.get('phone_number'):
         raise InvalidRegistrationException('Assessee phone number must not be null')
     if not utils.validate_phone_number(request_data.get('phone_number')):
-        raise InvalidRegistrationException('Phone number is invalid')
+        raise InvalidRegistrationException(PHONE_NUMBER_INVALID)
     if not request_data.get('date_of_birth'):
         raise InvalidRegistrationException('Assessee date of birth must not be null')
     if not utils.validate_date_format(request_data.get('date_of_birth')):
@@ -74,7 +75,7 @@ def validate_user_assessor_registration_data(request_data):
     if not request_data.get('phone_number'):
         raise InvalidRegistrationException('Assessor phone number must not be null')
     if not validate_phone_number(request_data.get('phone_number')):
-        raise InvalidRegistrationException('Phone number is invalid')
+        raise InvalidRegistrationException(PHONE_NUMBER_INVALID)
 
     one_time_code = uuid.UUID(one_time_code)
     found_one_time_code = CompanyOneTimeLinkCode.objects.filter(code=one_time_code)

@@ -8,7 +8,7 @@ import uuid
 
 USERS_COMPANY = 'users.Company'
 OWNING_COMPANY_COMPANY_ID = 'owning_company.company_id'
-
+OWNING_COMPANY_COMPANY_NAME = 'owning_company.company_name' 
 
 class AssessmentTool(PolymorphicModel):
     assessment_id = models.UUIDField(primary_key=True, auto_created=True, default=uuid.uuid4)
@@ -51,7 +51,7 @@ class Assignment(AssessmentTool):
 
 
 class AssignmentSerializer(serializers.ModelSerializer):
-    owning_company_name = serializers.ReadOnlyField(source='owning_company.company_name')
+    owning_company_name = serializers.ReadOnlyField(source=OWNING_COMPANY_COMPANY_NAME)
 
     class Meta:
         model = Assignment
@@ -158,7 +158,7 @@ class QuestionSerializer(serializers.ModelSerializer):
 
 
 class InteractiveQuizSerializer(serializers.ModelSerializer):
-    owning_company_name = serializers.ReadOnlyField(source='owning_company.company_name')
+    owning_company_name = serializers.ReadOnlyField(source=OWNING_COMPANY_COMPANY_NAME)
 
     class Meta:
         model = InteractiveQuiz
@@ -349,7 +349,7 @@ class ResponseTest(AssessmentTool):
     prompt = models.TextField(null=False)
 
 class ResponseTestSerializer(serializers.ModelSerializer):
-    owning_company_name = serializers.ReadOnlyField(source='owning_company.company_name')
+    owning_company_name = serializers.ReadOnlyField(source=OWNING_COMPANY_COMPANY_NAME)
     sender = serializers.ReadOnlyField(source='sender.email')
     class Meta:
         model = ResponseTest
