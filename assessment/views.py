@@ -1,6 +1,6 @@
 from django.core.exceptions import ObjectDoesNotExist
-from django.http.response import HttpResponse, StreamingHttpResponse
 from django.views.decorators.http import require_POST, require_GET
+from django.http.response import HttpResponse, StreamingHttpResponse
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -10,7 +10,7 @@ from one_day_intern.exceptions import AuthorizationException, RestrictedAccessEx
 from users.services import utils as user_utils
 from .services.test_flow import create_test_flow
 from .services.assessment_event import create_assessment_event, add_assessment_event_participation
-from .services.assessment_event_attempt import subscribe_to_assessment_flow
+from .services.assessment_event_attempt import subscribe_to_assessment_flow, get_all_active_assignment
 from .models import AssignmentSerializer, TestFlowSerializer, AssessmentEventSerializer, InteractiveQuizSerializer
 import json
 
@@ -156,3 +156,15 @@ def serve_subscribe_to_assessment_flow(request):
         return HttpResponse(content=json.dumps(response_content), status=500)
 
 
+@require_GET
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def serve_get_all_active_assignment(request):
+    """
+    Endpoint that can only be accessed by assessee.
+    Assessee authentication-related information should be present through the JWT.
+    URL structure /active-assignment/?assessment-event-id=<assessment-event-id>
+    """
+    request_data = request.GET
+    active_assignments = get_all_active_assignment(request_data, user=request.user)
+    return Response(data=active_assignments)
