@@ -6,7 +6,6 @@ from typing import List
 import datetime
 import uuid
 
-
 USERS_COMPANY = 'users.Company'
 OWNING_COMPANY_COMPANY_ID = 'owning_company.company_id'
 
@@ -40,9 +39,15 @@ class Assignment(AssessmentTool):
         tool_base_data = super().get_tool_data()
         tool_base_data['type'] = 'assignment'
         tool_base_data['additional_info'] = {
-            'duration': self.duration_in_minutes
+            'duration': self.duration_in_minutes,
+            'expected_file_format': self.expected_file_format
         }
         return tool_base_data
+
+    def get_end_working_time(self, start_time: datetime.time):
+        temporary_datetime = datetime.datetime(2000, 1, 1, start_time.hour, start_time.minute, start_time.second)
+        temporary_datetime = temporary_datetime + datetime.timedelta(minutes=self.duration_in_minutes)
+        return temporary_datetime.time()
 
 
 class AssignmentSerializer(serializers.ModelSerializer):
@@ -209,6 +214,35 @@ class TestFlowTool(models.Model):
             'assessment_data': self.assessment_tool.get_tool_data()
         }
 
+    def release_time_has_passed(self):
+        return self.release_time <= datetime.datetime.now().time()
+
+    def get_released_tool_data(self) -> dict:
+        """
+        Data format for assignment
+        {
+            'id': '19bn-jabc8-'
+            'type': 'assignment',
+            'name': 'assignment name',
+            'description': 'Description ...',
+            'additional_info': {
+                'duration': 180,
+                'expected_file_format': 'pdf'
+            },
+            'released_time': '12:00:00',
+            'end_working_time': '15:00:00' (release-time + duration)
+        }
+        """
+        released_data = self.assessment_tool.get_tool_data()
+        released_data['id'] = str(self.assessment_tool.assessment_id)
+
+        if isinstance(self.assessment_tool, Assignment):
+            released_data['released_time'] = str(self.release_time)
+            released_data['end_working_time'] = str(
+                self.assessment_tool.get_end_working_time(start_time=self.release_time))
+
+        return released_data
+
 
 class TestFlowToolSerializer(serializers.ModelSerializer):
     assessment_tool = AssessmentToolSerializer(read_only=True)
@@ -274,6 +308,16 @@ class AssessmentEvent(models.Model):
 
     def is_active(self) -> bool:
         return self.start_date_time <= datetime.datetime.now(datetime.timezone.utc)
+
+    def get_released_assignments(self):
+        test_flow_tools = self.test_flow_used.testflowtool_set.all()
+        released_assignments_data = []
+        for test_flow_tool in test_flow_tools:
+            tool_used = test_flow_tool.assessment_tool
+            if isinstance(tool_used, Assignment) and test_flow_tool.release_time_has_passed():
+                released_assignments_data.append(test_flow_tool.get_released_tool_data())
+
+        return released_assignments_data
 
 
 class AssessmentEventSerializer(serializers.ModelSerializer):
