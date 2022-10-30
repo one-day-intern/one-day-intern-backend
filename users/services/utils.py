@@ -1,4 +1,8 @@
+from django.contrib.auth.models import AnonymousUser
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework_simplejwt.exceptions import InvalidToken
 from datetime import datetime
+from typing import Optional, Match
 import phonenumbers
 import re
 
@@ -26,7 +30,7 @@ def validate_password(password) -> dict:
     return validation_result
 
 
-def validate_email(email) -> bool:
+def validate_email(email) -> Optional[Match[str]]:
     return re.fullmatch(email_regex, email)
 
 
@@ -65,3 +69,14 @@ def parameterize_url(base_url, parameter_arguments):
             search_param = param
         parameterized_url += search_param + '&'
     return parameterized_url
+
+
+def get_user_from_request(request):
+    jwt_authenticator = JWTAuthentication()
+    try:
+        response = jwt_authenticator.authenticate(request)
+        user, token = response
+        return user
+    except InvalidToken:
+        return AnonymousUser()
+

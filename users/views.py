@@ -1,8 +1,14 @@
 from rest_framework.response import Response
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
 from django.views.decorators.http import require_POST, require_GET
 from django.shortcuts import redirect
-from .services.registration import register_company, register_assessor, generate_one_time_code
+from .services.registration import (
+    register_company,
+    register_assessor,
+    generate_one_time_code,
+    register_assessee
+)
 from .services.google_login import (
     google_get_profile_from_id_token,
     google_get_id_token_from_auth_code,
@@ -10,12 +16,18 @@ from .services.google_login import (
     get_tokens_for_user,
     register_assessee_with_google_data
 )
+from .services.user_info import get_user_info
 from one_day_intern.settings import (
     GOOGLE_AUTH_LOGIN_REDIRECT_URI,
     GOOGLE_AUTH_REGISTER_ASSESSEE_REDIRECT_URI,
     GOOGLE_AUTH_CLIENT_CALLBACK_URL
 )
-from .models import CompanySerializer, AssessorSerializer, CompanyOneTimeLinkCodeSerializer
+from .models import (
+    CompanySerializer,
+    AssessorSerializer,
+    CompanyOneTimeLinkCodeSerializer,
+    AssesseeSerializer
+)
 import json
 
 
@@ -89,8 +101,35 @@ def serve_google_register_assessee(request):
 
 @require_POST
 @api_view(['POST'])
+def serve_register_assessee(request):
+    """
+        request_data must contain
+        email,
+        password,
+        confirmed_password,
+        first_name,
+        last_name,
+        phone_number,
+        date_of_birth,
+    """
+    request_data = json.loads(request.body.decode('utf-8'))
+    assessee = register_assessee(request_data)
+    response_data = AssesseeSerializer(assessee).data
+    return Response(data=response_data)
+
+
+@require_POST
+@api_view(['POST'])
 def generate_assessor_one_time_code(request):
     company_email = request.user.email
     one_time_code = generate_one_time_code(company_email)
     response_data = CompanyOneTimeLinkCodeSerializer(one_time_code).data
+    return Response(data=response_data)
+
+
+@require_GET
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def serve_get_user_info(request):
+    response_data = get_user_info(request.user)
     return Response(data=response_data)
