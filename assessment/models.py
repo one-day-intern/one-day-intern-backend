@@ -1,6 +1,7 @@
 from django.db import models
 from rest_framework import serializers
 from polymorphic.models import PolymorphicModel
+from users.models import Assessor, AssessorSerializer
 from .services.TaskGenerator import TaskGenerator
 from typing import List
 import datetime
@@ -144,6 +145,10 @@ class AssessmentEvent(models.Model):
                 test_flow_attempted=self.test_flow_used
             )
 
+            VideoConferenceRoom.objects.create(
+                part_of=assessment_event_participation
+            )
+
             return assessment_event_participation
 
     def check_assessee_participation(self, assessee):
@@ -191,3 +196,36 @@ class TestFlowAttempt(models.Model):
     grade = models.FloatField(default=0)
     event_participation = models.ForeignKey('assessment.AssessmentEventParticipation', on_delete=models.CASCADE)
     test_flow_attempted = models.ForeignKey('assessment.TestFlow', on_delete=models.RESTRICT)
+
+
+class VideoConferenceRoom(models.Model):
+    part_of = models.ForeignKey('assessment.AssessmentEventParticipation', on_delete=models.CASCADE)
+    room_id = models.TextField(null=True, default=None)
+    conference_participants = models.ManyToManyField('users.Assessor')
+    room_opened = models.BooleanField(default=False)
+
+    def is_room_created(self) -> bool:
+        return self.room_id != None
+
+    def is_room_opened(self) -> bool:
+        return self.room_opened
+
+    def is_already_participated_by(self, assessor: Assessor):
+        """
+        return True if query list is not empty, False otherwise
+        """
+        return self.conference_participants.filter(email=assessor.email)
+
+    def find_by_assessment_event_participation(assessment_event_participation: AssessmentEventParticipation):
+        return VideoConferenceRoom.objects.filter(part_of=assessment_event_participation)
+
+
+class VideoConferenceRoomSerializer(serializers.ModelSerializer):
+    conference_host = serializers.ReadOnlyField(source='part_of.assessor.email')
+    conference_assessee = serializers.ReadOnlyField(source='part_of.assessee.email')
+    conference_participants = AssessorSerializer(read_only=True, many=True)
+    conference_in_assessment_event = serializers.ReadOnlyField(source='part_of.assessment_event.event_id')
+
+    class Meta:
+        model = VideoConferenceRoom
+        fields = ['room_id', 'conference_in_assessment_event', 'conference_host', 'conference_assessee', 'room_opened', 'conference_participants']

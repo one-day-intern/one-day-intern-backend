@@ -3,3 +3,4 @@
 .coverage*
 coverage*
 **/__pycache__/**
+!.coveragerc
