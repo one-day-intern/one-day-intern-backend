@@ -1,6 +1,11 @@
 from rest_framework.views import exception_handler
 from rest_framework.response import Response
-from .exceptions import RestrictedAccessException, InvalidRequestException, InvalidRegistrationException
+from .exceptions import (
+    RestrictedAccessException,
+    InvalidRequestException,
+    InvalidRegistrationException,
+    AuthorizationException
+)
 
 
 def custom_exception_handler(exception, context):
@@ -10,6 +15,8 @@ def custom_exception_handler(exception, context):
 
     if isinstance(exception, InvalidRegistrationException) or isinstance(exception, InvalidRequestException):
         status_code = 400
+    elif isinstance(exception, AuthorizationException):
+        status_code = 401
     elif isinstance(exception, RestrictedAccessException):
         status_code = 403
     else:
