@@ -367,9 +367,6 @@ class VideoConferenceRoom(models.Model):
         """
         return self.conference_participants.filter(email=assessor.email)
 
-    def find_by_assessment_event_participation(assessment_event_participation: AssessmentEventParticipation):
-        return VideoConferenceRoom.objects.filter(part_of=assessment_event_participation)
-
 
 class VideoConferenceRoomSerializer(serializers.ModelSerializer):
     conference_host = serializers.ReadOnlyField(source='part_of.assessor.email')

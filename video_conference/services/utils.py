@@ -67,7 +67,7 @@ def get_video_conference_from_request_as_assessor(request_data, user):
         raise RestrictedAccessException(f"{assessor.email} is not the host for conference room with assessee {assessee.email}")
 
     assessment_event_participation = assessment_event_participation[0]
-    video_conference_room: VideoConferenceRoom = VideoConferenceRoom.find_by_assessment_event_participation(assessment_event_participation)
+    video_conference_room: VideoConferenceRoom = VideoConferenceRoom.objects.filter(part_of=assessment_event_participation)
 
     if not video_conference_room:
         raise InvalidRequestException(f"Video conference room not found")

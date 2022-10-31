@@ -151,7 +151,6 @@ def purge_video_conference_room(room_id):
     if response.status_code == 500:
         raise InvalidRequestException(
             "There was a problem in locking your video conference room")
-    return
 
 
 def create_video_conference_room() -> VideoConferenceRoom:
