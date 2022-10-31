@@ -55,6 +55,7 @@ CREATE_TEST_FLOW_URL = reverse('test-flow-create')
 CREATE_ASSESSMENT_EVENT_URL = reverse('assessment-event-create')
 ADD_PARTICIPANT_URL = reverse('event-add-participation')
 EVENT_SUBSCRIPTION_URL = reverse('event-subscription')
+GET_RELEASED_ASSIGNMENTS = reverse('event-active-assignments') + '?assessment-event-id='
 OK_RESPONSE_STATUS_CODE = 200
 GET_TOOLS_URL="/assessment/tools/"
 
@@ -230,6 +231,7 @@ class AssessmentTest(TestCase):
                 'duration_in_minutes')
         )
         self.assertEqual(response_content.get('owning_company_id'), self.company.id)
+        self.assertEqual(response_content.get('owning_company_name'), self.company.company_name)
 
 
 class InteractiveQuizTest(TestCase):
@@ -1686,10 +1688,8 @@ class AssessmentEventParticipationTest(TestCase):
 
         self.assertEqual(response.status_code, HTTPStatus.OK)
         response_content = json.loads(response.content)
-        self.assertEqual(response_content.get('message'),
-                         'Participants are successfully added')
-        self.assertTrue(
-            self.assessment_event.check_assessee_participation(self.assessee))
+        self.assertEqual(response_content.get('message'), 'Participants are successfully added')
+        self.assertTrue(self.assessment_event.check_assessee_participation(self.assessee))
 
 
 class AssesseeSubscribeToAssessmentEvent(TestCase):
@@ -1769,7 +1769,8 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
             'name': self.assignment_1.name,
             'description': self.assignment_1.description,
             'additional_info': {
-                'duration': self.assignment_1.duration_in_minutes
+                'duration': self.assignment_1.duration_in_minutes,
+                'expected_file_format': self.assignment_1.expected_file_format
             }
         }
 
@@ -1778,7 +1779,8 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
             'name': self.assignment_2.name,
             'description': self.assignment_2.description,
             'additional_info': {
-                'duration': self.assignment_2.duration_in_minutes
+                'duration': self.assignment_2.duration_in_minutes,
+                'expected_file_format': self.assignment_2.expected_file_format
             }
         }
 

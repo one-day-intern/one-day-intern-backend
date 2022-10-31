@@ -2,7 +2,7 @@ from assessment.services.assessment import get_assessor_or_raise_exception
 from users.models import Assessor, Company
 from assessment.models import AssessmentTool, AssessmentToolSerializer
 
-def get_assessment_tool_by_company(user) -> list:
+def get_assessment_tool_by_company(user):
     # For now, this function can be utilised by the assessors
     assessor: Assessor = get_assessor_or_raise_exception(user)
     company: Company = assessor.associated_company
