@@ -1,3 +1,2 @@
 [run]
- omit =
- */video_conference/*
+ omit = */video_conference/*
