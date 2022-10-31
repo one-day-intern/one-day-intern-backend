@@ -30,6 +30,7 @@ EMAIL_MUST_NOT_BE_NULL = 'Email must not be null'
 PASSWORD_MUST_NOT_BE_NULL = 'Password must not be null'
 PASSWORD_INVALID_NO_UPPER = 'Password length must contain at least 1 uppercase character'
 EXCEPTION_NOT_RAISED = 'Exception not raised'
+USER_IS_ALREADY_REGISTERED = 'User is already registered through the One Day Intern login service.'
 
 REGISTER_COMPANY_URL = '/users/register-company/'
 REGISTER_ASSESSEE_URL = '/users/register-assessee/'
@@ -1327,7 +1328,7 @@ class GoogleAuthTest(TestCase):
             google_login.register_assessee_with_google_data(self.dummy_user_data)
             self.fail(EXCEPTION_NOT_RAISED)
         except InvalidGoogleLoginException as exception:
-            self.assertEqual(str(exception), 'User is already registered through the One Day Intern login service.')
+            self.assertEqual(str(exception), USER_IS_ALREADY_REGISTERED)
 
     def test_register_assessor_with_google_data_when_assessor_already_register_through_default_service(self):
         existing_user = Assessor(
@@ -1342,7 +1343,7 @@ class GoogleAuthTest(TestCase):
             google_login.register_assessor_with_google_data(self.dummy_user_data, self.otc_data)
             self.fail(EXCEPTION_NOT_RAISED)
         except InvalidGoogleLoginException as exception:
-            self.assertEqual(str(exception), 'User is already registered through the One Day Intern login service.')
+            self.assertEqual(str(exception), USER_IS_ALREADY_REGISTERED)
 
     @patch.object(id_token, 'verify_oauth2_token')
     def test_get_profile_from_id_token(self, mocked_google_verify_token):
@@ -1481,7 +1482,7 @@ class GoogleLoginViewTest(TestCase):
         response_content = json.loads(response.content)
         self.assertIsNotNone(response_content.get('message'))
         self.assertEqual(
-            response_content['message'], 'User is already registered through the One Day Intern login service.'
+            response_content['message'], USER_IS_ALREADY_REGISTERED
         )
 
     @patch.object(id_token, 'verify_oauth2_token')
@@ -1519,7 +1520,7 @@ class GoogleLoginViewTest(TestCase):
         response_content = json.loads(response.content)
         self.assertIsNotNone(response_content.get('message'))
         self.assertEqual(
-            response_content['message'], 'User is already registered through the One Day Intern login service.'
+            response_content['message'], USER_IS_ALREADY_REGISTERED
         )
 
     @patch.object(id_token, 'verify_oauth2_token')
