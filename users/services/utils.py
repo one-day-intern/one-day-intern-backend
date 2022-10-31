@@ -1,4 +1,9 @@
+from django.contrib.auth.models import AnonymousUser
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework_simplejwt.exceptions import InvalidToken
 from datetime import datetime
+from typing import Optional, Match
+import phonenumbers
 import re
 
 DATETIME_FORMAT = '%Y-%m-%d'
@@ -25,7 +30,7 @@ def validate_password(password) -> dict:
     return validation_result
 
 
-def validate_email(email) -> bool:
+def validate_email(email) -> Optional[Match[str]]:
     return re.fullmatch(email_regex, email)
 
 
@@ -38,7 +43,40 @@ def validate_date_format(date_text) -> bool:
         return False
 
 
+def validate_phone_number(phone_number_string) -> bool:
+    phone_number = phonenumbers.parse(phone_number_string)
+    return phonenumbers.is_possible_number(phone_number)
+
+
 def get_date_from_string(date_text):
     date_text = date_text.split('T')[0]
     date_text_datetime = datetime.strptime(date_text, DATETIME_FORMAT)
     return date_text_datetime.date()
+
+
+def sanitize_request_data(request_data):
+    for key, value in request_data.items():
+        if isinstance(value, str):
+            request_data[key] = value.strip()
+
+
+def parameterize_url(base_url, parameter_arguments):
+    parameterized_url = base_url
+    for param, argument in parameter_arguments.items():
+        if argument:
+            search_param = param + '=' + str(argument)
+        else:
+            search_param = param
+        parameterized_url += search_param + '&'
+    return parameterized_url
+
+
+def get_user_from_request(request):
+    jwt_authenticator = JWTAuthentication()
+    try:
+        response = jwt_authenticator.authenticate(request)
+        user, token = response
+        return user
+    except InvalidToken:
+        return AnonymousUser()
+
