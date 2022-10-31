@@ -8,7 +8,7 @@ import uuid
 
 USERS_COMPANY = 'users.Company'
 OWNING_COMPANY_COMPANY_ID = 'owning_company.company_id'
-OWNING_COMPANY_COMPANY_NAME = 'owning_company.company_name' 
+OWNING_COMPANY_COMPANY_NAME = 'owning_company.company_name'
 
 class AssessmentTool(PolymorphicModel):
     assessment_id = models.UUIDField(primary_key=True, auto_created=True, default=uuid.uuid4)
