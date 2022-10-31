@@ -54,9 +54,9 @@ def get_video_conference_from_request_as_assessor(request_data, user):
     assessment_event_id = request_data.get("assessment_event_id")
     conference_assessee_email = request_data.get("conference_assessee_email")
 
-    if type(assessment_event_id) != str:
+    if not isinstance(assessment_event_id, str):
         raise InvalidRequestException("Invalid assessment event id value in request body")
-    if type(conference_assessee_email) != str:
+    if not isinstance(conference_assessee_email, str):
         raise InvalidRequestException("Invalid conference assessee email value in request body")
 
     assessee: Assessee = get_assessee_from_email(conference_assessee_email)

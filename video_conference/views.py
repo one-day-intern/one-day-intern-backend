@@ -14,8 +14,8 @@ from video_conference.services.video_conference import initiate_video_conference
 def serve_initiate_video_conference_room(request):
     """
     this view will create a video conference room
-    if  the  room  does not exist yet, if it does 
-    exist  it  will respect the initiate property 
+    if the room does not exist yet, if it does 
+    exist it will respect the initiate property 
     send in the request body
     ---------------------------------------------
     request data must contain:
@@ -36,7 +36,7 @@ def serve_initiate_video_conference_room(request):
 @permission_classes([IsAuthenticated])
 def serve_get_all_video_conference_room_hosts(request):
     """
-    this  view  will  return  all  the room objects for 
+    this view will return all the room objects for 
     hosts of the conference for a particular assessment 
     event
     ----------------------------------------------------------
@@ -73,7 +73,7 @@ def serve_get_all_video_conference_room_roleplayers(request):
 @permission_classes([IsAuthenticated])
 def serve_add_roleplayers_to_conference_room(request):
     """
-    this  view  will  add  a  list of roleplayers to a
+    this view will add a list of roleplayers to a
     conference room
     --------------------------------------------------
     request data must contain:
@@ -93,7 +93,7 @@ def serve_add_roleplayers_to_conference_room(request):
 @permission_classes([IsAuthenticated])
 def serve_join_conference_room_as_assessee(request):
     """
-    this  view  will return a join room token for an 
+    this view will return a join room token for an 
     assessee in particular assessment_event
     ------------------------------------------------
     request params must contain:
@@ -111,7 +111,7 @@ def serve_join_conference_room_as_assessee(request):
 @permission_classes([IsAuthenticated])
 def serve_join_conference_room_as_assessor(request):
     """
-    this  view  will return a join room token for an 
+    this view will return a join room token for an 
     assessor in particular assessment_event
     ------------------------------------------------
     request params must contain:
