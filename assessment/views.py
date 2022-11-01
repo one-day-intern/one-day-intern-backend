@@ -11,7 +11,7 @@ from assessment.services.assessment_tool import (
     serialize_test_flow_list
 )
 from .services.assessment import create_assignment, create_interactive_quiz
-from one_day_intern.exceptions import AuthorizationException, RestrictedAccessException
+from one_day_intern.exceptions import RestrictedAccessException
 from users.services import utils as user_utils
 from .services.test_flow import create_test_flow
 from .services.assessment_event import create_assessment_event, add_assessment_event_participation
@@ -23,6 +23,7 @@ from .services.assessment_event_attempt import (
 from .models import AssignmentSerializer, TestFlowSerializer, AssessmentEventSerializer, InteractiveQuizSerializer
 import json
 
+
 @require_GET
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
@@ -31,6 +32,7 @@ def serve_get_assessment_tool(request):
     response_data = serialize_assignment_list_using_serializer(assignments)
     return Response(data=response_data)
 
+
 @require_GET
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
@@ -38,6 +40,7 @@ def serve_get_test_flow(request):
     test_flows = get_test_flow_by_company(request.user)
     response_data = serialize_test_flow_list(test_flows)
     return Response(data=response_data)
+
 
 @require_POST
 @api_view(['POST'])
@@ -159,12 +162,9 @@ def serve_subscribe_to_assessment_flow(request):
         user = user_utils.get_user_from_request(request)
         task_generator = subscribe_to_assessment_flow(request_data, user=user)
         return StreamingHttpResponse(task_generator.generate(), status=200, content_type='text/event-stream')
-    except AuthorizationException as exception:
-        response_content = {'message': str(exception)}
-        return HttpResponse(content=json.dumps(response_content), status=403)
     except RestrictedAccessException as exception:
         response_content = {'message': str(exception)}
-        return HttpResponse(content=json.dumps(response_content), status=401)
+        return HttpResponse(content=json.dumps(response_content), status=403)
     except ObjectDoesNotExist as exception:
         response_content = {'message': str(exception)}
         return HttpResponse(content=json.dumps(response_content), status=400)

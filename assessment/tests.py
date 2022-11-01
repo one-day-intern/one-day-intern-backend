@@ -1982,7 +1982,7 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
             assessment_event_id=self.assessment_event.event_id
         )
 
-        self.assertEqual(response.status_code, HTTPStatus.UNAUTHORIZED)
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
         response_content = json.loads(response.content)
         self.assertEqual(
             response_content.get('message'),
