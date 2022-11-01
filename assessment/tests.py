@@ -34,7 +34,8 @@ from .models import (
     TextQuestion,
     MultipleChoiceQuestion,
     InteractiveQuizSerializer,
-    InteractiveQuiz, MultipleChoiceQuestionSerializer, TextQuestionSerializer
+    InteractiveQuiz, MultipleChoiceQuestionSerializer, TextQuestionSerializer,
+    VideoConferenceRoom
 )
 from .services import assessment, utils, test_flow, assessment_event, assessment_event_attempt, TaskGenerator
 import datetime
@@ -1383,14 +1384,16 @@ class AssessmentEventParticipationTest(TestCase):
         self.assessment_event.add_participant(self.assessee, self.assessor_1)
         mocked_create.assert_not_called()
 
+    @patch.object(VideoConferenceRoom.objects, 'create')
     @patch.object(TestFlowAttempt.objects, 'create')
     @patch.object(AssessmentEventParticipation.objects, 'create')
     @patch.object(AssessmentEvent, 'check_assessee_participation')
     def test_add_participation_when_assessee_has_been_registered(self, mocked_check, mocked_create_participation,
-                                                                 mocked_create_attempt):
+                                                                 mocked_create_attempt, mocked_create_video_conference_room):
         mocked_check.return_value = False
         self.assessment_event.add_participant(self.assessee, self.assessor_1)
         mocked_create_participation.assert_called_once()
+        mocked_create_video_conference_room.assert_called_once()
 
     def test_get_assessee_from_email_when_assessee_exist(self):
         found_assessee = utils.get_assessee_from_email(self.assessee.email)
