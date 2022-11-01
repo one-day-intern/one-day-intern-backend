@@ -48,6 +48,8 @@ import schedule
 import pytz
 import uuid
 
+ASSESSMENT_EVENT_ID_PARAM_NAME = '?assessment-event-id='
+
 EXCEPTION_NOT_RAISED = 'Exception not raised'
 TEST_FLOW_INVALID_NAME = 'Test Flow name must exist and must be at most 50 characters'
 TEST_FLOW_OF_COMPANY_DOES_NOT_EXIST_FORMAT = 'Assessment tool with id {} belonging to company {} does not exist'
@@ -64,7 +66,8 @@ CREATE_TEST_FLOW_URL = reverse('test-flow-create')
 CREATE_ASSESSMENT_EVENT_URL = reverse('assessment-event-create')
 ADD_PARTICIPANT_URL = reverse('event-add-participation')
 EVENT_SUBSCRIPTION_URL = reverse('event-subscription')
-GET_RELEASED_ASSIGNMENTS = reverse('event-active-assignments') + '?assessment-event-id='
+GET_RELEASED_ASSIGNMENTS = reverse('event-active-assignments') + ASSESSMENT_EVENT_ID_PARAM_NAME
+VERIFY_ASSESSEE_PARTICIPATION_URL = reverse('verify-participation') + ASSESSMENT_EVENT_ID_PARAM_NAME
 OK_RESPONSE_STATUS_CODE = 200
 GET_TOOLS_URL = '/assessment/tools/'
 
@@ -1729,7 +1732,7 @@ def fetch_and_get_response_subscription(access_token, assessment_event_id):
     client = Client()
     auth_headers = {'HTTP_AUTHORIZATION': 'Bearer ' + str(access_token)}
     response = client.get(
-        EVENT_SUBSCRIPTION_URL + '?assessment-event-id=' + str(assessment_event_id),
+        EVENT_SUBSCRIPTION_URL + ASSESSMENT_EVENT_ID_PARAM_NAME + str(assessment_event_id),
         **auth_headers
     )
     return response
@@ -2090,6 +2093,13 @@ class AssessmentToolTest(TestCase):
         self.assertEqual(response_content[0].get("description"), self.assessment_tool.description)
 
 
+def get_fetch_and_get_response(base_url, request_param, authenticated_user):
+    client = APIClient()
+    client.force_authenticate(user=authenticated_user)
+    response = client.get(base_url + request_param)
+    return response
+
+
 class VerifyParticipantTest(TestCase):
     def setUp(self) -> None:
         self.assessee = Assessee.objects.create_user(
@@ -2195,3 +2205,48 @@ class VerifyParticipantTest(TestCase):
             self.assertEquals(
                 str(exception), NOT_PART_OF_EVENT.format(self.assessee.email, request_data.get('assessment-event-id'))
             )
+
+    def test_serve_verify_assessee_participation_when_user_is_not_an_assessee(self):
+        assessment_event_id = str(self.assessment_event.event_id)
+        response = get_fetch_and_get_response(
+            base_url=VERIFY_ASSESSEE_PARTICIPATION_URL,
+            request_param=assessment_event_id,
+            authenticated_user=self.company
+        )
+        self.assertEquals(response.status_code, HTTPStatus.FORBIDDEN)
+
+    def test_serve_verify_assessee_participation_when_user_is_an_assessee_but_event_does_not_exist(self):
+        assessment_event_id = str(uuid.uuid4())
+        response = get_fetch_and_get_response(
+            base_url=VERIFY_ASSESSEE_PARTICIPATION_URL,
+            request_param=assessment_event_id,
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), EVENT_DOES_NOT_EXIST.format(assessment_event_id))
+
+    def test_serve_verify_assessee_participation_when_user_is_an_assessee_but_not_part_of_assessment_event(self):
+        assessment_event_id = str(self.assessment_event_2.event_id)
+        response = get_fetch_and_get_response(
+            base_url=VERIFY_ASSESSEE_PARTICIPATION_URL,
+            request_param=assessment_event_id,
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'), NOT_PART_OF_EVENT.format(self.assessee.email, assessment_event_id)
+        )
+
+    def test_serve_verify_assessee_participation_when_user_is_an_assessee_and_is_part_of_assessment_event(self):
+        assessment_event_id = str(self.assessment_event.event_id)
+        response = get_fetch_and_get_response(
+            base_url=VERIFY_ASSESSEE_PARTICIPATION_URL,
+            request_param=assessment_event_id,
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), 'Assessee is a participant of the event')
+
