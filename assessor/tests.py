@@ -7,11 +7,12 @@ from freezegun import freeze_time
 from rest_framework.reverse import reverse
 from rest_framework.test import APIClient
 
-from assessment.models import AssessmentTool, Assignment, TestFlow, AssessmentEvent
+from assessment.models import AssessmentTool, Assignment, TestFlow, AssessmentEvent, AssessmentEventSerializer
 from users.models import OdiUser, Assessee, AuthenticationService, Company, Assessor, AssesseeSerializer
 import json
 
 GET_ACTIVE_ASSESSEES = reverse('assessee_list') + '?assessment-event-id='
+GET_ACTIVE_EVENT_PARTICIPATIONS = reverse('assessment_event_list')
 
 
 def fetch_all_active_assessees(event_id, authenticated_user):
@@ -21,7 +22,21 @@ def fetch_all_active_assessees(event_id, authenticated_user):
     return response
 
 
-class ActiveAssessmentToolTest(TestCase):
+def fetch_all_assessment_events(authenticated_user):
+    client = APIClient()
+    client.force_authenticate(user=authenticated_user)
+    response = client.get(GET_ACTIVE_EVENT_PARTICIPATIONS)
+    return response
+
+
+def fetch_all_active_assessees(event_id, authenticated_user):
+    client = APIClient()
+    client.force_authenticate(user=authenticated_user)
+    response = client.get(GET_ACTIVE_ASSESSEES + event_id)
+    return response
+
+
+class ActiveAssessmentEventParticipationTest(TestCase):
     def setUp(self) -> None:
         self.assessee_1 = Assessee.objects.create_user(
             email='assessee_132@gmail.com',
@@ -173,6 +188,31 @@ class ActiveAssessmentToolTest(TestCase):
         self.assertTrue(isinstance(response_content, list))
         self.assertEqual(response_content, self.expected_assessees)
 
+    @freeze_time("2022-03-30 11:00:00")
+    def test_get_all_active_assessment_events_when_user_not_assessor(self):
+        response = fetch_all_assessment_events(
+            authenticated_user=self.assessee_1
+        )
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            f'User with email {self.assessee_1.email} is not an assessor'
+        )
+
+    @freeze_time("2022-03-30 11:00:00")
+    def test_get_all_assessment_events_when_request_is_valid(self):
+        response = fetch_all_assessment_events(
+            authenticated_user=self.assessor_1
+        )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertTrue(isinstance(response_content, list))
+        expected_assessment_event_data = AssessmentEventSerializer(self.assessment_event).data
+        expected_assessment_event_data['owning_company_id'] = str(self.company.company_id)
+        expected_assessment_event_data['test_flow_id'] = str(self.test_flow.test_flow_id)
+        self.assertEqual(response_content, [expected_assessment_event_data])
+
 
 class ViewsTestCase(TestCase):
     def setUp(self):
@@ -182,7 +222,6 @@ class ViewsTestCase(TestCase):
         self.client.force_authenticate(user=self.user)
 
     def test_get(self):
-
         response = self.client.get(self.url)
         response.render()
         self.assertEquals(200, response.status_code)
