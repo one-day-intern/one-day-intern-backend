@@ -1,5 +1,5 @@
 from django.contrib.auth.models import User
-from one_day_intern.exceptions import RestrictedAccessException, InvalidRequestException, AuthorizationException
+from one_day_intern.exceptions import RestrictedAccessException, InvalidRequestException
 from users.models import Assessee, Assessor
 from ..exceptions.exceptions import EventDoesNotExist
 from ..models import AssessmentEvent
@@ -41,10 +41,7 @@ def get_all_active_assignment(request_data: dict, user: User):
 
 
 def verify_assessee_participation(request_data, user: User):
-    try:
-        assessee = utils.get_assessee_from_user(user)
-    except AuthorizationException as exception:
-        raise RestrictedAccessException(str(exception))
+    assessee = utils.get_assessee_from_user(user)
 
     try:
         assessment_event = utils.get_assessment_event_from_id(request_data.get('assessment-event-id'))

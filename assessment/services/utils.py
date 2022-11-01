@@ -2,7 +2,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.contrib.auth.models import User
 from datetime import time, datetime
 from users.models import Company, Assessor, Assessee
-from one_day_intern.exceptions import RestrictedAccessException, AuthorizationException
+from one_day_intern.exceptions import RestrictedAccessException
 from ..models import TestFlow, AssessmentEvent
 from ..exceptions.exceptions import AssessmentToolDoesNotExist, TestFlowDoesNotExist, EventDoesNotExist
 
@@ -118,4 +118,4 @@ def get_assessee_from_user(user: User) -> Assessee:
     if found_assessees:
         return found_assessees[0]
     else:
-        raise AuthorizationException(f'User with email {user.email} is not an assessee')
+        raise RestrictedAccessException(f'User with email {user.email} is not an assessee')
