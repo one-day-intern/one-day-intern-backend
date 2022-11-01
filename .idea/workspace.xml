@@ -5,8 +5,27 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="e2156b0c-3e0e-4b00-b0af-bb331cb30b5a" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.coveragerc" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Pipfile" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/assessment/migrations/0008_videoconferenceroom.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/video_conference/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/video_conference/admin.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/video_conference/apps.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/video_conference/migrations/0001_initial.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/video_conference/migrations/0002_delete_videoconferenceroom.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/video_conference/migrations/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/video_conference/models.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/video_conference/services/utils.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/video_conference/services/video_conference.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/video_conference/tests.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/video_conference/urls.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/video_conference/views.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/assessment/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/assessment/models.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/assessment/tests.py" beforeDir="false" afterPath="$PROJECT_DIR$/assessment/tests.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/one_day_intern/settings.py" beforeDir="false" afterPath="$PROJECT_DIR$/one_day_intern/settings.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/one_day_intern/urls.py" beforeDir="false" afterPath="$PROJECT_DIR$/one_day_intern/urls.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/sonar-project.properties" beforeDir="false" afterPath="$PROJECT_DIR$/sonar-project.properties" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -43,7 +62,7 @@
       <recent name="C:\Users\ASUS\Documents\Kuliah\Semester-5\PPL\one-day-intern-backend-v3\one-day-intern-backend" />
     </key>
   </component>
-  <component name="RunManager" selected="Django Server.one-day-intern-backend">
+  <component name="RunManager" selected="Python.test">
     <configuration name="manage" type="PythonConfigurationType" factoryName="Python">
       <module name="one-day-intern-backend" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -73,12 +92,22 @@
       <envs>
         <env name="PYTHONUNBUFFERED" value="1" />
       </envs>
-      <option name="SDK_HOME" value="C:\Users\ASUS\.virtualenvs\one-day-intern-backend-QwMKWQZM\Scripts\python.exe" />
+      <option name="SDK_HOME" value="" />
       <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
-      <option name="IS_MODULE_SDK" value="false" />
+      <option name="IS_MODULE_SDK" value="true" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <EXTENSION ID="net.ashald.envfile">
+        <option name="IS_ENABLED" value="false" />
+        <option name="IS_SUBST" value="false" />
+        <option name="IS_PATH_MACRO_SUPPORTED" value="false" />
+        <option name="IS_IGNORE_MISSING_FILES" value="false" />
+        <option name="IS_ENABLE_EXPERIMENTAL_INTEGRATIONS" value="false" />
+        <ENTRIES>
+          <ENTRY IS_ENABLED="true" PARSER="runconfig" />
+        </ENTRIES>
+      </EXTENSION>
       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/manage.py" />
       <option name="PARAMETERS" value="test" />
       <option name="SHOW_COMMAND_LINE" value="false" />
@@ -112,7 +141,6 @@
       <method v="2" />
     </configuration>
     <list>
-      <item itemvalue="Django Server.one-day-intern-backend" />
       <item itemvalue="Python.manage" />
       <item itemvalue="Python.test" />
     </list>
@@ -143,9 +171,5 @@
         </entry>
       </map>
     </option>
-  </component>
-  <component name="com.intellij.coverage.CoverageDataManagerImpl">
-    <SUITE FILE_PATH="coverage/one_day_intern_backend$manage.coverage" NAME="manage Coverage Results" MODIFIED="1663398212041" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/one_day_intern_backend$test.coverage" NAME="test Coverage Results" MODIFIED="1663398190313" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
 </project>
