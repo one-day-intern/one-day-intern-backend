@@ -103,7 +103,7 @@ def get_conference_room_by_participation(request_data, user: OdiUser):
     if not assessment_event_participation:
         raise RestrictedAccessException(
             f"Asessor {user.email} is not the host of this conference room")
-    video_conference_room = VideoConferenceRoom.objects.get(part_of=assessment_event_participation)
+    video_conference_room = VideoConferenceRoom.objects.get(part_of=assessment_event_participation[0])
     return video_conference_room
 
 

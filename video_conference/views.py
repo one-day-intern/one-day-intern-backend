@@ -155,7 +155,7 @@ def serve_get_conference_room_by_participation(request):
     conference_assessee_email: string,
     """
     user = request.user
-    request_data = json.loads(request.body.decode('utf-8'))
-    response = get_conference_room_by_participation(request_data)
+    request_data = request.GET
+    response = get_conference_room_by_participation(request_data, user)
     response_data = VideoConferenceRoomSerializer(response).data
     return Response(data=response_data)
