@@ -83,6 +83,30 @@ def get_all_video_conference_room_roleplayers(request_data, user: OdiUser):
     return conference_rooms
 
 
+def get_conference_room_by_participation(request_data, user: OdiUser):
+    assessment_event_id = request_data.get("assessment_event_id")
+    assessee_email = request_data.get("conference_assessee_email")
+    if not isinstance(assessment_event_id, str):
+        raise InvalidRequestException(
+            "Invalid assessment event id value in request body")
+    if not isinstance(assessee_email, str):
+        raise InvalidRequestException(
+            "Invalid conference assessee email value in request body")
+    assessment_event = AssessmentEvent.objects.filter(event_id=assessment_event_id)
+    if not assessment_event:
+        raise InvalidRequestException(
+            f"Assessment event with id {assessment_event_id} does not exist")
+    assessment_event = assessment_event[0]
+    assessee = get_assessee_from_email(assessee_email)
+    assessor = get_assessor_or_raise_exception(user)
+    assessment_event_participation = AssessmentEventParticipation.objects.filter(assessment_event=assessment_event, assessee=assessee, assessor=assessor)
+    if not assessment_event_participation:
+        raise RestrictedAccessException(
+            f"Asessor {user.email} is not the host of this conference room")
+    video_conference_room = VideoConferenceRoom.objects.get(part_of=assessment_event_participation)
+    return video_conference_room
+
+
 def add_roleplayer_to_video_conference_room(request_data, user):
     video_conference_room: VideoConferenceRoom = get_video_conference_from_request_as_assessor(
         request_data, user)

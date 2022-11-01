@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from assessment.models import VideoConferenceRoomSerializer
 
-from video_conference.services.video_conference import initiate_video_conference_room, get_all_video_conference_room_hosts, get_all_video_conference_room_roleplayers, add_roleplayer_to_video_conference_room, join_conference_room_as_assessee, join_conference_room_as_assessor, lock_conference_room_by_id
+from video_conference.services.video_conference import get_conference_room_by_participation, initiate_video_conference_room, get_all_video_conference_room_hosts, get_all_video_conference_room_roleplayers, add_roleplayer_to_video_conference_room, join_conference_room_as_assessee, join_conference_room_as_assessor, lock_conference_room_by_id
 
 
 @require_POST
@@ -138,5 +138,24 @@ def serve_lock_conference_room_by_id(request):
     user = request.user
     request_data = json.loads(request.body.decode('utf-8'))
     response = lock_conference_room_by_id(request_data, user)
+    response_data = VideoConferenceRoomSerializer(response).data
+    return Response(data=response_data)
+
+
+@require_GET
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def serve_get_conference_room_by_participation(request):
+    """
+    this view will get the video conference room
+    by assessor and assessee participation
+    --------------------------------------------
+    request params must contain:
+    assessment_event_id: string,
+    conference_assessee_email: string,
+    """
+    user = request.user
+    request_data = json.loads(request.body.decode('utf-8'))
+    response = get_conference_room_by_participation(request_data)
     response_data = VideoConferenceRoomSerializer(response).data
     return Response(data=response_data)
