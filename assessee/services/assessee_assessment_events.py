@@ -10,4 +10,9 @@ def all_assessment_events(assessee: Assessee):
 
 
 def filter_active_assessment_events(assessment_events) -> list:
-    return None
+    active_assessment_events = []
+    for assessment_event in assessment_events:
+        if assessment_event.is_active():
+            active_assessment_events.append(assessment_event)
+
+    return active_assessment_events
