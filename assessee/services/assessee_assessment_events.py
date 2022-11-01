@@ -1,3 +1,4 @@
+from django.contrib.auth.models import User
 from users.models import Assessee
 
 
@@ -16,3 +17,7 @@ def filter_active_assessment_events(assessment_events) -> list:
             active_assessment_events.append(assessment_event)
 
     return active_assessment_events
+
+
+def get_assessee_assessment_events(user: User, find_active):
+    return None

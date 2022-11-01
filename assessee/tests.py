@@ -2,12 +2,15 @@ from django.test import TestCase
 from freezegun import freeze_time
 from rest_framework.reverse import reverse
 from rest_framework.test import APIClient
+from http import HTTPStatus
 from users.models import OdiUser, Assessee, AuthenticationService, Company, Assessor
 from assessment.models import AssessmentEvent, Assignment, TestFlow, AssessmentEventSerializer
 from .services import assessee_assessment_events
 import datetime
 import json
 import pytz
+
+GET_ASSESSEE_EVENTS_URL = reverse('get-assessee-assessment-events')
 
 
 class ViewsTestCase(TestCase):
@@ -124,3 +127,55 @@ class GetAssessmentEventTest(TestCase):
         assessment_events = [self.assessment_event]
         filtered_events = assessee_assessment_events.filter_active_assessment_events(assessment_events)
         self.assertEqual(filtered_events, assessment_events)
+
+    @freeze_time('2022-11-01')
+    def test_get_assessee_assessment_events(self):
+        assessment_events = assessee_assessment_events.get_assessee_assessment_events(self.assessee, 'false')
+        self.assertEquals(assessment_events, [self.assessment_event])
+
+    @freeze_time('2022-11-01')
+    def test_get_assessee_assessment_events_when_find_active_true_but_no_active_events(self):
+        assessment_events = assessee_assessment_events.get_assessee_assessment_events(self.assessee, 'true')
+        self.assertEquals(assessment_events, [])
+
+    @freeze_time('2022-12-12 09:00:00')
+    def test_get_assessee_assessment_events_when_find_active_true_and_exist_active_events(self):
+        assessment_events = assessee_assessment_events.get_assessee_assessment_events(self.assessee, 'true')
+        self.assertEquals(assessment_events, [self.assessment_event])
+
+    def test_get_assessee_assessment_events_end_to_end(self):
+        client = APIClient()
+        client.force_authenticate(user=self.assessee)
+        response = client.get(GET_ASSESSEE_EVENTS_URL)
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertTrue(isinstance(response_content, list))
+        self.assertEqual(len(response_content), 1)
+        fetched_event = response_content[0]
+        self.assertDictEqual(fetched_event, self.expected_assessment_event)
+
+    @freeze_time('2022-11-01')
+    def test_get_assessee_assessment_events_when_find_active_true_but_no_active_events_end_to_end(self):
+        client = APIClient()
+        client.force_authenticate(user=self.assessee)
+        response = client.get(GET_ASSESSEE_EVENTS_URL + '?is-active=true')
+
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertTrue(isinstance(response_content, list))
+        self.assertEqual(len(response_content), 0)
+
+    @freeze_time('2022-12-12 09:00:00')
+    def test_get_assessee_assessment_events_when_find_active_true_and_exist_active_events_end_to_end(self):
+        client = APIClient()
+        client.force_authenticate(user=self.assessee)
+        response = client.get(GET_ASSESSEE_EVENTS_URL + '?is-active=true')
+
+        self.assertEquals(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertTrue(isinstance(response_content, list))
+        self.assertEqual(len(response_content), 1)
+
+        fetched_event = response_content[0]
+        self.assertEqual(fetched_event, self.expected_assessment_event)

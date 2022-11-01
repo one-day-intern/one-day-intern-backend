@@ -14,3 +14,20 @@ def assessee_dashboard(request):
         'current_events': [],
         'future_events': [],
     })
+
+
+@api_view(['GET'])
+@require_GET
+@permission_classes([IsAuthenticated])
+def serve_get_assessment_events_of_assessee(request):
+    """
+    This view will return all assessment events belonging to
+    an assessee. When is-active is set to 'true', it will
+    only return active events, and when it is set to 'false',
+    it will return all assessment events regardless of the
+    active status.
+    ----------------------------------------------------------
+    request-params must contain:
+    is-active: string
+    """
+    return Response(data=None)
