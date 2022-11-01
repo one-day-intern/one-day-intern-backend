@@ -1075,13 +1075,12 @@ class AssessmentEventTest(TestCase):
     def test_get_test_flow_based_on_company_by_company(self):
         test_flows = get_test_flow_by_company(self.company_1)
         self.assertEqual(len(test_flows), 2)
-        self.assertEqual(test_flows[0], self.test_flow_1)
+        self.assertIn(self.test_flow_1, test_flows)
 
     def test_get_test_flow_based_on_company_by_assessor(self):
         test_flows = get_test_flow_by_company(self.assessor)
         self.assertEqual(len(test_flows), 2)
-        self.assertEqual(test_flows[1], self.test_flow_2)
-        
+        self.assertIn(self.test_flow_2, test_flows)       
 
     @freeze_time('2022-12-01')
     def test_validate_assessment_event_when_name_is_does_not_exist(self):
