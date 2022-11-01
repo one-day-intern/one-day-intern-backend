@@ -1,4 +1,5 @@
 from django.test import TestCase
+from freezegun import freeze_time
 from rest_framework.reverse import reverse
 from rest_framework.test import APIClient
 from users.models import OdiUser, Assessee, AuthenticationService, Company, Assessor
@@ -111,3 +112,15 @@ class GetAssessmentEventTest(TestCase):
     def test_all_assessment_events_from_assessee_when_no_events(self):
         assessment_events = assessee_assessment_events.all_assessment_events(self.assessee_2)
         self.assertEquals(assessment_events, [])
+
+    @freeze_time('2022-11-01')
+    def test_filter_active_assessment_events_when_no_assessment_events_is_active(self):
+        assessment_events = [self.assessment_event]
+        filtered_events = assessee_assessment_events.filter_active_assessment_events(assessment_events)
+        self.assertEqual(filtered_events, [])
+
+    @freeze_time('2022-12-12 09:00:00')
+    def test_filter_active_assessment_events_when_assessment_event_is_active(self):
+        assessment_events = [self.assessment_event]
+        filtered_events = assessee_assessment_events.filter_active_assessment_events(assessment_events)
+        self.assertEqual(filtered_events, assessment_events)
