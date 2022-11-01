@@ -33,7 +33,8 @@ from .models import (
     TextQuestion,
     MultipleChoiceQuestion,
     InteractiveQuizSerializer,
-    InteractiveQuiz, MultipleChoiceQuestionSerializer, TextQuestionSerializer
+    InteractiveQuiz, MultipleChoiceQuestionSerializer, TextQuestionSerializer,
+    VideoConferenceRoom
 )
 from .services import assessment, utils, test_flow, assessment_event, assessment_event_attempt, TaskGenerator
 import datetime
@@ -49,6 +50,7 @@ ACTIVE_TEST_FLOW_NOT_FOUND = 'Active test flow of id {} belonging to {} does not
 INVALID_DATE_FORMAT = '{} is not a valid ISO date string'
 ASSESSMENT_EVENT_OWNERSHIP_INVALID = 'Event with id {} does not belong to company with id {}'
 NOT_PART_OF_EVENT = 'Assessee with email {} is not part of assessment with id {}'
+ASSESSOR_NOT_PART_OF_EVENT = 'Assessor with email {} is not part of assessment with id {}'
 CREATE_ASSIGNMENT_URL = '/assessment/create/assignment/'
 CREATE_INTERACTIVE_QUIZ_URL = '/assessment/create/interactive-quiz/'
 CREATE_TEST_FLOW_URL = reverse('test-flow-create')
@@ -1467,14 +1469,16 @@ class AssessmentEventParticipationTest(TestCase):
         self.assessment_event.add_participant(self.assessee, self.assessor_1)
         mocked_create.assert_not_called()
 
+    @patch.object(VideoConferenceRoom.objects, 'create')
     @patch.object(TestFlowAttempt.objects, 'create')
     @patch.object(AssessmentEventParticipation.objects, 'create')
     @patch.object(AssessmentEvent, 'check_assessee_participation')
     def test_add_participation_when_assessee_has_been_registered(self, mocked_check, mocked_create_participation,
-                                                                 mocked_create_attempt):
+                                                                 mocked_create_attempt, mocked_create_video_conference_room):
         mocked_check.return_value = False
         self.assessment_event.add_participant(self.assessee, self.assessor_1)
         mocked_create_participation.assert_called_once()
+        mocked_create_video_conference_room.assert_called_once()
 
     def test_get_assessee_from_email_when_assessee_exist(self):
         found_assessee = utils.get_assessee_from_email(self.assessee.email)
@@ -1713,6 +1717,16 @@ class AssessmentEventParticipationTest(TestCase):
         self.assertTrue(self.assessment_event.check_assessee_participation(self.assessee))
 
 
+def fetch_and_get_response_subscription(access_token, assessment_event_id):
+    client = Client()
+    auth_headers = {'HTTP_AUTHORIZATION': 'Bearer ' + str(access_token)}
+    response = client.get(
+        EVENT_SUBSCRIPTION_URL + '?assessment-event-id=' + str(assessment_event_id),
+        **auth_headers
+    )
+    return response
+
+
 class AssesseeSubscribeToAssessmentEvent(TestCase):
     def setUp(self) -> None:
         self.assessee = Assessee.objects.create_user(
@@ -1822,6 +1836,16 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
             authentication_service=AuthenticationService.DEFAULT.value
         )
 
+        self.assessor_2 = Assessor.objects.create_user(
+            email='assessor_02@gmail.com',
+            password='password12A',
+            first_name='Assessor',
+            last_name='A',
+            phone_number='+12312312312',
+            associated_company=self.company,
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
         self.assessment_event.add_participant(
             assessee=self.assessee,
             assessor=self.assessor
@@ -1905,18 +1929,31 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
             self.assertEqual(str(exception), NOT_PART_OF_EVENT.format(
                 self.assessee_2, self.assessment_event.event_id))
 
-    def fetch_and_get_response_subscription(self, access_token, assessment_event_id):
-        client = Client()
-        auth_headers = {'HTTP_AUTHORIZATION': 'Bearer ' + str(access_token)}
-        response = client.get(
-            EVENT_SUBSCRIPTION_URL + '?assessment-event-id=' +
-            str(assessment_event_id),
-            **auth_headers
-        )
-        return response
+    def test_check_assessor_participation_when_assessor_is_a_participant(self):
+        self.assertTrue(self.assessment_event.check_assessor_participation(self.assessor))
+
+    def test_check_assessor_participation_when_assessor_is_not_a_participant(self):
+        self.assertFalse(self.assessment_event.check_assessor_participation(self.assessor_2))
+
+    @patch.object(AssessmentEvent, 'check_assessor_participation')
+    def test_validate_assessor_participation_when_assessor_participates_in_test_flow(self, mocked_check_participation):
+        mocked_check_participation.return_value = True
+        try:
+            assessment_event_attempt.validate_assessor_participation(self.assessment_event, self.assessor)
+        except Exception as exception:
+            self.fail(f'{exception} is raised')
+
+    @patch.object(AssessmentEvent, 'check_assessor_participation')
+    def test_validate_assessor_participation_when_assessor_does_not_participate_in_test_flow(self, mocked_check_participation):
+        mocked_check_participation.return_value = False
+        try:
+            assessment_event_attempt.validate_assessor_participation(self.assessment_event, self.assessor_2)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except RestrictedAccessException as exception:
+            self.assertEqual(str(exception), ASSESSOR_NOT_PART_OF_EVENT.format(self.assessor_2, self.assessment_event.event_id))
 
     def test_subscribe_when_user_is_not_an_assessee(self):
-        response = self.fetch_and_get_response_subscription(
+        response = fetch_and_get_response_subscription(
             access_token=self.company_token.access_token,
             assessment_event_id=self.assessment_event.event_id,
         )
@@ -1927,7 +1964,7 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
             'message'), 'User with email company@company.com is not an assessee')
 
     def test_subscribe_when_assessee_does_not_participate_in_event(self):
-        response = self.fetch_and_get_response_subscription(
+        response = fetch_and_get_response_subscription(
             access_token=self.assessee_2_token.access_token,
             assessment_event_id=self.assessment_event.event_id
         )
@@ -1941,7 +1978,7 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
 
     def test_subscribe_when_assessment_id_is_not_present(self):
         invalid_assessment_id = str(uuid.uuid4())
-        response = self.fetch_and_get_response_subscription(
+        response = fetch_and_get_response_subscription(
             access_token=self.assessee_token.access_token,
             assessment_event_id=invalid_assessment_id
         )
@@ -1955,7 +1992,7 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
 
     def test_subscribe_when_assessment_id_is_random_string(self):
         invalid_assessment_id = 'assessment-id'
-        response = self.fetch_and_get_response_subscription(
+        response = fetch_and_get_response_subscription(
             access_token=self.assessee_token.access_token,
             assessment_event_id=invalid_assessment_id
         )
@@ -1965,7 +2002,7 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
 
     @patch.object(TaskGenerator.TaskGenerator, 'generate')
     def test_subscribe_when_request_is_valid(self, mocked_generate):
-        response = self.fetch_and_get_response_subscription(
+        response = fetch_and_get_response_subscription(
             access_token=self.assessee_token.access_token,
             assessment_event_id=self.assessment_event.event_id
         )
