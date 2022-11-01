@@ -299,6 +299,13 @@ class AssessmentEvent(models.Model):
         )
         return found_assessees.exists()
 
+    def check_assessor_participation(self, assessor):
+        found_assessors = AssessmentEventParticipation.objects.filter(
+            assessment_event=self,
+            assessor=assessor
+        )
+        return found_assessors.exists()
+
     def get_task_generator(self):
         task_generator = TaskGenerator()
         test_flow = self.test_flow_used
@@ -341,6 +348,19 @@ class AssessmentEventParticipation(models.Model):
     attempt = models.OneToOneField('assessment.TestFlowAttempt', on_delete=models.CASCADE, null=True)
 
 
+class AssessmentEventParticipationSerializer(serializers.ModelSerializer):
+    assessment_event_id = serializers.ReadOnlyField(source='assessment_event.assessment_event_id')
+    assessee_id = serializers.ReadOnlyField(source='assessee.assessee_id')
+    assessor_id = serializers.ReadOnlyField(source='assessor.assessor_id')
+
+    # ini buat di test flow attempt ada serializer assessment event part
+    # attempt = models.OneToOneField('assessment.TestFlowAttempt', on_delete=models.CASCADE, null=True)
+
+    class Meta:
+        model = AssessmentEventParticipation
+        fields = ['assessment_event_id', 'assessee_id', 'assessor_id']
+
+
 class TestFlowAttempt(models.Model):
     attempt_id = models.UUIDField(default=uuid.uuid4, primary_key=True)
     note = models.TextField(null=True)
@@ -368,6 +388,15 @@ class ResponseTestSerializer(serializers.ModelSerializer):
             'owning_company_id',
             'owning_company_name',
         ]
+
+class TestFlowAttemptSerializer(serializers.ModelSerializer):
+    event_participation = AssessmentEventParticipationSerializer(source='assessmenteventparticipation', read_only=True)
+    test_flow_attempted_id = serializers.ReadOnlyField(source='test_flow_attempted.test_flow_attempted_id')
+
+    class Meta:
+        model = TestFlowAttempt
+        fields = ['attempt_id', 'note', 'grade', 'event_participation', 'test_flow_attempted_id']
+
 
 class VideoConferenceRoom(models.Model):
     part_of = models.ForeignKey('assessment.AssessmentEventParticipation', on_delete=models.CASCADE)

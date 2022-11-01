@@ -3,7 +3,14 @@ from django.test import TestCase, Client
 from django.urls import reverse
 from freezegun import freeze_time
 from http import HTTPStatus
-from one_day_intern.exceptions import RestrictedAccessException, InvalidAssignmentRegistration, InvalidInteractiveQuizRegistration, InvalidResponseTestRegistration
+from assessment.services.assessment_tool import get_assessment_tool_by_company, get_test_flow_by_company
+from one_day_intern.exceptions import (
+    RestrictedAccessException,
+    InvalidAssignmentRegistration,
+    InvalidInteractiveQuizRegistration,
+    InvalidRequestException,
+    InvalidResponseTestRegistration
+)
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 from unittest.mock import patch, call
@@ -41,7 +48,10 @@ from .services import assessment, utils, test_flow, assessment_event, assessment
 import datetime
 import json
 import schedule
+import pytz
 import uuid
+
+ASSESSMENT_EVENT_ID_PARAM_NAME = '?assessment-event-id='
 
 EXCEPTION_NOT_RAISED = 'Exception not raised'
 TEST_FLOW_INVALID_NAME = 'Test Flow name must exist and must be at most 50 characters'
@@ -51,13 +61,16 @@ ACTIVE_TEST_FLOW_NOT_FOUND = 'Active test flow of id {} belonging to {} does not
 INVALID_DATE_FORMAT = '{} is not a valid ISO date string'
 ASSESSMENT_EVENT_OWNERSHIP_INVALID = 'Event with id {} does not belong to company with id {}'
 NOT_PART_OF_EVENT = 'Assessee with email {} is not part of assessment with id {}'
+ASSESSOR_NOT_PART_OF_EVENT = 'Assessor with email {} is not part of assessment with id {}'
+EVENT_DOES_NOT_EXIST = 'Assessment Event with ID {} does not exist'
 CREATE_ASSIGNMENT_URL = '/assessment/create/assignment/'
 CREATE_INTERACTIVE_QUIZ_URL = '/assessment/create/interactive-quiz/'
 CREATE_TEST_FLOW_URL = reverse('test-flow-create')
 CREATE_ASSESSMENT_EVENT_URL = reverse('assessment-event-create')
 ADD_PARTICIPANT_URL = reverse('event-add-participation')
 EVENT_SUBSCRIPTION_URL = reverse('event-subscription')
-GET_RELEASED_ASSIGNMENTS = reverse('event-active-assignments') + '?assessment-event-id='
+GET_RELEASED_ASSIGNMENTS = reverse('event-active-assignments') + ASSESSMENT_EVENT_ID_PARAM_NAME
+VERIFY_ASSESSEE_PARTICIPATION_URL = reverse('verify-participation') + ASSESSMENT_EVENT_ID_PARAM_NAME
 OK_RESPONSE_STATUS_CODE = 200
 CREATE_RESPONSE_TEST_URL = '/assessment/create/response-test/'
 GET_TOOLS_URL="/assessment/tools/"
@@ -99,7 +112,8 @@ class AssessmentTest(TestCase):
             duration_in_minutes=self.request_data.get('duration_in_minutes')
         )
 
-        self.expected_assignment_data = AssignmentSerializer(self.expected_assignment).data
+        self.expected_assignment_data = AssignmentSerializer(
+            self.expected_assignment).data
 
     def test_sanitize_file_format_when_not_none(self):
         expected_file_format = 'pdf'
@@ -172,7 +186,8 @@ class AssessmentTest(TestCase):
         request_data_with_non_numeric_duration['duration_in_minutes'] = '1a'
         expected_message = 'Assignment duration must only be of type numeric'
         try:
-            assessment.validate_assignment(request_data_with_non_numeric_duration)
+            assessment.validate_assignment(
+                request_data_with_non_numeric_duration)
             self.fail(EXCEPTION_NOT_RAISED)
         except InvalidAssignmentRegistration as exception:
             self.assertEqual(str(exception), expected_message)
@@ -180,10 +195,13 @@ class AssessmentTest(TestCase):
     @patch.object(Assignment.objects, 'create')
     def test_save_assignment_to_database(self, mocked_create):
         mocked_create.return_value = self.expected_assignment
-        returned_assignment = assessment.save_assignment_to_database(self.request_data, self.assessor)
-        returned_assignment_data = AssignmentSerializer(returned_assignment).data
+        returned_assignment = assessment.save_assignment_to_database(
+            self.request_data, self.assessor)
+        returned_assignment_data = AssignmentSerializer(
+            returned_assignment).data
         mocked_create.assert_called_once()
-        self.assertDictEqual(returned_assignment_data, self.expected_assignment_data)
+        self.assertDictEqual(returned_assignment_data,
+                             self.expected_assignment_data)
 
     @patch.object(utils, 'sanitize_file_format')
     @patch.object(assessment, 'save_assignment_to_database')
@@ -197,9 +215,12 @@ class AssessmentTest(TestCase):
         mocked_validate_assignment.return_value = None
         mocked_save_assignment.return_value = self.expected_assignment
         mocked_sanitize_file_format.return_value = 'pdf'
-        returned_assignment = assessment.create_assignment(self.request_data, self.assessor)
-        returned_assignment_data = AssignmentSerializer(returned_assignment).data
-        self.assertDictEqual(returned_assignment_data, self.expected_assignment_data)
+        returned_assignment = assessment.create_assignment(
+            self.request_data, self.assessor)
+        returned_assignment_data = AssignmentSerializer(
+            returned_assignment).data
+        self.assertDictEqual(returned_assignment_data,
+                             self.expected_assignment_data)
 
     def test_create_assignment_when_complete_status_200(self):
         assignment_data = self.request_data.copy()
@@ -212,14 +233,18 @@ class AssessmentTest(TestCase):
         self.assertEqual(response.status_code, OK_RESPONSE_STATUS_CODE)
         response_content = json.loads(response.content)
         self.assertTrue(len(response_content) > 0)
-        self.assertEqual(response_content.get('name'), self.expected_assignment_data.get('name'))
-        self.assertEqual(response_content.get('description'), self.expected_assignment_data.get('description'))
         self.assertIsNotNone(response_content.get('assessment_id'))
+        self.assertEqual(response_content.get('name'),
+                         self.expected_assignment_data.get('name'))
+        self.assertEqual(response_content.get('description'),
+                         self.expected_assignment_data.get('description'))
         self.assertEqual(
-            response_content.get('expected_file_format'), self.expected_assignment_data.get('expected_file_format')
+            response_content.get('expected_file_format'), self.expected_assignment_data.get(
+                'expected_file_format')
         )
         self.assertEqual(
-            response_content.get('duration_in_minutes'), self.expected_assignment_data.get('duration_in_minutes')
+            response_content.get('duration_in_minutes'), self.expected_assignment_data.get(
+                'duration_in_minutes')
         )
         self.assertEqual(response_content.get('owning_company_id'), self.company.id)
         self.assertEqual(response_content.get('owning_company_name'), self.company.company_name)
@@ -539,16 +564,22 @@ class TestFlowTest(TestCase):
 
     def test_get_tool_of_company_from_id_when_tool_exists_and_belong_to_company(self):
         tool_id = str(self.assessment_tool_1.assessment_id)
-        retrieved_assessment_tool = utils.get_tool_of_company_from_id(tool_id, self.company_1)
+        retrieved_assessment_tool = utils.get_tool_of_company_from_id(
+            tool_id, self.company_1)
         self.assertEqual(str(retrieved_assessment_tool.assessment_id), tool_id)
-        self.assertEqual(retrieved_assessment_tool.name, self.assessment_tool_1.name)
-        self.assertEqual(retrieved_assessment_tool.description, self.assessment_tool_1.description)
-        self.assertEqual(retrieved_assessment_tool.expected_file_format, self.assessment_tool_1.expected_file_format)
-        self.assertEqual(retrieved_assessment_tool.duration_in_minutes, self.assessment_tool_1.duration_in_minutes)
+        self.assertEqual(retrieved_assessment_tool.name,
+                         self.assessment_tool_1.name)
+        self.assertEqual(retrieved_assessment_tool.description,
+                         self.assessment_tool_1.description)
+        self.assertEqual(retrieved_assessment_tool.expected_file_format,
+                         self.assessment_tool_1.expected_file_format)
+        self.assertEqual(retrieved_assessment_tool.duration_in_minutes,
+                         self.assessment_tool_1.duration_in_minutes)
 
     def test_et_tool_of_company_from_id_when_tool_does_not_exist(self):
         tool_id = str(uuid.uuid4())
-        expected_message = TEST_FLOW_OF_COMPANY_DOES_NOT_EXIST_FORMAT.format(tool_id, self.company_1.company_name)
+        expected_message = TEST_FLOW_OF_COMPANY_DOES_NOT_EXIST_FORMAT.format(
+            tool_id, self.company_1.company_name)
 
         try:
             utils.get_tool_of_company_from_id(tool_id, self.company_1)
@@ -558,7 +589,8 @@ class TestFlowTest(TestCase):
 
     def test_get_tool_from_id_when_tool_exists_but_does_not_belong_to_company(self):
         tool_id = str(self.assessment_tool_3.assessment_id)
-        expected_message = TEST_FLOW_OF_COMPANY_DOES_NOT_EXIST_FORMAT.format(tool_id, self.company_1.company_name)
+        expected_message = TEST_FLOW_OF_COMPANY_DOES_NOT_EXIST_FORMAT.format(
+            tool_id, self.company_1.company_name)
 
         try:
             utils.get_tool_of_company_from_id(tool_id, self.company_1)
@@ -586,7 +618,8 @@ class TestFlowTest(TestCase):
 
     def test_get_time_from_date_time_string_when_string_is_valid_iso_date_time(self):
         valid_iso_date = '2022-10-25T01:20:00.000Z'
-        time_: datetime.time = utils.get_time_from_date_time_string(valid_iso_date)
+        time_: datetime.time = utils.get_time_from_date_time_string(
+            valid_iso_date)
         self.assertEqual(time_.hour, 1)
         self.assertEqual(time_.minute, 20)
 
@@ -600,7 +633,8 @@ class TestFlowTest(TestCase):
             is_usable=False
         )
 
-        test_flow_.add_tool(self.assessment_tool_1, release_time=release_time, start_working_time=start_working_time)
+        test_flow_.add_tool(self.assessment_tool_1, release_time=release_time,
+                            start_working_time=start_working_time)
         self.assertTrue(test_flow_.get_is_usable())
         mock_test_flow_tools_create.assert_called_with(
             assessment_tool=self.assessment_tool_1,
@@ -618,7 +652,8 @@ class TestFlowTest(TestCase):
         del request_data['name']
 
         try:
-            test_flow.validate_test_flow_registration(request_data, self.company_1)
+            test_flow.validate_test_flow_registration(
+                request_data, self.company_1)
             self.fail(EXCEPTION_NOT_RAISED)
         except InvalidTestFlowRegistration as exception:
             self.assertEqual(str(exception), TEST_FLOW_INVALID_NAME)
@@ -632,7 +667,8 @@ class TestFlowTest(TestCase):
         request_data['name'] = 'abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz'
 
         try:
-            test_flow.validate_test_flow_registration(request_data, self.company_1)
+            test_flow.validate_test_flow_registration(
+                request_data, self.company_1)
         except InvalidTestFlowRegistration as exception:
             self.assertEqual(str(exception), TEST_FLOW_INVALID_NAME)
 
@@ -645,7 +681,8 @@ class TestFlowTest(TestCase):
         request_data['tools_used'] = []
 
         try:
-            test_flow.validate_test_flow_registration(request_data, self.company_1)
+            test_flow.validate_test_flow_registration(
+                request_data, self.company_1)
         except Exception as exception:
             self.fail(f'{exception} is raised')
 
@@ -657,7 +694,8 @@ class TestFlowTest(TestCase):
         request_data = self.base_request_data.copy()
 
         try:
-            test_flow.validate_test_flow_registration(request_data, self.company_1)
+            test_flow.validate_test_flow_registration(
+                request_data, self.company_1)
         except Exception as exception:
             self.fail(f'{exception} is raised')
 
@@ -667,7 +705,8 @@ class TestFlowTest(TestCase):
         invalid_tool_id = str(uuid.uuid4())
         expected_error_message = f'Assessment tool with id {invalid_tool_id} does not exist'
         mocked_get_time.return_value = None
-        mocked_get_tool.side_effect = AssessmentToolDoesNotExist(expected_error_message)
+        mocked_get_tool.side_effect = AssessmentToolDoesNotExist(
+            expected_error_message)
         request_data = self.base_request_data.copy()
         request_data['tools_used'] = [{
             'tool_id': invalid_tool_id,
@@ -676,7 +715,8 @@ class TestFlowTest(TestCase):
         }]
 
         try:
-            test_flow.validate_test_flow_registration(request_data, self.company_1)
+            test_flow.validate_test_flow_registration(
+                request_data, self.company_1)
             self.fail(EXCEPTION_NOT_RAISED)
         except InvalidTestFlowRegistration as exception:
             self.assertEqual(str(exception), expected_error_message)
@@ -697,7 +737,8 @@ class TestFlowTest(TestCase):
         }]
 
         try:
-            test_flow.validate_test_flow_registration(request_data, self.company_1)
+            test_flow.validate_test_flow_registration(
+                request_data, self.company_1)
             self.fail(EXCEPTION_NOT_RAISED)
         except InvalidTestFlowRegistration as exception:
             self.assertEqual(str(exception), expected_error_message)
@@ -711,7 +752,8 @@ class TestFlowTest(TestCase):
         request_data['tools_used'] = 'list'
 
         try:
-            test_flow.validate_test_flow_registration(request_data, self.company_1)
+            test_flow.validate_test_flow_registration(
+                request_data, self.company_1)
             self.fail(EXCEPTION_NOT_RAISED)
         except InvalidTestFlowRegistration as exception:
             self.assertEqual(str(exception), 'Test Flow must be of type list')
@@ -724,7 +766,8 @@ class TestFlowTest(TestCase):
         mocked_get_time.return_value = None
         request_data = self.base_request_data.copy()
         del request_data['tools_used']
-        converted_tool = test_flow.convert_assessment_tool_id_to_assessment_tool(request_data, self.company_1)
+        converted_tool = test_flow.convert_assessment_tool_id_to_assessment_tool(
+            request_data, self.company_1)
         self.assertEqual(converted_tool, [])
 
     @patch.object(utils, 'get_time_from_date_time_string')
@@ -735,7 +778,8 @@ class TestFlowTest(TestCase):
         mocked_get_time.return_value = None
         request_data = self.base_request_data.copy()
         request_data['tools_used'] = []
-        converted_tool = test_flow.convert_assessment_tool_id_to_assessment_tool(request_data, self.company_1)
+        converted_tool = test_flow.convert_assessment_tool_id_to_assessment_tool(
+            request_data, self.company_1)
         self.assertEqual(converted_tool, [])
 
     @patch.object(utils, 'get_time_from_date_time_string')
@@ -747,7 +791,8 @@ class TestFlowTest(TestCase):
         mocked_get_tool.return_value = self.assessment_tool_1
         mocked_get_time.return_value = expected_returned_time
         request_data = self.base_request_data.copy()
-        converted_tools = test_flow.convert_assessment_tool_id_to_assessment_tool(request_data, self.company_1)
+        converted_tools = test_flow.convert_assessment_tool_id_to_assessment_tool(
+            request_data, self.company_1)
 
         self.assertEqual(len(converted_tools), number_of_assessment_tools)
         tool_data_assessment_1 = converted_tools[1]
@@ -758,7 +803,8 @@ class TestFlowTest(TestCase):
         tool = tool_data_assessment_1['tool']
         release_time = tool_data_assessment_1['release_time']
         start_working_time = tool_data_assessment_1['start_working_time']
-        self.assertEqual(tool.assessment_id, self.assessment_tool_1.assessment_id)
+        self.assertEqual(tool.assessment_id,
+                         self.assessment_tool_1.assessment_id)
         self.assertEqual(release_time, expected_returned_time)
         self.assertEqual(start_working_time, expected_returned_time)
 
@@ -767,7 +813,8 @@ class TestFlowTest(TestCase):
     def test_save_test_flow_to_database_when_converted_tools_is_empty(self, mocked_add_tool, mocked_save):
         converted_tools = []
         request_data = self.base_request_data.copy()
-        saved_test_flow = test_flow.save_test_flow_to_database(request_data, converted_tools, self.company_1)
+        saved_test_flow = test_flow.save_test_flow_to_database(
+            request_data, converted_tools, self.company_1)
         mocked_save.assert_called_once()
         mocked_add_tool.assert_not_called()
         self.assertIsNotNone(saved_test_flow.test_flow_id)
@@ -794,7 +841,8 @@ class TestFlowTest(TestCase):
             ),
         ]
 
-        saved_test_flow = test_flow.save_test_flow_to_database(request_data, converted_tools, self.company_1)
+        saved_test_flow = test_flow.save_test_flow_to_database(
+            request_data, converted_tools, self.company_1)
         mocked_save.assert_called_once()
         mocked_add_tool.assert_has_calls(expected_calls)
         self.assertIsNotNone(saved_test_flow.test_flow_id)
@@ -806,10 +854,13 @@ class TestFlowTest(TestCase):
         self.assertEqual(response.status_code, HTTPStatus.OK)
         response_content = json.loads(response.content)
         self.assertIsNotNone(response_content.get('test_flow_id'))
-        self.assertEqual(response_content.get('name'), request_data.get('name'))
-        self.assertEqual(response_content.get('owning_company_id'), str(company.company_id))
+        self.assertEqual(response_content.get(
+            'name'), request_data.get('name'))
+        self.assertEqual(response_content.get(
+            'owning_company_id'), str(company.company_id))
         self.assertEqual(response_content.get('is_usable'), expected_usable)
-        self.assertEqual(len(response_content.get('tools')), expected_number_of_tools)
+        self.assertEqual(len(response_content.get('tools')),
+                         expected_number_of_tools)
 
     def flow_assert_response_correctness_when_request_is_invalid(self, response, expected_status_code,
                                                                  expected_message):
@@ -869,8 +920,8 @@ class TestFlowTest(TestCase):
         self.flow_assert_response_correctness_when_request_is_invalid(
             response=response,
             expected_status_code=HTTPStatus.BAD_REQUEST,
-            expected_message=
-            TEST_FLOW_OF_COMPANY_DOES_NOT_EXIST_FORMAT.format(non_exist_tool_id, self.company_1.company_name)
+            expected_message=TEST_FLOW_OF_COMPANY_DOES_NOT_EXIST_FORMAT.format(
+                non_exist_tool_id, self.company_1.company_name)
         )
 
     def test_create_test_flow_when_tool_release_time_is_invalid_and_user_is_company(self):
@@ -920,9 +971,12 @@ class TestFlowTest(TestCase):
     def assert_tool_data_correctness(self, tool_flow_data, assessment_tool: Assignment):
         self.assertIsNotNone(tool_flow_data.get('assessment_tool'))
         assessment_tool_data = tool_flow_data.get('assessment_tool')
-        self.assertEqual(assessment_tool_data.get('name'), assessment_tool.name)
-        self.assertEqual(assessment_tool_data.get('description'), assessment_tool.description)
-        self.assertEqual(assessment_tool_data.get('owning_company_id'), str(assessment_tool.owning_company.company_id))
+        self.assertEqual(assessment_tool_data.get(
+            'name'), assessment_tool.name)
+        self.assertEqual(assessment_tool_data.get(
+            'description'), assessment_tool.description)
+        self.assertEqual(assessment_tool_data.get('owning_company_id'), str(
+            assessment_tool.owning_company.company_id))
 
     def test_create_test_flow_when_request_is_valid_and_user_is_company(self):
         request_data = self.base_request_data.copy()
@@ -943,10 +997,12 @@ class TestFlowTest(TestCase):
         tools = response_content.get('tools')
 
         test_flow_tool_1 = tools[0]
-        self.assert_tool_data_correctness(test_flow_tool_1, self.assessment_tool_1)
+        self.assert_tool_data_correctness(
+            test_flow_tool_1, self.assessment_tool_1)
 
         test_flow_tool_2 = tools[1]
-        self.assert_tool_data_correctness(test_flow_tool_2, self.assessment_tool_2)
+        self.assert_tool_data_correctness(
+            test_flow_tool_2, self.assessment_tool_2)
 
     def test_create_test_flow_when_user_does_not_own_assessment_tool(self):
         request_data = self.base_request_data.copy()
@@ -987,6 +1043,16 @@ class AssessmentEventTest(TestCase):
             address='Company 2 address'
         )
 
+        self.assessor = Assessor.objects.create_user(
+            email="assessor_event@email.com",
+            password='Password123',
+            first_name='Assessor First',
+            last_name='Assessor Last',
+            phone_number='+11234567',
+            associated_company=self.company_1,
+            authentication_service=AuthenticationService.DEFAULT
+        )
+
         self.assessment_tool = Assignment.objects.create(
             name='Assignment 1',
             description='Assignment Description',
@@ -1019,12 +1085,23 @@ class AssessmentEventTest(TestCase):
             'test_flow_id': str(self.test_flow_1.test_flow_id)
         }
 
+    def test_get_test_flow_based_on_company_by_company(self):
+        test_flows = get_test_flow_by_company(self.company_1)
+        self.assertEqual(len(test_flows), 2)
+        self.assertIn(self.test_flow_1, test_flows)
+
+    def test_get_test_flow_based_on_company_by_assessor(self):
+        test_flows = get_test_flow_by_company(self.assessor)
+        self.assertEqual(len(test_flows), 2)
+        self.assertIn(self.test_flow_2, test_flows)
+
     @freeze_time('2022-12-01')
     def test_validate_assessment_event_when_name_is_does_not_exist(self):
         request_data = self.base_request_data.copy()
         del request_data['name']
         try:
-            assessment_event.validate_assessment_event(request_data, self.company_1)
+            assessment_event.validate_assessment_event(
+                request_data, self.company_1)
             self.fail(EXCEPTION_NOT_RAISED)
         except InvalidAssessmentEventRegistration as exception:
             self.assertEqual(
@@ -1036,7 +1113,8 @@ class AssessmentEventTest(TestCase):
         request_data = self.base_request_data.copy()
         request_data['name'] = 'AB'
         try:
-            assessment_event.validate_assessment_event(request_data, self.company_1)
+            assessment_event.validate_assessment_event(
+                request_data, self.company_1)
             self.fail(EXCEPTION_NOT_RAISED)
         except InvalidAssessmentEventRegistration as exception:
             self.assertEqual(str(exception), ASSESSMENT_EVENT_INVALID_NAME)
@@ -1046,7 +1124,8 @@ class AssessmentEventTest(TestCase):
         request_data = self.base_request_data.copy()
         request_data['name'] = 'asjdnakjsdnaksjdnaskdnaskjdnaksdnasjdnaksdjansjdkansdkjnsad'
         try:
-            assessment_event.validate_assessment_event(request_data, self.company_1)
+            assessment_event.validate_assessment_event(
+                request_data, self.company_1)
             self.fail(EXCEPTION_NOT_RAISED)
         except InvalidAssessmentEventRegistration as exception:
             self.assertEqual(str(exception), ASSESSMENT_EVENT_INVALID_NAME)
@@ -1056,47 +1135,57 @@ class AssessmentEventTest(TestCase):
         request_data = self.base_request_data.copy()
         del request_data['start_date']
         try:
-            assessment_event.validate_assessment_event(request_data, self.company_1)
+            assessment_event.validate_assessment_event(
+                request_data, self.company_1)
             self.fail(EXCEPTION_NOT_RAISED)
         except InvalidAssessmentEventRegistration as exception:
-            self.assertEqual(str(exception), 'Assessment Event should have a start date')
+            self.assertEqual(
+                str(exception), 'Assessment Event should have a start date')
 
     @freeze_time('2022-12-01')
     def test_validate_assessment_event_when_test_flow_id_does_not_exist(self):
         request_data = self.base_request_data.copy()
         del request_data['test_flow_id']
         try:
-            assessment_event.validate_assessment_event(request_data, self.company_1)
+            assessment_event.validate_assessment_event(
+                request_data, self.company_1)
             self.fail(EXCEPTION_NOT_RAISED)
         except InvalidAssessmentEventRegistration as exception:
-            self.assertEqual(str(exception), 'Assessment Event should use a test flow')
+            self.assertEqual(
+                str(exception), 'Assessment Event should use a test flow')
 
     @freeze_time('2022-12-01')
     def test_validate_assessment_event_when_start_date_is_invalid_iso(self):
         request_data = self.base_request_data.copy()
         request_data['start_date'] = '2022-01-99T01:01:01'
         try:
-            assessment_event.validate_assessment_event(request_data, self.company_1)
+            assessment_event.validate_assessment_event(
+                request_data, self.company_1)
             self.fail(EXCEPTION_NOT_RAISED)
         except InvalidAssessmentEventRegistration as exception:
-            self.assertEqual(str(exception), INVALID_DATE_FORMAT.format(request_data['start_date']))
+            self.assertEqual(str(exception), INVALID_DATE_FORMAT.format(
+                request_data['start_date']))
 
     @freeze_time('2022-12-03')
     def test_validate_assessment_event_when_start_date_is_a_previous_date(self):
         request_data = self.base_request_data.copy()
         try:
-            assessment_event.validate_assessment_event(request_data, self.company_1)
+            assessment_event.validate_assessment_event(
+                request_data, self.company_1)
             self.fail(EXCEPTION_NOT_RAISED)
         except InvalidAssessmentEventRegistration as exception:
-            self.assertEqual(str(exception), 'The assessment event must not begin on a previous date.')
+            self.assertEqual(
+                str(exception), 'The assessment event must not begin on a previous date.')
 
     @freeze_time('2022-12-01')
     def test_validate_assessment_event_when_test_flow_is_not_owned_by_company(self):
         request_data = self.base_request_data.copy()
-        expected_message = ACTIVE_TEST_FLOW_NOT_FOUND.format(request_data["test_flow_id"], self.company_2.company_name)
+        expected_message = ACTIVE_TEST_FLOW_NOT_FOUND.format(
+            request_data["test_flow_id"], self.company_2.company_name)
 
         try:
-            assessment_event.validate_assessment_event(request_data, self.company_2)
+            assessment_event.validate_assessment_event(
+                request_data, self.company_2)
         except InvalidAssessmentEventRegistration as exception:
             self.assertEqual(
                 str(exception),
@@ -1107,10 +1196,12 @@ class AssessmentEventTest(TestCase):
     def test_validate_assessment_event_when_test_flow_is_not_active(self):
         request_data = self.base_request_data.copy()
         request_data['test_flow_id'] = str(self.test_flow_2.test_flow_id)
-        expected_message = ACTIVE_TEST_FLOW_NOT_FOUND.format(request_data["test_flow_id"], self.company_2.company_name)
+        expected_message = ACTIVE_TEST_FLOW_NOT_FOUND.format(
+            request_data["test_flow_id"], self.company_2.company_name)
 
         try:
-            assessment_event.validate_assessment_event(request_data, self.company_2)
+            assessment_event.validate_assessment_event(
+                request_data, self.company_2)
         except InvalidAssessmentEventRegistration as exception:
             self.assertEqual(
                 str(exception),
@@ -1121,7 +1212,8 @@ class AssessmentEventTest(TestCase):
     def test_validate_assessment_event_when_request_is_valid(self):
         request_data = self.base_request_data.copy()
         try:
-            assessment_event.validate_assessment_event(request_data, self.company_1)
+            assessment_event.validate_assessment_event(
+                request_data, self.company_1)
         except Exception as exception:
             self.fail(f'{exception} is raised')
 
@@ -1133,7 +1225,8 @@ class AssessmentEventTest(TestCase):
 
     def test_save_assessment_event_add_event_to_company(self):
         request_data = self.base_request_data.copy()
-        saved_event = assessment_event.save_assessment_event(request_data, self.company_1)
+        saved_event = assessment_event.save_assessment_event(
+            request_data, self.company_1)
         self.assertEqual(saved_event.owning_company, self.company_1)
         self.assertEqual(len(self.company_1.assessmenttool_set.all()), 1)
 
@@ -1224,7 +1317,8 @@ class AssessmentEventTest(TestCase):
         self.assessment_event_assert_correctness_when_request_is_invalid(
             response=response,
             expected_status_code=HTTPStatus.BAD_REQUEST,
-            expected_message=INVALID_DATE_FORMAT.format(request_data['start_date'])
+            expected_message=INVALID_DATE_FORMAT.format(
+                request_data['start_date'])
         )
 
     @freeze_time('2022-12-03')
@@ -1299,9 +1393,12 @@ class AssessmentEventTest(TestCase):
         response_content = json.loads(response.content)
         self.assertIsNotNone(response_content.get('event_id'))
         self.assertEqual(response_content.get('name'), request_data['name'])
-        self.assertEqual(response_content.get('start_date_time'), expected_start_date_in_response)
-        self.assertEqual(response_content.get('owning_company_id'), str(self.company_1.company_id))
-        self.assertEqual(response_content.get('test_flow_id'), request_data['test_flow_id'])
+        self.assertEqual(response_content.get(
+            'start_date_time'), expected_start_date_in_response)
+        self.assertEqual(response_content.get(
+            'owning_company_id'), str(self.company_1.company_id))
+        self.assertEqual(response_content.get('test_flow_id'),
+                         request_data['test_flow_id'])
 
 
 class AssessmentEventParticipationTest(TestCase):
@@ -1389,7 +1486,8 @@ class AssessmentEventParticipationTest(TestCase):
     @patch.object(AssessmentEventParticipation.objects, 'create')
     @patch.object(AssessmentEvent, 'check_assessee_participation')
     def test_add_participation_when_assessee_has_been_registered(self, mocked_check, mocked_create_participation,
-                                                                 mocked_create_attempt, mocked_create_video_conference_room):
+                                                                 mocked_create_attempt,
+                                                                 mocked_create_video_conference_room):
         mocked_check.return_value = False
         self.assessment_event.add_participant(self.assessee, self.assessor_1)
         mocked_create_participation.assert_called_once()
@@ -1404,15 +1502,18 @@ class AssessmentEventParticipationTest(TestCase):
             utils.get_assessee_from_email('email12@email.com')
             self.fail(EXCEPTION_NOT_RAISED)
         except ObjectDoesNotExist as exception:
-            self.assertEqual(str(exception), f'Assessee with email email12@email.com not found')
+            self.assertEqual(
+                str(exception), f'Assessee with email email12@email.com not found')
 
     def test_get_assessor_from_email_when_assessor_exist(self):
-        found_assessor = utils.get_company_assessor_from_email(self.assessor_1.email, self.company_1)
+        found_assessor = utils.get_company_assessor_from_email(
+            self.assessor_1.email, self.company_1)
         self.assertEqual(found_assessor, self.assessor_1)
 
     def test_get_assessor_from_email_when_assessor_does_not_exist(self):
         try:
-            utils.get_company_assessor_from_email('email@email.com', self.company_1)
+            utils.get_company_assessor_from_email(
+                'email@email.com', self.company_1)
             self.fail(EXCEPTION_NOT_RAISED)
         except ObjectDoesNotExist as exception:
             self.assertEqual(
@@ -1422,7 +1523,8 @@ class AssessmentEventParticipationTest(TestCase):
 
     def test_get_assessor_from_email_when_assessor_exist_but_is_not_associated_with_company(self):
         try:
-            utils.get_company_assessor_from_email(self.assessor_1, self.company_2)
+            utils.get_company_assessor_from_email(
+                self.assessor_1, self.company_2)
             self.fail(EXCEPTION_NOT_RAISED)
         except ObjectDoesNotExist as exception:
             self.assertEqual(
@@ -1437,7 +1539,8 @@ class AssessmentEventParticipationTest(TestCase):
             assessment_event.validate_add_assessment_participant(request_data)
             self.fail(EXCEPTION_NOT_RAISED)
         except InvalidAssessmentEventRegistration as exception:
-            self.assertEqual(str(exception), 'Assessment Event Id should be present in the request body')
+            self.assertEqual(
+                str(exception), 'Assessment Event Id should be present in the request body')
 
     def test_validate_add_event_participation_when_list_of_participants_not_present(self):
         request_data = self.base_request_data.copy()
@@ -1446,7 +1549,8 @@ class AssessmentEventParticipationTest(TestCase):
             assessment_event.validate_add_assessment_participant(request_data)
             self.fail(EXCEPTION_NOT_RAISED)
         except InvalidAssessmentEventRegistration as exception:
-            self.assertEqual(str(exception), 'The request should include a list of participants')
+            self.assertEqual(
+                str(exception), 'The request should include a list of participants')
 
     def test_validate_add_event_participation_when_list_of_participants_not_a_list(self):
         request_data = self.base_request_data.copy()
@@ -1455,7 +1559,8 @@ class AssessmentEventParticipationTest(TestCase):
             assessment_event.validate_add_assessment_participant(request_data)
             self.fail(EXCEPTION_NOT_RAISED)
         except InvalidAssessmentEventRegistration as exception:
-            self.assertEqual(str(exception), 'List of participants should be a list')
+            self.assertEqual(
+                str(exception), 'List of participants should be a list')
 
     def test_validate_add_event_participation_when_request_is_valid(self):
         request_data = self.base_request_data.copy()
@@ -1466,21 +1571,25 @@ class AssessmentEventParticipationTest(TestCase):
 
     def test_validate_assessment_event_ownership_when_assessment_event_does_not_belong_to_company(self):
         try:
-            assessment_event.validate_assessment_event_ownership(self.assessment_event, self.company_2)
+            assessment_event.validate_assessment_event_ownership(
+                self.assessment_event, self.company_2)
         except RestrictedAccessException as exception:
             self.assertEqual(
                 str(exception),
-                ASSESSMENT_EVENT_OWNERSHIP_INVALID.format(self.assessment_event.event_id, self.company_2.company_id)
+                ASSESSMENT_EVENT_OWNERSHIP_INVALID.format(
+                    self.assessment_event.event_id, self.company_2.company_id)
             )
 
     def test_validate_assessment_event_ownership_when_assessment_event_belongs_to_company(self):
         try:
-            assessment_event.validate_assessment_event_ownership(self.assessment_event, self.company_1)
+            assessment_event.validate_assessment_event_ownership(
+                self.assessment_event, self.company_1)
         except Exception as exception:
             self.fail(f'{exception} is raised')
 
     def test_convert_list_of_participants_emails_to_user_objects_when_participants_inexist(self):
-        converted_list = assessment_event.convert_list_of_participants_emails_to_user_objects([], self.company_1)
+        converted_list = assessment_event.convert_list_of_participants_emails_to_user_objects([
+        ], self.company_1)
         self.assertEqual(converted_list, [])
 
     @patch.object(utils, 'get_company_assessor_from_email')
@@ -1505,7 +1614,8 @@ class AssessmentEventParticipationTest(TestCase):
 
     @patch.object(utils, 'get_company_assessor_from_email')
     @patch.object(utils, 'get_assessee_from_email')
-    def test_convert_list_of_participants_emails_to_user_objects_when_user_does_not_exist(self, mocked_get_assessee,                                                                              mocked_get_assessor):
+    def test_convert_list_of_participants_emails_to_user_objects_when_user_does_not_exist(self, mocked_get_assessee,
+                                                                                          mocked_get_assessor):
         expected_message = f'Assessor with email {self.assessee.email} not found'
         request_data = self.base_request_data.copy()
         mocked_get_assessee.side_effect = ObjectDoesNotExist(expected_message)
@@ -1519,13 +1629,16 @@ class AssessmentEventParticipationTest(TestCase):
 
     @patch.object(AssessmentEvent, 'add_participant')
     def test_add_list_of_participants_to_event_when_list_of_participants_empty(self, mocked_add_participant):
-        assessment_event.add_list_of_participants_to_event(self.assessment_event, [])
+        assessment_event.add_list_of_participants_to_event(
+            self.assessment_event, [])
         mocked_add_participant.assert_not_called()
 
     @patch.object(AssessmentEvent, 'add_participant')
     def test_add_list_of_participants_to_event_when_list_of_participants_not_empty(self, mocked_add_participant):
-        assessment_event.add_list_of_participants_to_event(self.assessment_event, self.list_of_participants)
-        mocked_add_participant.assert_called_with(assessee=self.assessee, assessor=self.assessor_1)
+        assessment_event.add_list_of_participants_to_event(
+            self.assessment_event, self.list_of_participants)
+        mocked_add_participant.assert_called_with(
+            assessee=self.assessee, assessor=self.assessor_1)
 
     def add_participant_assert_correctness_when_request_is_invalid(self, response, expected_status_code,
                                                                    expected_message):
@@ -1616,6 +1729,16 @@ class AssessmentEventParticipationTest(TestCase):
         response_content = json.loads(response.content)
         self.assertEqual(response_content.get('message'), 'Participants are successfully added')
         self.assertTrue(self.assessment_event.check_assessee_participation(self.assessee))
+
+
+def fetch_and_get_response_subscription(access_token, assessment_event_id):
+    client = Client()
+    auth_headers = {'HTTP_AUTHORIZATION': 'Bearer ' + str(access_token)}
+    response = client.get(
+        EVENT_SUBSCRIPTION_URL + ASSESSMENT_EVENT_ID_PARAM_NAME + str(assessment_event_id),
+        **auth_headers
+    )
+    return response
 
 
 class AssesseeSubscribeToAssessmentEvent(TestCase):
@@ -1727,6 +1850,16 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
             authentication_service=AuthenticationService.DEFAULT.value
         )
 
+        self.assessor_2 = Assessor.objects.create_user(
+            email='assessor_02@gmail.com',
+            password='password12A',
+            first_name='Assessor',
+            last_name='A',
+            phone_number='+12312312312',
+            associated_company=self.company,
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
         self.assessment_event.add_participant(
             assessee=self.assessee,
             assessor=self.assessor
@@ -1736,7 +1869,8 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
         tool_data = self.assignment_1.get_tool_data()
         self.assertTrue(isinstance(tool_data, dict))
         self.assertEqual(tool_data.get('name'), self.assignment_1.name)
-        self.assertEqual(tool_data.get('description'), self.assignment_1.description)
+        self.assertEqual(tool_data.get('description'),
+                         self.assignment_1.description)
 
     def test_get_tool_data_of_assignment(self):
         tool_data = self.assignment_1.get_tool_data()
@@ -1756,14 +1890,15 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
 
         flow_tool_2_data = tools_data[1]
         tool_2_release_time = flow_tool_2_data.get('release_time')
-        self.assertEqual(tool_2_release_time,  str(self.tool_2_release_time))
+        self.assertEqual(tool_2_release_time, str(self.tool_2_release_time))
         assessment_data_2 = flow_tool_2_data.get('assessment_data')
         self.assertDictEqual(assessment_data_2, self.tool_2_expected_data)
 
     @patch.object(schedule.Job, 'at')
     def test_task_generator_of_assessment_event(self, mocked_job_at):
         task_generator = TaskGenerator.TaskGenerator()
-        expected_job_do_call = call().do(task_generator._get_message_to_returned_value, 'message')
+        expected_job_do_call = call().do(
+            task_generator._get_message_to_returned_value, 'message')
         task_generator.add_task(message='message', time_to_send='10:10:10')
         mocked_job_at.assert_called_with('10:10:10')
         job_do_call = mocked_job_at.mock_calls[1]
@@ -1772,23 +1907,28 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
     @patch.object(TaskGenerator.TaskGenerator, 'add_task')
     def test_get_task_generator(self, mocked_add_task):
         expected_calls = [
-            call(self.assignment_1.get_tool_data(), str(self.tool_1_release_time)),
-            call(self.assignment_2.get_tool_data(), str(self.tool_2_release_time))
+            call(self.assignment_1.get_tool_data(),
+                 str(self.tool_1_release_time)),
+            call(self.assignment_2.get_tool_data(),
+                 str(self.tool_2_release_time))
         ]
         self.assessment_event.get_task_generator()
         mocked_add_task.assert_has_calls(expected_calls)
 
     def test_check_assessee_participation_when_assessee_is_a_participant(self):
-        self.assertTrue(self.assessment_event.check_assessee_participation(self.assessee))
+        self.assertTrue(
+            self.assessment_event.check_assessee_participation(self.assessee))
 
     def test_check_assessee_participation_when_assessee_is_not_a_participant(self):
-        self.assertFalse(self.assessment_event.check_assessee_participation(self.assessee_2))
+        self.assertFalse(
+            self.assessment_event.check_assessee_participation(self.assessee_2))
 
     @patch.object(AssessmentEvent, 'check_assessee_participation')
     def test_validate_user_participation_when_user_participates_in_test_flow(self, mocked_check_participation):
         mocked_check_participation.return_value = True
         try:
-            assessment_event_attempt.validate_user_participation(self.assessment_event, self.assessee)
+            assessment_event_attempt.validate_user_participation(
+                self.assessment_event, self.assessee)
         except Exception as exception:
             self.fail(f'{exception} is raised')
 
@@ -1796,37 +1936,56 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
     def test_validate_user_participation_when_user_does_not_participate_in_test_flow(self, mocked_check_participation):
         mocked_check_participation.return_value = False
         try:
-            assessment_event_attempt.validate_user_participation(self.assessment_event, self.assessee_2)
+            assessment_event_attempt.validate_user_participation(
+                self.assessment_event, self.assessee_2)
             self.fail(EXCEPTION_NOT_RAISED)
         except RestrictedAccessException as exception:
-            self.assertEqual(str(exception), NOT_PART_OF_EVENT.format(self.assessee_2, self.assessment_event.event_id))
+            self.assertEqual(str(exception), NOT_PART_OF_EVENT.format(
+                self.assessee_2, self.assessment_event.event_id))
 
-    def fetch_and_get_response_subscription(self, access_token, assessment_event_id):
-        client = Client()
-        auth_headers = {'HTTP_AUTHORIZATION': 'Bearer ' + str(access_token)}
-        response = client.get(
-            EVENT_SUBSCRIPTION_URL + '?assessment-event-id=' + str(assessment_event_id),
-            **auth_headers
-        )
-        return response
+    def test_check_assessor_participation_when_assessor_is_a_participant(self):
+        self.assertTrue(self.assessment_event.check_assessor_participation(self.assessor))
+
+    def test_check_assessor_participation_when_assessor_is_not_a_participant(self):
+        self.assertFalse(self.assessment_event.check_assessor_participation(self.assessor_2))
+
+    @patch.object(AssessmentEvent, 'check_assessor_participation')
+    def test_validate_assessor_participation_when_assessor_participates_in_test_flow(self, mocked_check_participation):
+        mocked_check_participation.return_value = True
+        try:
+            assessment_event_attempt.validate_assessor_participation(self.assessment_event, self.assessor)
+        except Exception as exception:
+            self.fail(f'{exception} is raised')
+
+    @patch.object(AssessmentEvent, 'check_assessor_participation')
+    def test_validate_assessor_participation_when_assessor_does_not_participate_in_test_flow(self,
+                                                                                             mocked_check_participation):
+        mocked_check_participation.return_value = False
+        try:
+            assessment_event_attempt.validate_assessor_participation(self.assessment_event, self.assessor_2)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except RestrictedAccessException as exception:
+            self.assertEqual(str(exception),
+                             ASSESSOR_NOT_PART_OF_EVENT.format(self.assessor_2, self.assessment_event.event_id))
 
     def test_subscribe_when_user_is_not_an_assessee(self):
-        response = self.fetch_and_get_response_subscription(
+        response = fetch_and_get_response_subscription(
             access_token=self.company_token.access_token,
             assessment_event_id=self.assessment_event.event_id,
         )
 
         self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
         response_content = json.loads(response.content)
-        self.assertEqual(response_content.get('message'), 'User with email company@company.com is not an assessee')
+        self.assertEqual(response_content.get(
+            'message'), 'User with email company@company.com is not an assessee')
 
     def test_subscribe_when_assessee_does_not_participate_in_event(self):
-        response = self.fetch_and_get_response_subscription(
+        response = fetch_and_get_response_subscription(
             access_token=self.assessee_2_token.access_token,
             assessment_event_id=self.assessment_event.event_id
         )
 
-        self.assertEqual(response.status_code, HTTPStatus.UNAUTHORIZED)
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
         response_content = json.loads(response.content)
         self.assertEqual(
             response_content.get('message'),
@@ -1835,7 +1994,7 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
 
     def test_subscribe_when_assessment_id_is_not_present(self):
         invalid_assessment_id = str(uuid.uuid4())
-        response = self.fetch_and_get_response_subscription(
+        response = fetch_and_get_response_subscription(
             access_token=self.assessee_token.access_token,
             assessment_event_id=invalid_assessment_id
         )
@@ -1849,16 +2008,17 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
 
     def test_subscribe_when_assessment_id_is_random_string(self):
         invalid_assessment_id = 'assessment-id'
-        response = self.fetch_and_get_response_subscription(
+        response = fetch_and_get_response_subscription(
             access_token=self.assessee_token.access_token,
             assessment_event_id=invalid_assessment_id
         )
 
-        self.assertEqual(response.status_code, HTTPStatus.INTERNAL_SERVER_ERROR)
+        self.assertEqual(response.status_code,
+                         HTTPStatus.INTERNAL_SERVER_ERROR)
 
     @patch.object(TaskGenerator.TaskGenerator, 'generate')
     def test_subscribe_when_request_is_valid(self, mocked_generate):
-        response = self.fetch_and_get_response_subscription(
+        response = fetch_and_get_response_subscription(
             access_token=self.assessee_token.access_token,
             assessment_event_id=self.assessment_event.event_id
         )
@@ -1867,189 +2027,232 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
         mocked_generate.assert_called_once()
 
 
-def fetch_all_active_assignment(event_id, authenticated_user):
-    client = APIClient()
-    client.force_authenticate(user=authenticated_user)
-    response = client.get(GET_RELEASED_ASSIGNMENTS + event_id)
-    return response
-
-
-class ActiveAssessmentToolTest(TestCase):
+class AssessmentToolTest(TestCase):
     def setUp(self) -> None:
-        self.assessee = Assessee.objects.create_user(
-            email='assessee_132@gmail.com',
-            password='password123',
-            phone_number='+621234123',
-            date_of_birth=datetime.date(2000, 10, 10),
-            authentication_service=AuthenticationService.DEFAULT.value
-        )
-
-        self.assessee_2 = Assessee.objects.create_user(
-            email='assessee_1608@gmail.com',
-            password='password123',
-            phone_number='+621234123',
-            date_of_birth=datetime.date(2000, 10, 10),
-            authentication_service=AuthenticationService.DEFAULT.value
-        )
-
         self.company = Company.objects.create_user(
-            email='company_1607@gmail.com',
-            password='Password123',
-            company_name='Company Name',
-            description='Description Company 1610',
-            address='Address 1611'
+            email='company@company.com',
+            password='password',
+            company_name='Company',
+            description='Company Description',
+            address='Jl. Company Not Company'
         )
 
-        self.assessment_tool = AssessmentTool.objects.create(
-            name='Assignment Name 1615',
-            description='Assignment description 1616',
-            owning_company=self.company
+        self.company_2 = Company.objects.create_user(
+            email='compan2y@company.com',
+            password='password',
+            company_name='Company2',
+            description='Company Description',
+            address='Jl. Company Not Company'
         )
 
-        self.assignment = Assignment.objects.create(
-            name='Assignment Name 1615',
-            description='Assignment description 1616',
-            owning_company=self.company,
-            expected_file_format='pdf',
-            duration_in_minutes=120
-        )
-
-        self.test_flow = TestFlow.objects.create(
-            name='Asisten Manajer Sub Divisi 1623',
-            owning_company=self.company
-        )
-
-        self.tool_1_release_time = datetime.time(10, 30)
-        self.test_flow.add_tool(
-            assessment_tool=self.assignment,
-            release_time=self.tool_1_release_time,
-            start_working_time=self.tool_1_release_time
-        )
-
-        self.test_flow.add_tool(
-            assessment_tool=self.assessment_tool,
-            release_time=datetime.time(10, 40),
-            start_working_time=datetime.time(10, 40)
-        )
-
-        self.assessment_event = AssessmentEvent.objects.create(
-            name='Assessment Event 1635',
-            start_date_time=datetime.datetime(2022, 3, 30),
-            owning_company=self.company,
-            test_flow_used=self.test_flow
-        )
-
-        self.assessor = Assessor.objects.create_user(
-            email='assessor_1@gmail.com',
-            password='password12A',
+        self.assessor_1 = Assessor.objects.create_user(
+            email='assessor@assessor.com',
+            password='password',
             first_name='Assessor',
-            last_name='A',
-            phone_number='+12312312312',
+            last_name='Assessor',
+            phone_number='+6282312345678',
+            employee_id='A&EX4NDER',
             associated_company=self.company,
             authentication_service=AuthenticationService.DEFAULT.value
         )
 
-        self.assessment_event.add_participant(
-            assessee=self.assessee,
-            assessor=self.assessor
+        self.assessor_2 = Assessor.objects.create_user(
+            email='assessor2@assessor.com',
+            password='password',
+            first_name='Assessor2',
+            last_name='Assessor2',
+            phone_number='+6282312345678',
+            employee_id='A&EX4NDER2',
+            associated_company=self.company_2,
+            authentication_service=AuthenticationService.DEFAULT.value
         )
 
-        self.expected_flow_tool_data = {
-            'name': self.assignment.name,
-            'description': self.assignment.description,
-            'type': 'assignment',
-            'additional_info': {
-                'duration': self.assignment.duration_in_minutes,
-                'expected_file_format': self.assignment.expected_file_format
-            },
-            'id': str(self.assignment.assessment_id),
-            'released_time': str(self.tool_1_release_time),
-            'end_working_time': str(datetime.time(12, 30))
-        }
-
-    def test_get_end_working_time_of_assignment(self):
-        expected_end_work_time = datetime.time(12, 30)
-        returned_time = self.assignment.get_end_working_time(self.tool_1_release_time)
-        self.assertEqual(returned_time, expected_end_work_time)
-
-    @freeze_time("2012-01-14 10:29")
-    def test_release_time_has_passed_when_time_has_not_passed(self):
-        test_flow_tool = self.test_flow.testflowtool_set.all()[0]
-        self.assertFalse(test_flow_tool.release_time_has_passed())
-
-    @freeze_time("2012-01-14 10:30")
-    def test_release_time_has_passed_when_time_has_passed(self):
-        test_flow_tool = self.test_flow.testflowtool_set.all()[0]
-        self.assertTrue(test_flow_tool.release_time_has_passed())
-
-    def test_get_released_tool_data_when_tool_is_assignment(self):
-        test_flow_tool = self.test_flow.testflowtool_set.all()[0]
-        test_flow_tool_data = test_flow_tool.get_released_tool_data()
-        self.assertDictEqual(test_flow_tool_data, self.expected_flow_tool_data)
-
-    @freeze_time("2012-01-14 10:45")
-    def test_get_released_assignment_when_assignment_should_be_released(self):
-        released_assignments_data = self.assessment_event.get_released_assignments()
-        self.assertEqual(released_assignments_data, [self.expected_flow_tool_data])
-
-    @freeze_time("2012-01-14 10:29")
-    def test_get_released_assignment_when_assignment_should_not_be_released(self):
-        released_assignments_data = self.assessment_event.get_released_assignments()
-        self.assertEqual(released_assignments_data, [])
-
-    def test_get_all_active_assignment_when_event_id_is_invalid(self):
-        invalid_event_id = str(uuid.uuid4())
-        response = fetch_all_active_assignment(invalid_event_id, authenticated_user=self.assessee)
-        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
-        response_content = json.loads(response.content)
-        self.assertEqual(response_content.get('message'), f'Assessment with id {invalid_event_id} does not exist')
-
-    @freeze_time("2022-02-27")
-    def test_get_all_active_assignment_when_event_is_not_active(self):
-        response = fetch_all_active_assignment(
-            event_id=str(self.assessment_event.event_id),
-            authenticated_user=self.assessee
-        )
-        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
-        response_content = json.loads(response.content)
-        self.assertEqual(
-            response_content.get('message'),
-            f'Assessment with id {str(self.assessment_event.event_id)} is not active'
+        self.assessment_tool = Assignment.objects.create(
+            name='Important Presentation',
+            description='Protect this presentation with all your life',
+            owning_company=self.company,
+            expected_file_format='pptx',
+            duration_in_minutes=50
         )
 
-    @freeze_time("2022-03-30 11:00:00")
-    def test_get_all_active_assignment_when_user_not_assessee(self):
-        response = fetch_all_active_assignment(
-            event_id=str(self.assessment_event.event_id),
-            authenticated_user=self.assessor
-        )
-        self.assertEqual(response.status_code, HTTPStatus.UNAUTHORIZED)
-        response_content = json.loads(response.content)
-        self.assertEqual(
-            response_content.get('message'),
-            f'User with email {self.assessor.email} is not an assessee'
-        )
+    def test_get_tool_from_authorised_user(self):
+        assessment_tool = get_assessment_tool_by_company(self.assessor_1)
+        self.assertEqual(assessment_tool[0], self.assessment_tool)
 
-    @freeze_time("2022-03-30 11:00:00")
-    def test_get_all_active_assignment_when_user_is_not_a_participant(self):
-        response = fetch_all_active_assignment(
-            event_id=str(self.assessment_event.event_id),
-            authenticated_user=self.assessee_2
-        )
-        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+    def test_get_tool_from_company(self):
+        self.assertRaises(RestrictedAccessException, get_assessment_tool_by_company, self.company)
 
-    @freeze_time("2022-03-30 11:00:00")
-    def test_get_all_active_assignment_when_request_is_valid(self):
-        response = fetch_all_active_assignment(
-            event_id=str(self.assessment_event.event_id),
-            authenticated_user=self.assessee
-        )
+    def test_get_tool_from_different_user(self):
+        assessment_tool = get_assessment_tool_by_company(self.assessor_2)
+        self.assertEqual(len(assessment_tool), 0)
+
+    def test_endpoint_for_getting_tools_list(self):
+        client = APIClient()
+        client.force_authenticate(self.assessor_1)
+        response = client.get(GET_TOOLS_URL)
         self.assertEqual(response.status_code, HTTPStatus.OK)
         response_content = json.loads(response.content)
         self.assertEqual(response_content[0].get("name"), self.assessment_tool.name)
         self.assertEqual(response_content[0].get("description"), self.assessment_tool.description)
-        self.assertTrue(isinstance(response_content, list))
-        self.assertEqual(response_content, [self.expected_flow_tool_data])
+
+
+def get_fetch_and_get_response(base_url, request_param, authenticated_user):
+    client = APIClient()
+    client.force_authenticate(user=authenticated_user)
+    response = client.get(base_url + request_param)
+    return response
+
+
+class VerifyParticipantTest(TestCase):
+    def setUp(self) -> None:
+        self.assessee = Assessee.objects.create_user(
+            email='assessee_1783@email.com',
+            password='Password12341785',
+            first_name='Joko',
+            last_name='Wiranto',
+            phone_number='+62312331788',
+            date_of_birth=datetime.date(2000, 11, 2),
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.company = Company.objects.create_user(
+            email='google@gmail.com',
+            password='Password121795',
+            company_name='Google, Ltd.',
+            description='A search engine application',
+            address='Jl. The Google Street'
+        )
+
+        self.assessor = Assessor.objects.create_user(
+            email='assessor1802@gojek.com',
+            password='Password12352',
+            first_name='Robert',
+            last_name='Journey',
+            employee_id='AX123123',
+            associated_company=self.company,
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.assignment = Assignment.objects.create(
+            name='ASG Audit Kasus BPK',
+            description='Audit kasus Korupsi PT ZK',
+            owning_company=self.company,
+            expected_file_format='pptx',
+            duration_in_minutes=180
+        )
+
+        self.test_flow = TestFlow.objects.create(
+            name='KPK Subdit Siber Lat 1',
+            owning_company=self.company
+        )
+        self.test_flow.add_tool(
+            assessment_tool=self.assignment,
+            release_time=datetime.time(9, 30),
+            start_working_time=datetime.time(9, 50)
+        )
+
+        self.assessment_event = AssessmentEvent.objects.create(
+            name='Assessment Event 2131',
+            start_date_time=datetime.datetime(2022, 12, 12, hour=8, minute=0, tzinfo=pytz.utc),
+            owning_company=self.company,
+            test_flow_used=self.test_flow
+        )
+        self.expected_assessment_event = {
+            'event_id': str(self.assessment_event.event_id),
+            'name': self.assessment_event.name,
+            'owning_company_id': str(self.company.company_id),
+            'start_date_time': '2022-12-12T08:00:00Z',
+            'test_flow_id': str(self.test_flow.test_flow_id)
+        }
+        self.assessment_event.add_participant(self.assessee, self.assessor)
+
+        self.assessment_event_2 = AssessmentEvent.objects.create(
+            name='Assessment Event 1845',
+            start_date_time=datetime.datetime(2022, 12, 12, hour=8, minute=0, tzinfo=pytz.utc),
+            owning_company=self.company,
+            test_flow_used=self.test_flow
+        )
+
+        self.base_request_data = {
+            'assessment-event-id': str(self.assessment_event.event_id)
+        }
+
+    def test_verify_assessee_participation_when_assessee_is_participant(self):
+        request_data = self.base_request_data.copy()
+
+        try:
+            assessment_event_attempt.verify_assessee_participation(request_data, user=self.assessee)
+        except Exception as exception:
+            self.fail(f'{exception} is raised')
+
+    def test_verify_assessee_participation_when_event_does_not_exist(self):
+        request_data = self.base_request_data.copy()
+        request_data['assessment-event-id'] = str(uuid.uuid4())
+
+        try:
+            assessment_event_attempt.verify_assessee_participation(request_data, user=self.assessee)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidRequestException as exception:
+            self.assertEquals(
+                str(exception), EVENT_DOES_NOT_EXIST.format(request_data.get('assessment-event-id'))
+            )
+
+    def test_verify_assessee_participation_when_assessee_is_not_participant(self):
+        request_data = self.base_request_data.copy()
+        request_data['assessment-event-id'] = str(self.assessment_event_2.event_id)
+
+        try:
+            assessment_event_attempt.verify_assessee_participation(request_data, user=self.assessee)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except RestrictedAccessException as exception:
+            self.assertEquals(
+                str(exception), NOT_PART_OF_EVENT.format(self.assessee.email, request_data.get('assessment-event-id'))
+            )
+
+    def test_serve_verify_assessee_participation_when_user_is_not_an_assessee(self):
+        assessment_event_id = str(self.assessment_event.event_id)
+        response = get_fetch_and_get_response(
+            base_url=VERIFY_ASSESSEE_PARTICIPATION_URL,
+            request_param=assessment_event_id,
+            authenticated_user=self.company
+        )
+        self.assertEquals(response.status_code, HTTPStatus.FORBIDDEN)
+
+    def test_serve_verify_assessee_participation_when_user_is_an_assessee_but_event_does_not_exist(self):
+        assessment_event_id = str(uuid.uuid4())
+        response = get_fetch_and_get_response(
+            base_url=VERIFY_ASSESSEE_PARTICIPATION_URL,
+            request_param=assessment_event_id,
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), EVENT_DOES_NOT_EXIST.format(assessment_event_id))
+
+    def test_serve_verify_assessee_participation_when_user_is_an_assessee_but_not_part_of_assessment_event(self):
+        assessment_event_id = str(self.assessment_event_2.event_id)
+        response = get_fetch_and_get_response(
+            base_url=VERIFY_ASSESSEE_PARTICIPATION_URL,
+            request_param=assessment_event_id,
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'), NOT_PART_OF_EVENT.format(self.assessee.email, assessment_event_id)
+        )
+
+    def test_serve_verify_assessee_participation_when_user_is_an_assessee_and_is_part_of_assessment_event(self):
+        assessment_event_id = str(self.assessment_event.event_id)
+        response = get_fetch_and_get_response(
+            base_url=VERIFY_ASSESSEE_PARTICIPATION_URL,
+            request_param=assessment_event_id,
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), 'Assessee is a participant of the event')
+        
 
 class ResponseTestTest(TestCase):
     def setUp(self) -> None:
@@ -2154,3 +2357,4 @@ class ResponseTestTest(TestCase):
         self.assertEqual(response_content.get('prompt'), self.expected_response_test_data.get('prompt'))
         self.assertEqual(response_content.get('owning_company_id'), self.company.id)
         self.assertEqual(response_content.get('owning_company_name'), self.company.company_name)
+

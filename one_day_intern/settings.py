@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     'main',
     'users',
     'assessee',
+    'assessor',
     'assessment',
     'company',
     'video_conference'
@@ -186,6 +187,8 @@ GOOGLE_AUTH_GRANT_TYPE = 'authorization_code'
 GOOGLE_AUTH_LOGIN_REDIRECT_URI = os.getenv('GOOGLE_AUTH_LOGIN_REDIRECT_URI')
 GOOGLE_AUTH_REGISTER_ASSESSEE_REDIRECT_URI = os.getenv('GOOGLE_AUTH_REGISTER_ASSESSEE_REDIRECT_URI')
 GOOGLE_AUTH_CLIENT_CALLBACK_URL = os.getenv('GOOGLE_AUTH_CLIENT_CALLBACK_URL')
+
+ASSESSOR_FE_REGISTRATION_URL = os.getenv('ASSESSOR_FE_REGISTRATION_URL', default='')
 
 # Settings for Automatic Email
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'

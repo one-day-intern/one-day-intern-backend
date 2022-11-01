@@ -5,7 +5,7 @@ from one_day_intern.exceptions import (
     InvalidInteractiveQuizRegistration,
     InvalidResponseTestRegistration
 )
-from users.models import Assessor
+from users.models import Assessor, Company
 from . import utils
 from ..models import Assignment, MultipleChoiceQuestion, InteractiveQuiz, TextQuestion, ResponseTest
 
@@ -18,6 +18,21 @@ def get_assessor_or_raise_exception(user: User):
     else:
         raise RestrictedAccessException(f'User {user_email} is not an assessor')
 
+def get_assessor_or_company_or_raise_exception(user: User):
+    user_email = user.email
+    found_company = Company.objects.filter(email=user_email)
+    found_assessors = Assessor.objects.filter(email=user_email)
+    if len(found_assessors) > 0:
+        return {
+            "user": found_assessors[0],
+            "type": "assessor"
+        }
+    if len(found_company) > 0:
+        return {
+            "user": found_company[0],
+            "type": "company"
+        }
+    return RestrictedAccessException(f"User {user_email} is not a valid company or assessor")
 
 def validate_assessment_tool(request_data):
     if not request_data.get('name'):
