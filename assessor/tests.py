@@ -193,7 +193,7 @@ class ActiveAssessmentEventParticipationTest(TestCase):
         response = fetch_all_assessment_events(
             authenticated_user=self.assessee_1
         )
-        self.assertEqual(response.status_code, HTTPStatus.UNAUTHORIZED)
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
         response_content = json.loads(response.content)
         self.assertEqual(
             response_content.get('message'),
