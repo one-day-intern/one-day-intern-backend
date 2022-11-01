@@ -3,7 +3,7 @@ from django.test import TestCase, Client
 from django.urls import reverse
 from freezegun import freeze_time
 from http import HTTPStatus
-from assessment.services.assessment_tool import get_assessment_tool_by_company
+from assessment.services.assessment_tool import get_assessment_tool_by_company, get_test_flow_by_company
 from one_day_intern.exceptions import RestrictedAccessException, InvalidAssignmentRegistration, InvalidInteractiveQuizRegistration
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -1028,6 +1028,16 @@ class AssessmentEventTest(TestCase):
             address='Company 2 address'
         )
 
+        self.assessor = Assessor.objects.create_user(
+            email="assessor_event@email.com",
+            password='Password123',
+            first_name='Assessor First',
+            last_name='Assessor Last',
+            phone_number='+11234567',
+            associated_company=self.company_1,
+            authentication_service=AuthenticationService.DEFAULT
+        )
+
         self.assessment_tool = Assignment.objects.create(
             name='Assignment 1',
             description='Assignment Description',
@@ -1059,6 +1069,17 @@ class AssessmentEventTest(TestCase):
             'start_date': '2022-12-02',
             'test_flow_id': str(self.test_flow_1.test_flow_id)
         }
+
+    def test_get_test_flow_based_on_company_by_company(self):
+        test_flows = get_test_flow_by_company(self.company_1)
+        self.assertEqual(len(test_flows), 2)
+        self.assertEqual(test_flows[0], self.test_flow_1)
+
+    def test_get_test_flow_based_on_company_by_assessor(self):
+        test_flows = get_test_flow_by_company(self.assessor)
+        self.assertEqual(len(test_flows), 2)
+        self.assertEqual(test_flows[1], self.test_flow_2)
+        
 
     @freeze_time('2022-12-01')
     def test_validate_assessment_event_when_name_is_does_not_exist(self):
