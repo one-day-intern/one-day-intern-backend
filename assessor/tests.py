@@ -21,7 +21,7 @@ def fetch_all_active_assessees(event_id, authenticated_user):
     return response
 
 
-class ActiveAssessmentToolTest(TestCase):
+class ActiveAssesseesTest(TestCase):
     def setUp(self) -> None:
         self.assessee_1 = Assessee.objects.create_user(
             email='assessee_132@gmail.com',
