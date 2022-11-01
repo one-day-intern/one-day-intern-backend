@@ -8,4 +8,5 @@ urlpatterns = [
     path('assessee/', include('assessee.urls')),
     path('assessment/', include('assessment.urls')),
     path('company/', include('company.urls')),
+    path('video-conference/', include('video_conference.urls'))
 ]

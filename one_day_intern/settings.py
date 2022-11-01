@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     'assessee',
     'assessment',
     'company',
+    'video_conference'
 ]
 
 REST_FRAMEWORK = {
