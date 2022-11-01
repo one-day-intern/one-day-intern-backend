@@ -299,6 +299,13 @@ class AssessmentEvent(models.Model):
         )
         return found_assessees.exists()
 
+    def check_assessor_participation(self, assessor):
+        found_assessors = AssessmentEventParticipation.objects.filter(
+            assessment_event=self,
+            assessor=assessor
+        )
+        return found_assessors.exists()
+
     def get_task_generator(self):
         task_generator = TaskGenerator()
         test_flow = self.test_flow_used
