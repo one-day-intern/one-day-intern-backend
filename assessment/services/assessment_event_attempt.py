@@ -41,4 +41,15 @@ def get_all_active_assignment(request_data: dict, user: User):
 
 
 def verify_assessee_participation(request_data, user: User):
-    raise Exception
+    try:
+        assessee = utils.get_assessee_from_user(user)
+    except AuthorizationException as exception:
+        raise RestrictedAccessException(str(exception))
+
+    try:
+        assessment_event = utils.get_assessment_event_from_id(request_data.get('assessment-event-id'))
+    except EventDoesNotExist as exception:
+        raise InvalidRequestException(str(exception))
+
+    if not assessment_event.check_assessee_participation(assessee):
+        raise RestrictedAccessException(ASSESEE_NOT_PART_OF_EVENT.format(assessee.email, assessment_event.event_id))
