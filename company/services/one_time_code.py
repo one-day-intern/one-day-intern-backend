@@ -1,9 +1,9 @@
 from django.contrib.auth.models import User
-from one_day_intern.settings import EMAIL_HOST_USER
+from one_day_intern.settings import EMAIL_HOST_USER, ASSESSOR_FE_REGISTRATION_URL
+from one_day_intern.exceptions import InvalidRequestException
 from users.models import Company, CompanyOneTimeLinkCode
 from users.services import utils as users_utils
 from . import utils, company as company_service
-from one_day_intern.exceptions import InvalidRequestException
 
 
 def validate_request_data(request_data: dict):
@@ -31,7 +31,7 @@ def generate_message(email: str, company: Company) -> tuple:
             By becoming an assessor, you are able to create future assessment events, response tests, video conferences
             and also grade assignments.
         </span><br/>
-        <p>Please register through the following link https://www.google.com/?code={one_time_code.code}.</p>
+        <p>Please register through the following link {ASSESSOR_FE_REGISTRATION_URL}?code={one_time_code.code}.</p>
         <img src="https://i.ibb.co/CzmHtCB/image.png" alt="One Day Intern" style="height:70px; width:auto">
         <div>
             <span style="font-size:0.8rem;font-weight:bold;">One Day Intern</span><br/>
