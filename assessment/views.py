@@ -198,4 +198,6 @@ def serve_verify_participation(request):
     request-param must contain:
     assessment-event-id: string
     """
-    return Response(data=None)
+    request_data = request.GET
+    verify_assessee_participation(request_data, user=request.user)
+    return Response(data={'message': 'Assessee is a participant of the event'}, status=200)
