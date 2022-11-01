@@ -1,6 +1,5 @@
 from django.contrib.auth.models import User
-
-from one_day_intern.exceptions import AuthorizationException
+from one_day_intern.exceptions import RestrictedAccessException
 from users.models import Assessor
 
 
@@ -10,4 +9,4 @@ def get_assessor_from_user(user: User) -> Assessor:
     if found_assessors:
         return found_assessors[0]
     else:
-        raise AuthorizationException(f'User with email {user.email} is not an assessor')
+        raise RestrictedAccessException(f'User with email {user.email} is not an assessor')

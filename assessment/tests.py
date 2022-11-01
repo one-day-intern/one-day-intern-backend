@@ -4,7 +4,12 @@ from django.urls import reverse
 from freezegun import freeze_time
 from http import HTTPStatus
 from assessment.services.assessment_tool import get_assessment_tool_by_company, get_test_flow_by_company
-from one_day_intern.exceptions import RestrictedAccessException, InvalidAssignmentRegistration, InvalidInteractiveQuizRegistration
+from one_day_intern.exceptions import (
+    RestrictedAccessException,
+    InvalidAssignmentRegistration,
+    InvalidInteractiveQuizRegistration,
+    InvalidRequestException
+)
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 from unittest.mock import patch, call
@@ -40,7 +45,10 @@ from .services import assessment, utils, test_flow, assessment_event, assessment
 import datetime
 import json
 import schedule
+import pytz
 import uuid
+
+ASSESSMENT_EVENT_ID_PARAM_NAME = '?assessment-event-id='
 
 EXCEPTION_NOT_RAISED = 'Exception not raised'
 TEST_FLOW_INVALID_NAME = 'Test Flow name must exist and must be at most 50 characters'
@@ -51,15 +59,17 @@ INVALID_DATE_FORMAT = '{} is not a valid ISO date string'
 ASSESSMENT_EVENT_OWNERSHIP_INVALID = 'Event with id {} does not belong to company with id {}'
 NOT_PART_OF_EVENT = 'Assessee with email {} is not part of assessment with id {}'
 ASSESSOR_NOT_PART_OF_EVENT = 'Assessor with email {} is not part of assessment with id {}'
+EVENT_DOES_NOT_EXIST = 'Assessment Event with ID {} does not exist'
 CREATE_ASSIGNMENT_URL = '/assessment/create/assignment/'
 CREATE_INTERACTIVE_QUIZ_URL = '/assessment/create/interactive-quiz/'
 CREATE_TEST_FLOW_URL = reverse('test-flow-create')
 CREATE_ASSESSMENT_EVENT_URL = reverse('assessment-event-create')
 ADD_PARTICIPANT_URL = reverse('event-add-participation')
 EVENT_SUBSCRIPTION_URL = reverse('event-subscription')
-GET_RELEASED_ASSIGNMENTS = reverse('event-active-assignments') + '?assessment-event-id='
+GET_RELEASED_ASSIGNMENTS = reverse('event-active-assignments') + ASSESSMENT_EVENT_ID_PARAM_NAME
+VERIFY_ASSESSEE_PARTICIPATION_URL = reverse('verify-participation') + ASSESSMENT_EVENT_ID_PARAM_NAME
 OK_RESPONSE_STATUS_CODE = 200
-GET_TOOLS_URL="/assessment/tools/"
+GET_TOOLS_URL = '/assessment/tools/'
 
 
 class AssessmentTest(TestCase):
@@ -1080,7 +1090,7 @@ class AssessmentEventTest(TestCase):
     def test_get_test_flow_based_on_company_by_assessor(self):
         test_flows = get_test_flow_by_company(self.assessor)
         self.assertEqual(len(test_flows), 2)
-        self.assertIn(self.test_flow_2, test_flows)       
+        self.assertIn(self.test_flow_2, test_flows)
 
     @freeze_time('2022-12-01')
     def test_validate_assessment_event_when_name_is_does_not_exist(self):
@@ -1473,7 +1483,8 @@ class AssessmentEventParticipationTest(TestCase):
     @patch.object(AssessmentEventParticipation.objects, 'create')
     @patch.object(AssessmentEvent, 'check_assessee_participation')
     def test_add_participation_when_assessee_has_been_registered(self, mocked_check, mocked_create_participation,
-                                                                 mocked_create_attempt, mocked_create_video_conference_room):
+                                                                 mocked_create_attempt,
+                                                                 mocked_create_video_conference_room):
         mocked_check.return_value = False
         self.assessment_event.add_participant(self.assessee, self.assessor_1)
         mocked_create_participation.assert_called_once()
@@ -1600,7 +1611,8 @@ class AssessmentEventParticipationTest(TestCase):
 
     @patch.object(utils, 'get_company_assessor_from_email')
     @patch.object(utils, 'get_assessee_from_email')
-    def test_convert_list_of_participants_emails_to_user_objects_when_user_does_not_exist(self, mocked_get_assessee,                                                                              mocked_get_assessor):
+    def test_convert_list_of_participants_emails_to_user_objects_when_user_does_not_exist(self, mocked_get_assessee,
+                                                                                          mocked_get_assessor):
         expected_message = f'Assessor with email {self.assessee.email} not found'
         request_data = self.base_request_data.copy()
         mocked_get_assessee.side_effect = ObjectDoesNotExist(expected_message)
@@ -1720,7 +1732,7 @@ def fetch_and_get_response_subscription(access_token, assessment_event_id):
     client = Client()
     auth_headers = {'HTTP_AUTHORIZATION': 'Bearer ' + str(access_token)}
     response = client.get(
-        EVENT_SUBSCRIPTION_URL + '?assessment-event-id=' + str(assessment_event_id),
+        EVENT_SUBSCRIPTION_URL + ASSESSMENT_EVENT_ID_PARAM_NAME + str(assessment_event_id),
         **auth_headers
     )
     return response
@@ -1875,7 +1887,7 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
 
         flow_tool_2_data = tools_data[1]
         tool_2_release_time = flow_tool_2_data.get('release_time')
-        self.assertEqual(tool_2_release_time,  str(self.tool_2_release_time))
+        self.assertEqual(tool_2_release_time, str(self.tool_2_release_time))
         assessment_data_2 = flow_tool_2_data.get('assessment_data')
         self.assertDictEqual(assessment_data_2, self.tool_2_expected_data)
 
@@ -1943,13 +1955,15 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
             self.fail(f'{exception} is raised')
 
     @patch.object(AssessmentEvent, 'check_assessor_participation')
-    def test_validate_assessor_participation_when_assessor_does_not_participate_in_test_flow(self, mocked_check_participation):
+    def test_validate_assessor_participation_when_assessor_does_not_participate_in_test_flow(self,
+                                                                                             mocked_check_participation):
         mocked_check_participation.return_value = False
         try:
             assessment_event_attempt.validate_assessor_participation(self.assessment_event, self.assessor_2)
             self.fail(EXCEPTION_NOT_RAISED)
         except RestrictedAccessException as exception:
-            self.assertEqual(str(exception), ASSESSOR_NOT_PART_OF_EVENT.format(self.assessor_2, self.assessment_event.event_id))
+            self.assertEqual(str(exception),
+                             ASSESSOR_NOT_PART_OF_EVENT.format(self.assessor_2, self.assessment_event.event_id))
 
     def test_subscribe_when_user_is_not_an_assessee(self):
         response = fetch_and_get_response_subscription(
@@ -1968,7 +1982,7 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
             assessment_event_id=self.assessment_event.event_id
         )
 
-        self.assertEqual(response.status_code, HTTPStatus.UNAUTHORIZED)
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
         response_content = json.loads(response.content)
         self.assertEqual(
             response_content.get('message'),
@@ -2077,3 +2091,162 @@ class AssessmentToolTest(TestCase):
         response_content = json.loads(response.content)
         self.assertEqual(response_content[0].get("name"), self.assessment_tool.name)
         self.assertEqual(response_content[0].get("description"), self.assessment_tool.description)
+
+
+def get_fetch_and_get_response(base_url, request_param, authenticated_user):
+    client = APIClient()
+    client.force_authenticate(user=authenticated_user)
+    response = client.get(base_url + request_param)
+    return response
+
+
+class VerifyParticipantTest(TestCase):
+    def setUp(self) -> None:
+        self.assessee = Assessee.objects.create_user(
+            email='assessee_1783@email.com',
+            password='Password12341785',
+            first_name='Joko',
+            last_name='Wiranto',
+            phone_number='+62312331788',
+            date_of_birth=datetime.date(2000, 11, 2),
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.company = Company.objects.create_user(
+            email='google@gmail.com',
+            password='Password121795',
+            company_name='Google, Ltd.',
+            description='A search engine application',
+            address='Jl. The Google Street'
+        )
+
+        self.assessor = Assessor.objects.create_user(
+            email='assessor1802@gojek.com',
+            password='Password12352',
+            first_name='Robert',
+            last_name='Journey',
+            employee_id='AX123123',
+            associated_company=self.company,
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.assignment = Assignment.objects.create(
+            name='ASG Audit Kasus BPK',
+            description='Audit kasus Korupsi PT ZK',
+            owning_company=self.company,
+            expected_file_format='pptx',
+            duration_in_minutes=180
+        )
+
+        self.test_flow = TestFlow.objects.create(
+            name='KPK Subdit Siber Lat 1',
+            owning_company=self.company
+        )
+        self.test_flow.add_tool(
+            assessment_tool=self.assignment,
+            release_time=datetime.time(9, 30),
+            start_working_time=datetime.time(9, 50)
+        )
+
+        self.assessment_event = AssessmentEvent.objects.create(
+            name='Assessment Event 2131',
+            start_date_time=datetime.datetime(2022, 12, 12, hour=8, minute=0, tzinfo=pytz.utc),
+            owning_company=self.company,
+            test_flow_used=self.test_flow
+        )
+        self.expected_assessment_event = {
+            'event_id': str(self.assessment_event.event_id),
+            'name': self.assessment_event.name,
+            'owning_company_id': str(self.company.company_id),
+            'start_date_time': '2022-12-12T08:00:00Z',
+            'test_flow_id': str(self.test_flow.test_flow_id)
+        }
+        self.assessment_event.add_participant(self.assessee, self.assessor)
+
+        self.assessment_event_2 = AssessmentEvent.objects.create(
+            name='Assessment Event 1845',
+            start_date_time=datetime.datetime(2022, 12, 12, hour=8, minute=0, tzinfo=pytz.utc),
+            owning_company=self.company,
+            test_flow_used=self.test_flow
+        )
+
+        self.base_request_data = {
+            'assessment-event-id': str(self.assessment_event.event_id)
+        }
+
+    def test_verify_assessee_participation_when_assessee_is_participant(self):
+        request_data = self.base_request_data.copy()
+
+        try:
+            assessment_event_attempt.verify_assessee_participation(request_data, user=self.assessee)
+        except Exception as exception:
+            self.fail(f'{exception} is raised')
+
+    def test_verify_assessee_participation_when_event_does_not_exist(self):
+        request_data = self.base_request_data.copy()
+        request_data['assessment-event-id'] = str(uuid.uuid4())
+
+        try:
+            assessment_event_attempt.verify_assessee_participation(request_data, user=self.assessee)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidRequestException as exception:
+            self.assertEquals(
+                str(exception), EVENT_DOES_NOT_EXIST.format(request_data.get('assessment-event-id'))
+            )
+
+    def test_verify_assessee_participation_when_assessee_is_not_participant(self):
+        request_data = self.base_request_data.copy()
+        request_data['assessment-event-id'] = str(self.assessment_event_2.event_id)
+
+        try:
+            assessment_event_attempt.verify_assessee_participation(request_data, user=self.assessee)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except RestrictedAccessException as exception:
+            self.assertEquals(
+                str(exception), NOT_PART_OF_EVENT.format(self.assessee.email, request_data.get('assessment-event-id'))
+            )
+
+    def test_serve_verify_assessee_participation_when_user_is_not_an_assessee(self):
+        assessment_event_id = str(self.assessment_event.event_id)
+        response = get_fetch_and_get_response(
+            base_url=VERIFY_ASSESSEE_PARTICIPATION_URL,
+            request_param=assessment_event_id,
+            authenticated_user=self.company
+        )
+        self.assertEquals(response.status_code, HTTPStatus.FORBIDDEN)
+
+    def test_serve_verify_assessee_participation_when_user_is_an_assessee_but_event_does_not_exist(self):
+        assessment_event_id = str(uuid.uuid4())
+        response = get_fetch_and_get_response(
+            base_url=VERIFY_ASSESSEE_PARTICIPATION_URL,
+            request_param=assessment_event_id,
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), EVENT_DOES_NOT_EXIST.format(assessment_event_id))
+
+    def test_serve_verify_assessee_participation_when_user_is_an_assessee_but_not_part_of_assessment_event(self):
+        assessment_event_id = str(self.assessment_event_2.event_id)
+        response = get_fetch_and_get_response(
+            base_url=VERIFY_ASSESSEE_PARTICIPATION_URL,
+            request_param=assessment_event_id,
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'), NOT_PART_OF_EVENT.format(self.assessee.email, assessment_event_id)
+        )
+
+    def test_serve_verify_assessee_participation_when_user_is_an_assessee_and_is_part_of_assessment_event(self):
+        assessment_event_id = str(self.assessment_event.event_id)
+        response = get_fetch_and_get_response(
+            base_url=VERIFY_ASSESSEE_PARTICIPATION_URL,
+            request_param=assessment_event_id,
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), 'Assessee is a participant of the event')
+

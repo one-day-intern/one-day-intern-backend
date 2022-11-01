@@ -6,6 +6,8 @@ from ..models import AssessmentEvent
 from .TaskGenerator import TaskGenerator
 from . import utils
 
+ASSESEE_NOT_PART_OF_EVENT = 'Assessee with email {} is not part of assessment with id {}'
+
 
 def validate_user_participation(assessment_event: AssessmentEvent, assessee: Assessee):
     if not assessment_event.check_assessee_participation(assessee):
@@ -36,3 +38,15 @@ def get_all_active_assignment(request_data: dict, user: User):
         return event.get_released_assignments()
     except EventDoesNotExist as exception:
         raise InvalidRequestException(str(exception))
+
+
+def verify_assessee_participation(request_data, user: User):
+    assessee = utils.get_assessee_from_user(user)
+
+    try:
+        assessment_event = utils.get_assessment_event_from_id(request_data.get('assessment-event-id'))
+    except EventDoesNotExist as exception:
+        raise InvalidRequestException(str(exception))
+
+    if not assessment_event.check_assessee_participation(assessee):
+        raise RestrictedAccessException(ASSESEE_NOT_PART_OF_EVENT.format(assessee.email, assessment_event.event_id))

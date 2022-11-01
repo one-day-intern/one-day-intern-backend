@@ -8,7 +8,8 @@ from .views import (
     serve_create_interactive_quiz,
     serve_add_assessment_event_participant,
     serve_get_test_flow,
-    serve_subscribe_to_assessment_flow
+    serve_subscribe_to_assessment_flow,
+    serve_verify_participation
 )
 
 urlpatterns = [
@@ -21,4 +22,5 @@ urlpatterns = [
     path('assessment-event/add-participant/', serve_add_assessment_event_participant, name='event-add-participation'),
     path('assessment-event/subscribe/', serve_subscribe_to_assessment_flow, name='event-subscription'),
     path('assessment-event/released-assignments/', serve_get_all_active_assignment, name='event-active-assignments'),
+    path('assessment-event/verify-participant/', serve_verify_participation, name='verify-participation'),
 ]
