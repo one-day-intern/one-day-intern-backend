@@ -439,6 +439,9 @@ class AssessmentEventParticipation(models.Model):
         else:
             return None
 
+    def create_assignment_attempt(self, assignment: Assignment) -> AssignmentAttempt:
+        return None
+
 
 class AssessmentEventParticipationSerializer(serializers.ModelSerializer):
     assessment_event_id = serializers.ReadOnlyField(source='assessment_event.assessment_event_id')

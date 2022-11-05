@@ -2472,3 +2472,10 @@ class AssignmentSubmissionTest(TestCase):
         self.assertIsNotNone(assignment_attempt)
         self.assertEquals(assignment_attempt, expected_attempt)
         del assignment_attempt
+
+    def test_create_assignment_attempt(self):
+        assignment_attempt = self.event_participation.create_assignment_attempt(self.assignment)
+        self.assertTrue(isinstance(assignment_attempt, AssignmentAttempt))
+        self.assertEqual(assignment_attempt.test_flow_attempt, self.event_participation.attempt)
+        self.assertEqual(assignment_attempt.assessment_tool_attempted, self.assignment)
+        del assignment_attempt
