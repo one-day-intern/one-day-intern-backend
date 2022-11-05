@@ -10,7 +10,7 @@ from assessment.services.assessment_tool import (
     serialize_assignment_list_using_serializer,
     serialize_test_flow_list
 )
-from .services.assessment import create_assignment, create_interactive_quiz
+from .services.assessment import create_assignment, create_interactive_quiz, create_response_test
 from one_day_intern.exceptions import RestrictedAccessException
 from users.services import utils as user_utils
 from .services.test_flow import create_test_flow
@@ -20,7 +20,7 @@ from .services.assessment_event_attempt import (
     get_all_active_assignment,
     verify_assessee_participation
 )
-from .models import AssignmentSerializer, TestFlowSerializer, AssessmentEventSerializer, InteractiveQuizSerializer
+from .models import AssignmentSerializer, TestFlowSerializer, AssessmentEventSerializer, InteractiveQuizSerializer, ResponseTestSerializer
 import json
 
 
@@ -148,6 +148,19 @@ def serve_add_assessment_event_participant(request):
     return Response(data={'message': 'Participants are successfully added'})
 
 
+@require_POST
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def serve_create_response_test(request):
+    """
+    request_data must contain
+    prompt
+    subject
+    """
+    request_data = json.loads(request.body.decode('utf-8'))
+    assignment = create_response_test(request_data, request.user)
+    response_data = ResponseTestSerializer(assignment).data
+    return Response(data=response_data)
 @require_GET
 def serve_subscribe_to_assessment_flow(request):
     """
