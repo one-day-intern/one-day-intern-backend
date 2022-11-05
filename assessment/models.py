@@ -331,6 +331,9 @@ class AssessmentEvent(models.Model):
 
         return released_assignments_data
 
+    def get_assessment_event_participation_by_assessee(self, assessee):
+        return None
+
 
 class AssessmentEventSerializer(serializers.ModelSerializer):
     owning_company_id = serializers.ReadOnlyField(source=OWNING_COMPANY_COMPANY_ID)

@@ -1,4 +1,5 @@
 from django.core.exceptions import ObjectDoesNotExist
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, Client
 from django.urls import reverse
 from freezegun import freeze_time
@@ -73,8 +74,9 @@ GET_RELEASED_ASSIGNMENTS = reverse('event-active-assignments') + ASSESSMENT_EVEN
 VERIFY_ASSESSEE_PARTICIPATION_URL = reverse('verify-participation') + ASSESSMENT_EVENT_ID_PARAM_NAME
 OK_RESPONSE_STATUS_CODE = 200
 CREATE_RESPONSE_TEST_URL = '/assessment/create/response-test/'
-GET_TOOLS_URL="/assessment/tools/"
+GET_TOOLS_URL = "/assessment/tools/"
 REQUEST_CONTENT_TYPE = 'application/json'
+
 
 class AssessmentTest(TestCase):
     def setUp(self) -> None:
@@ -466,7 +468,8 @@ class InteractiveQuizTest(TestCase):
         client = APIClient()
         client.force_authenticate(user=self.assessor)
 
-        response = client.post(CREATE_INTERACTIVE_QUIZ_URL, data=interactive_quiz_data, content_type=REQUEST_CONTENT_TYPE)
+        response = client.post(CREATE_INTERACTIVE_QUIZ_URL, data=interactive_quiz_data,
+                               content_type=REQUEST_CONTENT_TYPE)
         self.assertEqual(response.status_code, OK_RESPONSE_STATUS_CODE)
         response_content = json.loads(response.content)
         self.assertTrue(len(response_content) > 0)
@@ -2252,7 +2255,7 @@ class VerifyParticipantTest(TestCase):
         self.assertEqual(response.status_code, HTTPStatus.OK)
         response_content = json.loads(response.content)
         self.assertEqual(response_content.get('message'), 'Assessee is a participant of the event')
-        
+
 
 class ResponseTestTest(TestCase):
     def setUp(self) -> None:
@@ -2358,3 +2361,99 @@ class ResponseTestTest(TestCase):
         self.assertEqual(response_content.get('owning_company_id'), self.company.id)
         self.assertEqual(response_content.get('owning_company_name'), self.company.company_name)
 
+
+class AssignmentSubmissionTest(TestCase):
+    def setUp(self) -> None:
+        self.assessee = Assessee.objects.create_user(
+            email='assessee1973@email.com',
+            password='Password1231974',
+            first_name='Assessee 1975',
+            last_name='Lastname 1976',
+            phone_number='+6212345901',
+            date_of_birth=datetime.date(2000, 12, 19),
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.company = Company.objects.create_user(
+            email='company1983@email.com',
+            password='Password1231984',
+            company_name='Company 1985',
+            description='A description 1986',
+            address='Gedung ABRR Jakarta Pusat, no 1987'
+        )
+
+        self.assessor = Assessor.objects.create_user(
+            email='assessor1991@email.com',
+            password='Password1992',
+            phone_number='+9123123123',
+            associated_company=self.company,
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.assignment = Assignment.objects.create(
+            name='Esai Singkat: The Power of Social Media',
+            description='Kerjakan sesuai pemahaman Anda',
+            owning_company=self.company,
+            expected_file_format='pdf',
+            duration_in_minutes=120
+        )
+
+        self.test_flow_used = TestFlow.objects.create(
+            name='Test Flow 2006',
+            owning_company=self.company
+        )
+
+        self.test_flow_used.add_tool(
+            assessment_tool=self.assignment,
+            release_time=datetime.time(11, 50),
+            start_working_time=datetime.time(11, 50)
+        )
+
+        self.assessment_event: AssessmentEvent = AssessmentEvent.objects.create(
+            name='Assessment Event 2017',
+            start_date_time=datetime.datetime(2022, 11, 25, tzinfo=pytz.utc),
+            owning_company=self.company,
+            test_flow_used=self.test_flow_used
+        )
+
+        self.assessment_event.add_participant(self.assessee, self.assessor)
+
+        self.event_participation = \
+            AssessmentEventParticipation.objects.get(assessee=self.assessee, assessment_event=self.assessment_event)
+
+        self.file = SimpleUploadedFile('report.pdf', b"file_content_2111", content_type='application/pdf')
+        self.assessment_tool = AssessmentTool.objects.create(
+            name='Assessment Tool 2038',
+            description='Description 2039',
+            owning_company=self.company
+        )
+
+        self.assessment_event_2 = AssessmentEvent.objects.create(
+            name='Assessment Event 2046',
+            start_date_time=datetime.datetime(2022, 11, 27, tzinfo=pytz.utc),
+            owning_company=self.company,
+            test_flow_used=self.test_flow_used
+        )
+
+        self.request_data = {
+            'assessment-event-id': str(self.assessment_event.event_id),
+            'assessment-tool-id': str(self.assignment.assessment_id),
+            'file': self.file
+        }
+
+        self.assessee_2 = Assessee.objects.create_user(
+            email='assessee2060@email.com',
+            password='Password1232061',
+            first_name='Assessee 2062',
+            last_name='Lastname 2063',
+            phone_number='+6212342064',
+            date_of_birth=datetime.date(2000, 12, 19),
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+    def test_get_assessment_event_participation_by_assessee(self):
+        retrieved_assessment_event: AssessmentEventParticipation = (
+            self.assessment_event.get_assessment_event_participation_by_assessee(self.assessee))
+
+        self.assertEquals(retrieved_assessment_event.assessment_event, self.assessment_event)
+        self.assertEquals(retrieved_assessment_event.assessee, self.assessee)
