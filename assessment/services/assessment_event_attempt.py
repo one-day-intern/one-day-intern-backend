@@ -7,6 +7,7 @@ from ..exceptions.exceptions import EventDoesNotExist, AssessmentToolDoesNotExis
 from ..models import AssessmentEvent, AssignmentAttempt, Assignment
 from .TaskGenerator import TaskGenerator
 from . import utils, google_storage
+import mimetypes
 
 ASSESEE_NOT_PART_OF_EVENT = 'Assessee with email {} is not part of assessment with id {}'
 
@@ -110,4 +111,42 @@ def submit_assignment(request_data, file, user):
         save_assignment_attempt(event, assessment_tool, assessee, file)
 
     except (AssessmentToolDoesNotExist, EventDoesNotExist, ValidationError) as exception:
+        raise InvalidRequestException(str(exception))
+
+
+def validate_tool_is_assignment(assessment_tool):
+    if not isinstance(assessment_tool, Assignment):
+        raise InvalidRequestException(f'Assessment tool with id {assessment_tool.assessment_id} is not an assignment')
+
+
+def download_assignment_attempt(event: AssessmentEvent, assignment: Assignment, assessee: Assessee):
+    event_participation = event.get_assessment_event_participation_by_assessee(assessee)
+    assignment_attempt = event_participation.get_assignment_attempt(assignment)
+
+    if assignment_attempt:
+        cloud_storage_file_name = f'{GOOGLE_BUCKET_BASE_DIRECTORY}/' \
+                                  f'{event.event_id}/' \
+                                  f'{assignment_attempt.tool_attempt_id}.{assignment.expected_file_format}'
+        expected_content_type = mimetypes.guess_type(assignment_attempt.filename)[0]
+        downloaded_file = google_storage.download_file_from_google_bucket(
+            cloud_storage_file_name,
+            GOOGLE_STORAGE_BUCKET_NAME,
+            assignment_attempt.filename,
+            expected_content_type
+        )
+        return downloaded_file
+    else:
+        return None
+
+
+def get_submitted_assignment(request_data, user):
+    try:
+        event = utils.get_active_assessment_event_from_id(request_data.get('assessment-event-id'))
+        assessee = utils.get_assessee_from_user(user)
+        validate_user_participation(event, assessee)
+        assessment_tool = event.get_assessment_tool_from_assessment_id(assessment_id=request_data.get('assessment-tool-id'))
+        validate_tool_is_assignment(assessment_tool)
+        downloaded_file = download_assignment_attempt(event, assessment_tool, assessee)
+        return downloaded_file
+    except (EventDoesNotExist, AssessmentToolDoesNotExist) as exception:
         raise InvalidRequestException(str(exception))
