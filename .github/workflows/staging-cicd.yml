@@ -74,7 +74,7 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Build Docker image
-        run: docker build -t $IMAGE_NAME --build-arg arg_database_url=${{ secrets.STAGING_DATABASE_URL }} .
+        run: docker build -t $IMAGE_NAME --build-arg arg_database_url=${{ secrets.STAGING_DATABASE_URL }} --build-arg arg_storage_credentials=${{ secrets.GOOGLE_APPLICATION_CREDENTIAL_VALUES }} .
 
       - name: Push Docker image
         run: docker push $IMAGE_NAME
