@@ -426,8 +426,18 @@ class AssessmentEventParticipation(models.Model):
     assessor = models.ForeignKey('users.Assessor', on_delete=models.RESTRICT)
     attempt = models.OneToOneField('assessment.TestFlowAttempt', on_delete=models.CASCADE, null=True)
 
+    def get_all_assignment_attempts(self):
+        return self.attempt.toolattempt_set.instance_of(AssignmentAttempt)
+
     def get_assignment_attempt(self, assignment: Assignment) -> Optional[AssignmentAttempt]:
-        return None
+        assignment_attempts = self.get_all_assignment_attempts()
+        matching_assignment_attempts = assignment_attempts.filter(assessment_tool_attempted=assignment)
+
+        if matching_assignment_attempts:
+            return matching_assignment_attempts[0]
+
+        else:
+            return None
 
 
 class AssessmentEventParticipationSerializer(serializers.ModelSerializer):
