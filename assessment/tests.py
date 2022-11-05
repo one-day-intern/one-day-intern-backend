@@ -72,6 +72,9 @@ NOT_PART_OF_EVENT = 'Assessee with email {} is not part of assessment with id {}
 ASSESSOR_NOT_PART_OF_EVENT = 'Assessor with email {} is not part of assessment with id {}'
 EVENT_DOES_NOT_EXIST = 'Assessment Event with ID {} does not exist'
 TOOL_OF_EVENT_NOT_FOUND = 'Tool with id {} associated with event with id {} is not found'
+TOOL_IS_NOT_ASSIGNMENT = 'Assessment tool with id {} is not an assignment'
+FILENAME_DOES_NOT_MATCH_FORMAT = 'File type does not match expected format (expected {})'
+IMPROPER_FILE_NAME = '{} is not a proper file name'
 CREATE_ASSIGNMENT_URL = '/assessment/create/assignment/'
 CREATE_INTERACTIVE_QUIZ_URL = '/assessment/create/interactive-quiz/'
 CREATE_TEST_FLOW_URL = reverse('test-flow-create')
@@ -2584,3 +2587,47 @@ class AssignmentSubmissionTest(TestCase):
             self.fail(EXCEPTION_NOT_RAISED)
         except AssessmentToolDoesNotExist as exception:
             self.assertEqual(str(exception), TOOL_OF_EVENT_NOT_FOUND.format(invalid_id, self.assessment_event.event_id))
+
+    def test_validate_submission_when_assessment_tool_does_not_exist(self):
+        try:
+            assessment_event_attempt.validate_submission(None, self.file.name)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidRequestException as exception:
+            self.assertEqual(str(exception), 'Assessment tool associated with event does not exist')
+
+    def test_validate_submission_when_assessment_tool_is_not_an_assignment(self):
+        try:
+            assessment_event_attempt.validate_submission(self.assessment_tool, self.file.name)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidRequestException as exception:
+            self.assertEqual(str(exception), TOOL_IS_NOT_ASSIGNMENT.format(self.assessment_tool.assessment_id))
+
+    def test_validate_submission_when_no_file_name(self):
+        try:
+            assessment_event_attempt.validate_submission(self.assignment, '')
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidRequestException as exception:
+            self.assertEqual(str(exception), 'File name should not be empty')
+
+    def test_validate_submission_when_improper_file_name(self):
+        improper_file_name = 'report'
+        try:
+            assessment_event_attempt.validate_submission(self.assignment, improper_file_name)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidRequestException as exception:
+            self.assertEqual(str(exception), IMPROPER_FILE_NAME.format(improper_file_name))
+
+    def test_validate_submission_when_prefix_does_not_match_expected(self):
+        non_matching_file_name = 'report.pptx'
+        try:
+            assessment_event_attempt.validate_submission(self.assignment, non_matching_file_name)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidRequestException as exception:
+            self.assertEqual(
+                str(exception), FILENAME_DOES_NOT_MATCH_FORMAT.format(self.assignment.expected_file_format))
+
+    def test_validate_submission_when_valid(self):
+        try:
+            assessment_event_attempt.validate_submission(self.assignment, self.file.name)
+        except Exception as exception:
+            self.fail(f'{exception} is raised')

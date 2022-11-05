@@ -63,6 +63,10 @@ def get_or_create_assignment_attempt(event: AssessmentEvent, assignment: Assignm
         return assessee_participation.create_assignment_attempt(assignment)
 
 
+def validate_submission(assessment_tool, file_name):
+    raise Exception
+
+
 def save_assignment_attempt(event: AssessmentEvent, assignment: Assignment, assessee: Assessee, file_to_be_uploaded):
     assignment_attempt: AssignmentAttempt = get_or_create_assignment_attempt(event, assignment, assessee)
     cloud_storage_file_name = f'{GOOGLE_BUCKET_BASE_DIRECTORY}/{event.event_id}/{assignment_attempt.tool_attempt_id}.{assignment.expected_file_format}'
