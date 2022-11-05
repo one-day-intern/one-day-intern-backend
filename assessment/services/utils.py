@@ -119,3 +119,11 @@ def get_assessee_from_user(user: User) -> Assessee:
         return found_assessees[0]
     else:
         raise RestrictedAccessException(f'User with email {user.email} is not an assessee')
+
+
+def get_prefix_from_file_name(file_name):
+    try:
+        prefix = file_name.split('.')[1]
+        return prefix
+    except IndexError:
+        raise ValueError(f'{file_name} is not a proper file name')

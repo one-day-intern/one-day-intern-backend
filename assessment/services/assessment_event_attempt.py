@@ -64,7 +64,24 @@ def get_or_create_assignment_attempt(event: AssessmentEvent, assignment: Assignm
 
 
 def validate_submission(assessment_tool, file_name):
-    raise Exception
+    if assessment_tool is None:
+        raise InvalidRequestException('Assessment tool associated with event does not exist')
+
+    if not isinstance(assessment_tool, Assignment):
+        raise InvalidRequestException(f'Assessment tool with id {assessment_tool.assessment_id} is not an assignment')
+
+    if not file_name:
+        raise InvalidRequestException('File name should not be empty')
+
+    try:
+        file_prefix = utils.get_prefix_from_file_name(file_name)
+        if assessment_tool.expected_file_format and file_prefix != assessment_tool.expected_file_format:
+            raise InvalidRequestException(
+                f'File type does not match expected format (expected {assessment_tool.expected_file_format})'
+            )
+
+    except ValueError as exception:
+        raise InvalidRequestException(str(exception))
 
 
 def save_assignment_attempt(event: AssessmentEvent, assignment: Assignment, assessee: Assessee, file_to_be_uploaded):
