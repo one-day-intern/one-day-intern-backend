@@ -89,7 +89,7 @@ OK_RESPONSE_STATUS_CODE = 200
 CREATE_RESPONSE_TEST_URL = '/assessment/create/response-test/'
 GET_TOOLS_URL = "/assessment/tools/"
 REQUEST_CONTENT_TYPE = 'application/json'
-
+APPLICATION_PDF = 'application/pdf'
 
 class AssessmentTest(TestCase):
     def setUp(self) -> None:
@@ -106,7 +106,7 @@ class AssessmentTest(TestCase):
             password='password',
             first_name='Levinson',
             last_name='Durbin',
-            phone_number='+6282312345678',
+            phone_number='+6282312345111',
             employee_id='A&EX4NDER',
             associated_company=self.company,
             authentication_service=AuthenticationService.DEFAULT.value
@@ -513,7 +513,7 @@ class TestFlowTest(TestCase):
             email='companytestflow@company.com',
             password='password',
             company_name='Company',
-            description='Company Description',
+            description='Company Description 518',
             address='JL. Company Levinson Durbin Householder 2'
         )
 
@@ -2049,7 +2049,7 @@ class AssessmentToolTest(TestCase):
             email='company@company.com',
             password='password',
             company_name='Company',
-            description='Company Description',
+            description='Company Description 2054',
             address='Jl. Company Not Company'
         )
 
@@ -2057,7 +2057,7 @@ class AssessmentToolTest(TestCase):
             email='compan2y@company.com',
             password='password',
             company_name='Company2',
-            description='Company Description',
+            description='Company Description 2062',
             address='Jl. Company Not Company'
         )
 
@@ -2066,7 +2066,7 @@ class AssessmentToolTest(TestCase):
             password='password',
             first_name='Assessor',
             last_name='Assessor',
-            phone_number='+6282312345678',
+            phone_number='+6282312342071',
             employee_id='A&EX4NDER',
             associated_company=self.company,
             authentication_service=AuthenticationService.DEFAULT.value
@@ -2077,7 +2077,7 @@ class AssessmentToolTest(TestCase):
             password='password',
             first_name='Assessor2',
             last_name='Assessor2',
-            phone_number='+6282312345678',
+            phone_number='+6282312342082',
             employee_id='A&EX4NDER2',
             associated_company=self.company_2,
             authentication_service=AuthenticationService.DEFAULT.value
@@ -2434,7 +2434,7 @@ class AssignmentSubmissionTest(TestCase):
         self.event_participation = \
             AssessmentEventParticipation.objects.get(assessee=self.assessee, assessment_event=self.assessment_event)
 
-        self.file = SimpleUploadedFile('report.pdf', b"file_content_2111", content_type='application/pdf')
+        self.file = SimpleUploadedFile('report.pdf', b"file_content_2111", content_type=APPLICATION_PDF)
         self.assessment_tool = AssessmentTool.objects.create(
             name='Assessment Tool 2038',
             description='Description 2039',
@@ -2497,24 +2497,24 @@ class AssignmentSubmissionTest(TestCase):
     @patch.object(storage.Bucket, 'blob')
     @patch.object(storage.Client, 'get_bucket')
     def test_upload_file_to_google_bucket(self, mocked_get_bucket, mocked_blob, mocked_upload, mocked_client):
-        destination_file_name = '/submissions/tests/test-file.pdf'
+        destination_file_name = '/submissions/tests/test-uploaded_file.pdf'
         bucket_name = 'one-day-intern-bucket'
 
         mocked_client.return_value = None
         mocked_get_bucket.return_value = storage.Bucket(client=None)
         mocked_blob.return_value = storage.Blob(name=destination_file_name, bucket=None)
 
-        file = SimpleUploadedFile('test-file.pdf', b'<sample-file>', content_type='application/pdf')
+        uploaded_file = SimpleUploadedFile('test-file.pdf', b'<sample-uploaded_file>', content_type=APPLICATION_PDF)
         google_storage.upload_file_to_google_bucket(
             destination_file_name=destination_file_name,
             bucket_name=bucket_name,
-            file=file
+            file=uploaded_file
         )
 
         mocked_client.assert_called_once()
         mocked_get_bucket.assert_called_with(bucket_name)
         mocked_blob.assert_called_with(destination_file_name)
-        mocked_upload.assert_called_with(file_obj=file, rewind=True)
+        mocked_upload.assert_called_with(file_obj=uploaded_file, rewind=True)
 
     @freeze_time("2022-11-05 12:00:00")
     def test_update_attempt_cloud_directory(self):
@@ -2697,9 +2697,9 @@ class AssignmentSubmissionTest(TestCase):
     @patch.object(google_storage, 'upload_file_to_google_bucket')
     def test_serve_submit_assignment_when_file_name_is_invalid(self, mocked_upload):
         invalid_filename = 'invalid_filename'
-        file = SimpleUploadedFile(invalid_filename, b'file_content', content_type='application/pdf')
+        uploaded_file = SimpleUploadedFile(invalid_filename, b'file_content', content_type=APPLICATION_PDF)
         request_data = self.request_data.copy()
-        request_data['file'] = file
+        request_data['file'] = uploaded_file
         response = self.submit_file_and_get_request(request_data, authenticated_user=self.assessee)
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
@@ -2709,9 +2709,9 @@ class AssignmentSubmissionTest(TestCase):
     @patch.object(google_storage, 'upload_file_to_google_bucket')
     def test_serve_submit_assignment_when_file_name_does_match_expected(self, mocked_upload):
         non_matching_filename = 'report.pptx'
-        file = SimpleUploadedFile(non_matching_filename, b'file_content', content_type='application/pdf')
+        uploaded_file = SimpleUploadedFile(non_matching_filename, b'file_content', content_type=APPLICATION_PDF)
         request_data = self.request_data.copy()
-        request_data['file'] = file
+        request_data['file'] = uploaded_file
         response = self.submit_file_and_get_request(request_data, authenticated_user=self.assessee)
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
