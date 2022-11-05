@@ -167,3 +167,33 @@ to test the app on your browser of choice.
 
 ## Release Notes 0.0.1 - Hello World Update 👋
 Finish configuration of server-side and client-side repositories.
+
+## Release Notes 0.1.0 - The first pieces of the puzzle are here! 🥳
+
+### New Features
+#### General
+1. You can now either register and login as a `Company`, `Assessor`, 
+   or an `Assessee` straight from the website
+
+#### Companies and Assessors
+1. Assessors can invite employees to become `Assessors` by sending them a one time code
+2. Assessors will receive an email containing a one time code to register
+
+#### Test modules
+1. Companies and Assessors can create `Assignments` and specify what type of
+   file that needs be uploaded
+
+#### Assessment Event
+1. Assessors can create new Assessment Events
+2. Assessors can assign other Assessors to an Assessment Event
+3. Assessors can view Assessment Events that they're apart of
+4. Assessors can see the Assessees that they're currently assessing
+
+#### Video conference
+1. Assessors can create video conferences
+2. Assessors and Assessees can join video conferences
+
+#### Assessees
+1. Assessees can view their active assessment events
+2. Assessees can access their assessment event desktops
+3. Assessees can receive notifications from their desktop when they have a new assessment task
