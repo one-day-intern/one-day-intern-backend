@@ -440,7 +440,11 @@ class AssessmentEventParticipation(models.Model):
             return None
 
     def create_assignment_attempt(self, assignment: Assignment) -> AssignmentAttempt:
-        return None
+        assignment_attempt = AssignmentAttempt.objects.create(
+            test_flow_attempt=self.attempt,
+            assessment_tool_attempted=assignment
+        )
+        return assignment_attempt
 
 
 class AssessmentEventParticipationSerializer(serializers.ModelSerializer):
