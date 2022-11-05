@@ -1527,7 +1527,3 @@ class UserInfoViewTestCase(TestCase):
         self.assertEqual(response_content.get('last_name'), self.assessee.last_name)
         self.assertEqual(response_content.get('phone_number'), self.assessee.phone_number)
         self.assertEqual(response_content.get('date_of_birth'), self.assessee.date_of_birth)
-
-
-
-

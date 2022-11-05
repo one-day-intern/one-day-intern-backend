@@ -1,7 +1,10 @@
+from django.contrib.auth.models import AnonymousUser
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework_simplejwt.exceptions import InvalidToken
 from datetime import datetime
+from typing import Optional, Match
 import phonenumbers
 import re
-from typing import Optional, Match
 
 DATETIME_FORMAT = '%Y-%m-%d'
 email_regex = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
@@ -66,4 +69,14 @@ def parameterize_url(base_url, parameter_arguments):
             search_param = param
         parameterized_url += search_param + '&'
     return parameterized_url
+
+
+def get_user_from_request(request):
+    jwt_authenticator = JWTAuthentication()
+    try:
+        response = jwt_authenticator.authenticate(request)
+        user, token = response
+        return user
+    except InvalidToken:
+        return AnonymousUser()
 
