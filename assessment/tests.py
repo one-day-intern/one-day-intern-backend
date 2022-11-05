@@ -13,6 +13,7 @@ from one_day_intern.exceptions import (
     InvalidRequestException,
     InvalidResponseTestRegistration
 )
+from one_day_intern.settings import GOOGLE_BUCKET_BASE_DIRECTORY, GOOGLE_STORAGE_BUCKET_NAME
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 from unittest.mock import patch, call
@@ -2536,3 +2537,35 @@ class AssignmentSubmissionTest(TestCase):
 
         found_assignment_attempt = AssignmentAttempt.objects.get(tool_attempt_id=assignment_attempt.tool_attempt_id)
         self.assertEqual(found_assignment_attempt.get_file_name(), new_name)
+
+    @patch.object(AssignmentAttempt, 'update_file_name')
+    @patch.object(AssignmentAttempt, 'update_attempt_cloud_directory')
+    @patch.object(google_storage, 'upload_file_to_google_bucket')
+    @patch.object(assessment_event_attempt, 'get_or_create_assignment_attempt')
+    def test_save_assignment_attempt(self, mocked_create_attempt, mocked_upload, mocked_update_stored_dir,
+                                     mocked_update_stored_filename):
+        assessment_event_attempt.save_assignment_attempt(
+            event=self.assessment_event,
+            assignment=self.assignment,
+            assessee=self.assessee,
+            file_to_be_uploaded=self.file
+        )
+        assignment_attempt = AssignmentAttempt.objects.create(
+            test_flow_attempt=self.event_participation.attempt,
+            assessment_tool_attempted=self.assignment
+        )
+        cloud_storage_file_name = f'{GOOGLE_BUCKET_BASE_DIRECTORY}/' \
+                                  f'{self.assessment_event.event_id}/' \
+                                  f'{assignment_attempt.tool_attempt_id}.{self.assignment.expected_file_format}'
+        mocked_create_attempt.return_value = assignment_attempt
+
+        assessment_event_attempt.save_assignment_attempt(self.assessment_event, self.assignment, self.assessee,
+                                                         self.file)
+        mocked_create_attempt.assert_called_with(self.assessment_event, self.assignment, self.assessee)
+        mocked_upload.assert_called_with(
+            cloud_storage_file_name,
+            GOOGLE_STORAGE_BUCKET_NAME,
+            self.file
+        )
+        mocked_update_stored_dir.assert_called_with(cloud_storage_file_name)
+        mocked_update_stored_filename.assert_called_with(self.file.name)

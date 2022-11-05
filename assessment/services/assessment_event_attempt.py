@@ -2,7 +2,7 @@ from django.contrib.auth.models import User
 from one_day_intern.exceptions import RestrictedAccessException, InvalidRequestException
 from users.models import Assessee, Assessor
 from ..exceptions.exceptions import EventDoesNotExist
-from ..models import AssessmentEvent
+from ..models import AssessmentEvent, Assignment
 from .TaskGenerator import TaskGenerator
 from . import utils
 
@@ -50,3 +50,11 @@ def verify_assessee_participation(request_data, user: User):
 
     if not assessment_event.check_assessee_participation(assessee):
         raise RestrictedAccessException(ASSESEE_NOT_PART_OF_EVENT.format(assessee.email, assessment_event.event_id))
+
+
+def get_or_create_assignment_attempt(event: AssessmentEvent, assignment: Assignment, assessee: Assessee):
+    return None
+
+
+def save_assignment_attempt(event: AssessmentEvent, assignment: Assignment, assessee: Assessee, file_to_be_uploaded):
+    pass
