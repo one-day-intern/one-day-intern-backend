@@ -176,7 +176,7 @@ Finish configuration of server-side and client-side repositories.
    or an `Assessee` straight from the website
 
 #### Companies and Assessors
-1. Assessors can invite employees to become `Assessors` by sending them a one time code
+1. Assessors can invite other employees to become `Assessors` by sending them a one time code
 2. Assessors will receive an email containing a one time code to register
 
 #### Test modules
