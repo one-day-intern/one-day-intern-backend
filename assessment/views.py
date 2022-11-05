@@ -18,9 +18,16 @@ from .services.assessment_event import create_assessment_event, add_assessment_e
 from .services.assessment_event_attempt import (
     subscribe_to_assessment_flow,
     get_all_active_assignment,
-    verify_assessee_participation
+    verify_assessee_participation,
+    submit_assignment
 )
-from .models import AssignmentSerializer, TestFlowSerializer, AssessmentEventSerializer, InteractiveQuizSerializer, ResponseTestSerializer
+from .models import (
+    AssignmentSerializer,
+    TestFlowSerializer,
+    AssessmentEventSerializer,
+    InteractiveQuizSerializer,
+    ResponseTestSerializer
+)
 import json
 
 
@@ -214,3 +221,22 @@ def serve_verify_participation(request):
     request_data = request.GET
     verify_assessee_participation(request_data, user=request.user)
     return Response(data={'message': 'Assessee is a participant of the event'}, status=200)
+
+
+@require_POST
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def serve_submit_assignment(request):
+    """
+    This view will serve as the end-point for assessees to submit their assignment
+    attempt to an assignment tool that they currently undergo in an assessment event.
+    ----------------------------------------------------------
+    request-data must contain:
+    assessment-event-id: string
+    assessment-tool-id: string
+    file: file
+    """
+    request_data = request.POST.dict()
+    submitted_file = request.FILES.get('file')
+    submit_assignment(request_data, submitted_file, user=request.user)
+    return Response(data={'message': 'File uploaded successfully'}, status=200)

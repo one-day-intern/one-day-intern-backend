@@ -4,14 +4,14 @@ from .views import (
     serve_create_assignment,
     serve_create_test_flow,
     serve_create_assessment_event,
-    serve_add_assessment_event_participant,
     serve_create_response_test,
     serve_get_all_active_assignment,
     serve_create_interactive_quiz,
     serve_add_assessment_event_participant,
     serve_get_test_flow,
     serve_subscribe_to_assessment_flow,
-    serve_verify_participation
+    serve_verify_participation,
+    serve_submit_assignment
 )
 
 urlpatterns = [
@@ -26,4 +26,5 @@ urlpatterns = [
     path('assessment-event/subscribe/', serve_subscribe_to_assessment_flow, name='event-subscription'),
     path('assessment-event/released-assignments/', serve_get_all_active_assignment, name='event-active-assignments'),
     path('assessment-event/verify-participant/', serve_verify_participation, name='verify-participation'),
+    path('assessment-event/submit-assignments/', serve_submit_assignment, name='submit-assignments'),
 ]

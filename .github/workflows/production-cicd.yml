@@ -18,10 +18,25 @@ jobs:
         run: pip install -r requirements.txt
       - name: Collect Static Files
         run: python manage.py collectstatic --no-input
-      - name: Run Test
-        run: python manage.py test --no-input
         env:
-          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          GOOGLE_APPLICATION_CREDENTIAL_VALUES: ${{ secrets.GOOGLE_APPLICATION_CREDENTIAL_VALUES }}
+      - name: Run Test
+        run: coverage run manage.py test --no-input
+        env:
+          DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+          GOOGLE_AUTH_CLIENT_ID: ${{ secrets.GOOGLE_AUTH_CLIENT_ID }}
+          GOOGLE_AUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_AUTH_CLIENT_SECRET }}
+          GOOGLE_AUTH_LOGIN_REDIRECT_URI: ${{ secrets.GOOGLE_AUTH_LOGIN_REDIRECT_URI }}
+          GOOGLE_AUTH_REGISTER_ASSESSEE_REDIRECT_URI: ${{ secrets.GOOGLE_AUTH_REGISTER_ASSESSEE_REDIRECT_URI }}
+          GOOGLE_AUTH_CLIENT_CALLBACK_URL: ${{ secrets.GOOGLE_AUTH_CLIENT_CALLBACK_URL }}
+          GOOGLE_APPLICATION_CREDENTIAL_VALUES: ${{ secrets.GOOGLE_APPLICATION_CREDENTIAL_VALUES }}
+      - name: Display Coverage Data
+        run: coverage report -m
+      - name: Upload Coverage Data
+        uses: actions/upload-artifact@v2
+        with:
+          name: test-coverage
+          path: .coverage*
 
   sonarcloud:
     name: SonarCloud
