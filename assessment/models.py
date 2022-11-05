@@ -423,13 +423,16 @@ class AssignmentAttempt(ToolAttempt):
     submitted_time = models.DateTimeField(default=None, null=True)
 
     def update_attempt_cloud_directory(self, file_upload_directory):
-        pass
+        self.submitted_time = datetime.datetime.now(tz=pytz.utc)
+        self.file_upload_directory = file_upload_directory
+        self.save()
 
     def get_attempt_cloud_directory(self):
         return self.file_upload_directory
 
     def update_file_name(self, filename):
-        pass
+        self.filename = filename
+        self.save()
 
     def get_file_name(self):
         return self.filename
