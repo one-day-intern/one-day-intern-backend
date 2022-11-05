@@ -76,6 +76,7 @@ TOOL_OF_EVENT_NOT_FOUND = 'Tool with id {} associated with event with id {} is n
 TOOL_IS_NOT_ASSIGNMENT = 'Assessment tool with id {} is not an assignment'
 FILENAME_DOES_NOT_MATCH_FORMAT = 'File type does not match expected format (expected {})'
 IMPROPER_FILE_NAME = '{} is not a proper file name'
+USER_IS_NOT_ASSESSEE = 'User with email {} is not an assessee'
 CREATE_ASSIGNMENT_URL = '/assessment/create/assignment/'
 CREATE_INTERACTIVE_QUIZ_URL = '/assessment/create/interactive-quiz/'
 CREATE_TEST_FLOW_URL = reverse('test-flow-create')
@@ -85,11 +86,13 @@ EVENT_SUBSCRIPTION_URL = reverse('event-subscription')
 SUBMIT_ASSIGNMENT_URL = reverse('submit-assignments')
 GET_RELEASED_ASSIGNMENTS = reverse('event-active-assignments') + ASSESSMENT_EVENT_ID_PARAM_NAME
 VERIFY_ASSESSEE_PARTICIPATION_URL = reverse('verify-participation') + ASSESSMENT_EVENT_ID_PARAM_NAME
+GET_AND_DOWNLOAD_ATTEMPT_URL = reverse('get-submitted-assignment')
 OK_RESPONSE_STATUS_CODE = 200
 CREATE_RESPONSE_TEST_URL = '/assessment/create/response-test/'
 GET_TOOLS_URL = "/assessment/tools/"
 REQUEST_CONTENT_TYPE = 'application/json'
 APPLICATION_PDF = 'application/pdf'
+
 
 class AssessmentTest(TestCase):
     def setUp(self) -> None:
@@ -2441,6 +2444,18 @@ class AssignmentSubmissionTest(TestCase):
             owning_company=self.company
         )
 
+        self.assessment_tool_2 = AssessmentTool.objects.create(
+            name='Assessment Tool 2055',
+            description='Description 2056',
+            owning_company=self.company
+        )
+
+        self.test_flow_used.add_tool(
+            assessment_tool=self.assessment_tool_2,
+            release_time=datetime.time(11, 52),
+            start_working_time=datetime.time(11, 52)
+        )
+
         self.assessment_event_2 = AssessmentEvent.objects.create(
             name='Assessment Event 2046',
             start_date_time=datetime.datetime(2022, 11, 27, tzinfo=pytz.utc),
@@ -2731,3 +2746,191 @@ class AssignmentSubmissionTest(TestCase):
         created_attempt = self.event_participation.get_assignment_attempt(self.assignment)
         self.assertEqual(created_attempt.filename, self.file.name)
         self.assertEqual(created_attempt.submitted_time, datetime.datetime.now(tz=pytz.utc))
+
+
+    @patch.object(storage.Client, '__init__')
+    @patch.object(storage.Blob, 'download_as_bytes')
+    @patch.object(storage.Bucket, 'get_blob')
+    @patch.object(storage.Client, 'get_bucket')
+    def test_download_file_from_google_bucket(self, mocked_get_bucket, mocked_get_blob, mocked_download_as_bytes,
+                                              mocked_client):
+        cloud_directory = '/submissions/tests/test-file.pdf'
+        target_file_name = 'test-file.pdf'
+        content_type = APPLICATION_PDF
+        bucket_name = 'one-day-intern-bucket'
+        mocked_client.return_value = None
+        mocked_get_bucket.return_value = storage.Bucket(client=None)
+        mocked_get_blob.return_value = storage.Blob(name=cloud_directory, bucket=None)
+        mocked_download_as_bytes.return_value = b'Hello World'
+
+        downloaded_file = google_storage.download_file_from_google_bucket(
+            cloud_directory, bucket_name, target_file_name, content_type
+        )
+
+        mocked_client.assert_called_once()
+        mocked_get_bucket.assert_called_with(bucket_name)
+        mocked_get_blob.assert_called_with(cloud_directory)
+        mocked_download_as_bytes.assert_called_once()
+        self.assertTrue(isinstance(downloaded_file, SimpleUploadedFile))
+        self.assertEqual(downloaded_file.name, target_file_name)
+        self.assertEqual(downloaded_file.content_type, content_type)
+
+    @patch.object(google_storage, 'download_file_from_google_bucket')
+    def test_download_assignment_attempt_when_attempt_does_not_exist(self, mocked_download):
+        event_participation = self.assessment_event.get_assessment_event_participation_by_assessee(self.assessee)
+        assignment_attempt = event_participation.get_assignment_attempt(self.assignment)
+        if assignment_attempt:
+            del assignment_attempt
+
+        downloaded_file = assessment_event_attempt.download_assignment_attempt(self.assessment_event, self.assignment, self.assessee)
+        self.assertIsNone(downloaded_file)
+        mocked_download.assert_not_called()
+
+    @patch.object(google_storage, 'download_file_from_google_bucket')
+    def test_download_assignment_attempt_when_attempt_exist(self, mocked_download):
+        event_participation = self.assessment_event.get_assessment_event_participation_by_assessee(self.assessee)
+        assignment_attempt = event_participation.get_assignment_attempt(self.assignment)
+        if not assignment_attempt:
+            assignment_attempt = event_participation.create_assignment_attempt(self.assignment)
+            assignment_attempt.update_file_name('report2385.pdf')
+
+        cloud_storage_file_name = f'{GOOGLE_BUCKET_BASE_DIRECTORY}/' \
+                                  f'{self.assessment_event.event_id}/' \
+                                  f'{assignment_attempt.tool_attempt_id}.{self.assignment.expected_file_format}'
+
+        assessment_event_attempt.download_assignment_attempt(self.assessment_event, self.assignment, self.assessee)
+        mocked_download.assert_called_with(
+            cloud_storage_file_name,
+            GOOGLE_STORAGE_BUCKET_NAME,
+            assignment_attempt.filename,
+            APPLICATION_PDF
+        )
+
+    @freeze_time("2022-11-25 12:00:00")
+    @patch.object(google_storage, 'download_file_from_google_bucket')
+    def test_serve_submitted_assignment_when_event_with_id_does_not_exist(self, mocked_download):
+        client = APIClient()
+        client.force_authenticate(user=self.assessee)
+        invalid_event_id = str(uuid.uuid4())
+        parameterized_url = f'{GET_AND_DOWNLOAD_ATTEMPT_URL}' \
+                            f'?assessment-event-id={invalid_event_id}' \
+                            f'&assessment-tool-id={self.assignment.assessment_id}'
+        response = client.get(parameterized_url)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), EVENT_DOES_NOT_EXIST.format(invalid_event_id))
+
+    @freeze_time("2022-11-23 12:00:00")
+    @patch.object(google_storage, 'download_file_from_google_bucket')
+    def test_serve_submitted_assignment_when_event_with_id_is_not_active(self, mocked_download):
+        client = APIClient()
+        client.force_authenticate(user=self.assessee)
+        parameterized_url = f'{GET_AND_DOWNLOAD_ATTEMPT_URL}' \
+                            f'?assessment-event-id={self.assessment_event.event_id}' \
+                            f'&assessment-tool-id={self.assignment.assessment_id}'
+        response = client.get(parameterized_url)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), EVENT_IS_NOT_ACTIVE.format(self.assessment_event.event_id))
+
+    @freeze_time("2022-11-25 12:00:00")
+    @patch.object(google_storage, 'download_file_from_google_bucket')
+    def test_serve_submitted_assignment_event_when_user_is_not_assessee(self, mocked_download):
+        client = APIClient()
+        client.force_authenticate(user=self.assessor)
+        parameterized_url = f'{GET_AND_DOWNLOAD_ATTEMPT_URL}' \
+                            f'?assessment-event-id={self.assessment_event.event_id}' \
+                            f'&assessment-tool-id={self.assignment.assessment_id}'
+        response = client.get(parameterized_url)
+        response_content = json.loads(response.content)
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        self.assertEqual(response_content.get('message'), USER_IS_NOT_ASSESSEE.format(self.assessor.email))
+
+    @freeze_time("2022-11-25 12:00:00")
+    @patch.object(google_storage, 'download_file_from_google_bucket')
+    def test_serve_submitted_assignment_event_when_user_is_not_a_participant(self, mocked_download):
+        client = APIClient()
+        client.force_authenticate(user=self.assessee_2)
+        parameterized_url = f'{GET_AND_DOWNLOAD_ATTEMPT_URL}' \
+                            f'?assessment-event-id={self.assessment_event.event_id}' \
+                            f'&assessment-tool-id={self.assignment.assessment_id}'
+        response = client.get(parameterized_url)
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            NOT_PART_OF_EVENT.format(self.assessee_2.email, self.assessment_event.event_id)
+        )
+
+    @freeze_time("2022-11-25 12:00:00")
+    @patch.object(google_storage, 'download_file_from_google_bucket')
+    def test_serve_submitted_assignment_event_when_tool_does_not_exist(self, mocked_download):
+        invalid_tool_id = str(uuid.uuid4())
+        client = APIClient()
+        client.force_authenticate(user=self.assessee)
+        parameterized_url = f'{GET_AND_DOWNLOAD_ATTEMPT_URL}' \
+                            f'?assessment-event-id={self.assessment_event.event_id}' \
+                            f'&assessment-tool-id={invalid_tool_id}'
+        response = client.get(parameterized_url)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            TOOL_OF_EVENT_NOT_FOUND.format(invalid_tool_id, self.assessment_event.event_id)
+        )
+
+    @freeze_time("2022-11-25 12:00:00")
+    @patch.object(google_storage, 'download_file_from_google_bucket')
+    def test_serve_submitted_assignment_when_tool_is_not_an_assignment(self, mocked_download):
+        client = APIClient()
+        client.force_authenticate(user=self.assessee)
+        parameterized_url = f'{GET_AND_DOWNLOAD_ATTEMPT_URL}' \
+                            f'?assessment-event-id={self.assessment_event.event_id}' \
+                            f'&assessment-tool-id={self.assessment_tool_2.assessment_id}'
+        response = client.get(parameterized_url)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            TOOL_IS_NOT_ASSIGNMENT.format(self.assessment_tool_2.assessment_id)
+        )
+
+    @freeze_time("2022-11-25 12:00:00")
+    @patch.object(google_storage, 'download_file_from_google_bucket')
+    def test_serve_submitted_assignment_when_request_is_valid_and_attempt_exist(self, mocked_download):
+        event_participation = self.assessment_event.get_assessment_event_participation_by_assessee(self.assessee)
+        assignment_attempt = event_participation.get_assignment_attempt(self.assignment)
+        if not assignment_attempt:
+            assignment_attempt = event_participation.create_assignment_attempt(self.assignment)
+            assignment_attempt.update_file_name('report2385.pdf')
+        mocked_download.return_value = SimpleUploadedFile(assignment_attempt.get_file_name(), b'Hello World', content_type=APPLICATION_PDF)
+
+        client = APIClient()
+        client.force_authenticate(user=self.assessee)
+        parameterized_url = f'{GET_AND_DOWNLOAD_ATTEMPT_URL}' \
+                            f'?assessment-event-id={self.assessment_event.event_id}' \
+                            f'&assessment-tool-id={self.assignment.assessment_id}'
+
+        response = client.get(parameterized_url)
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        headers = response.headers
+        self.assertEqual(headers.get('content-disposition'), f'attachment; filename="{assignment_attempt.get_file_name()}"')
+
+    @freeze_time("2022-11-25 12:00:00")
+    @patch.object(google_storage, 'download_file_from_google_bucket')
+    def test_serve_submitted_assignment_when_request_is_valid_but_attempt_not_exist(self, mocked_download):
+        event_participation = self.assessment_event.get_assessment_event_participation_by_assessee(self.assessee)
+        assignment_attempt = event_participation.get_assignment_attempt(self.assignment)
+        if assignment_attempt:
+            del assignment_attempt
+
+        client = APIClient()
+        client.force_authenticate(user=self.assessee)
+        parameterized_url = f'{GET_AND_DOWNLOAD_ATTEMPT_URL}' \
+                            f'?assessment-event-id={self.assessment_event.event_id}' \
+                            f'&assessment-tool-id={self.assignment.assessment_id}'
+
+        response = client.get(parameterized_url)
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), 'No attempt found')

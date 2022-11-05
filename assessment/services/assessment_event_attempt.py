@@ -7,6 +7,7 @@ from ..exceptions.exceptions import EventDoesNotExist, AssessmentToolDoesNotExis
 from ..models import AssessmentEvent, AssignmentAttempt, Assignment
 from .TaskGenerator import TaskGenerator
 from . import utils, google_storage
+import mimetypes
 
 ASSESEE_NOT_PART_OF_EVENT = 'Assessee with email {} is not part of assessment with id {}'
 
@@ -111,3 +112,15 @@ def submit_assignment(request_data, file, user):
 
     except (AssessmentToolDoesNotExist, EventDoesNotExist, ValidationError) as exception:
         raise InvalidRequestException(str(exception))
+
+
+def validate_tool_is_assignment(assessment_tool):
+    raise Exception
+
+
+def download_assignment_attempt(event: AssessmentEvent, assignment: Assignment, assessee: Assessee):
+    return None
+
+
+def get_submitted_assignment(request_data, user):
+    raise Exception
