@@ -1,15 +1,19 @@
 from django.core.exceptions import ObjectDoesNotExist
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, Client
 from django.urls import reverse
 from freezegun import freeze_time
+from google.cloud import storage
 from http import HTTPStatus
 from assessment.services.assessment_tool import get_assessment_tool_by_company, get_test_flow_by_company
 from one_day_intern.exceptions import (
     RestrictedAccessException,
     InvalidAssignmentRegistration,
     InvalidInteractiveQuizRegistration,
-    InvalidRequestException
+    InvalidRequestException,
+    InvalidResponseTestRegistration
 )
+from one_day_intern.settings import GOOGLE_BUCKET_BASE_DIRECTORY, GOOGLE_STORAGE_BUCKET_NAME
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 from unittest.mock import patch, call
@@ -29,6 +33,8 @@ from .models import (
     AssessmentTool,
     Assignment,
     AssignmentSerializer,
+    ResponseTest,
+    ResponseTestSerializer,
     TestFlow,
     TestFlowTool,
     AssessmentEvent,
@@ -39,9 +45,14 @@ from .models import (
     MultipleChoiceQuestion,
     InteractiveQuizSerializer,
     InteractiveQuiz, MultipleChoiceQuestionSerializer, TextQuestionSerializer,
-    VideoConferenceRoom
+    VideoConferenceRoom,
+    AssignmentAttempt
 )
-from .services import assessment, utils, test_flow, assessment_event, assessment_event_attempt, TaskGenerator
+from .services import (
+    assessment, utils, test_flow,
+    assessment_event, assessment_event_attempt, TaskGenerator,
+    google_storage
+)
 import datetime
 import json
 import schedule
@@ -60,17 +71,25 @@ ASSESSMENT_EVENT_OWNERSHIP_INVALID = 'Event with id {} does not belong to compan
 NOT_PART_OF_EVENT = 'Assessee with email {} is not part of assessment with id {}'
 ASSESSOR_NOT_PART_OF_EVENT = 'Assessor with email {} is not part of assessment with id {}'
 EVENT_DOES_NOT_EXIST = 'Assessment Event with ID {} does not exist'
+EVENT_IS_NOT_ACTIVE = 'Assessment Event with ID {} is not active'
+TOOL_OF_EVENT_NOT_FOUND = 'Tool with id {} associated with event with id {} is not found'
+TOOL_IS_NOT_ASSIGNMENT = 'Assessment tool with id {} is not an assignment'
+FILENAME_DOES_NOT_MATCH_FORMAT = 'File type does not match expected format (expected {})'
+IMPROPER_FILE_NAME = '{} is not a proper file name'
 CREATE_ASSIGNMENT_URL = '/assessment/create/assignment/'
 CREATE_INTERACTIVE_QUIZ_URL = '/assessment/create/interactive-quiz/'
 CREATE_TEST_FLOW_URL = reverse('test-flow-create')
 CREATE_ASSESSMENT_EVENT_URL = reverse('assessment-event-create')
 ADD_PARTICIPANT_URL = reverse('event-add-participation')
 EVENT_SUBSCRIPTION_URL = reverse('event-subscription')
+SUBMIT_ASSIGNMENT_URL = reverse('submit-assignments')
 GET_RELEASED_ASSIGNMENTS = reverse('event-active-assignments') + ASSESSMENT_EVENT_ID_PARAM_NAME
 VERIFY_ASSESSEE_PARTICIPATION_URL = reverse('verify-participation') + ASSESSMENT_EVENT_ID_PARAM_NAME
 OK_RESPONSE_STATUS_CODE = 200
-GET_TOOLS_URL = '/assessment/tools/'
-
+CREATE_RESPONSE_TEST_URL = '/assessment/create/response-test/'
+GET_TOOLS_URL = "/assessment/tools/"
+REQUEST_CONTENT_TYPE = 'application/json'
+APPLICATION_PDF = 'application/pdf'
 
 class AssessmentTest(TestCase):
     def setUp(self) -> None:
@@ -87,7 +106,7 @@ class AssessmentTest(TestCase):
             password='password',
             first_name='Levinson',
             last_name='Durbin',
-            phone_number='+6282312345678',
+            phone_number='+6282312345111',
             employee_id='A&EX4NDER',
             associated_company=self.company,
             authentication_service=AuthenticationService.DEFAULT.value
@@ -249,20 +268,20 @@ class AssessmentTest(TestCase):
 class InteractiveQuizTest(TestCase):
     def setUp(self) -> None:
         self.company = Company.objects.create_user(
-            email='company@company.com',
-            password='password',
-            company_name='Company',
-            description='Company Description',
-            address='JL. Company Levinson Durbin Householder'
+            email='company213@company.com',
+            password='password213',
+            company_name='Company213',
+            description='Company213 Description',
+            address='JL. Company213 Levinson Durbin Householder'
         )
 
         self.assessor = Assessor.objects.create_user(
-            email='assessor@assessor.com',
-            password='password',
-            first_name='Levinson',
-            last_name='Durbin',
-            phone_number='+6282312345678',
-            employee_id='A&EX4NDER',
+            email='assessor213@assessor.com',
+            password='password213',
+            first_name='Levinson213',
+            last_name='Durbin213',
+            phone_number='+6282312345213',
+            employee_id='A&EX4ND3R',
             associated_company=self.company,
             authentication_service=AuthenticationService.DEFAULT.value
         )
@@ -462,7 +481,8 @@ class InteractiveQuizTest(TestCase):
         client = APIClient()
         client.force_authenticate(user=self.assessor)
 
-        response = client.post(CREATE_INTERACTIVE_QUIZ_URL, data=interactive_quiz_data, content_type='application/json')
+        response = client.post(CREATE_INTERACTIVE_QUIZ_URL, data=interactive_quiz_data,
+                               content_type=REQUEST_CONTENT_TYPE)
         self.assertEqual(response.status_code, OK_RESPONSE_STATUS_CODE)
         response_content = json.loads(response.content)
         self.assertTrue(len(response_content) > 0)
@@ -483,8 +503,7 @@ def fetch_and_get_response(path, request_data, authenticated_user):
     client = APIClient()
     client.force_authenticate(user=authenticated_user)
     request_data_json = json.dumps(request_data)
-    response = client.post(path, data=request_data_json,
-                           content_type='application/json')
+    response = client.post(path, data=request_data_json, content_type=REQUEST_CONTENT_TYPE)
     return response
 
 
@@ -494,7 +513,7 @@ class TestFlowTest(TestCase):
             email='companytestflow@company.com',
             password='password',
             company_name='Company',
-            description='Company Description',
+            description='Company Description 518',
             address='JL. Company Levinson Durbin Householder 2'
         )
 
@@ -2000,7 +2019,7 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
         response_content = json.loads(response.content)
         self.assertEqual(
             response_content.get('message'),
-            f'Assessment with id {invalid_assessment_id} does not exist'
+            EVENT_DOES_NOT_EXIST.format(invalid_assessment_id)
         )
 
     def test_subscribe_when_assessment_id_is_random_string(self):
@@ -2030,7 +2049,7 @@ class AssessmentToolTest(TestCase):
             email='company@company.com',
             password='password',
             company_name='Company',
-            description='Company Description',
+            description='Company Description 2054',
             address='Jl. Company Not Company'
         )
 
@@ -2038,7 +2057,7 @@ class AssessmentToolTest(TestCase):
             email='compan2y@company.com',
             password='password',
             company_name='Company2',
-            description='Company Description',
+            description='Company Description 2062',
             address='Jl. Company Not Company'
         )
 
@@ -2047,7 +2066,7 @@ class AssessmentToolTest(TestCase):
             password='password',
             first_name='Assessor',
             last_name='Assessor',
-            phone_number='+6282312345678',
+            phone_number='+6282312342071',
             employee_id='A&EX4NDER',
             associated_company=self.company,
             authentication_service=AuthenticationService.DEFAULT.value
@@ -2058,7 +2077,7 @@ class AssessmentToolTest(TestCase):
             password='password',
             first_name='Assessor2',
             last_name='Assessor2',
-            phone_number='+6282312345678',
+            phone_number='+6282312342082',
             employee_id='A&EX4NDER2',
             associated_company=self.company_2,
             authentication_service=AuthenticationService.DEFAULT.value
@@ -2250,3 +2269,465 @@ class VerifyParticipantTest(TestCase):
         response_content = json.loads(response.content)
         self.assertEqual(response_content.get('message'), 'Assessee is a participant of the event')
 
+
+class ResponseTestTest(TestCase):
+    def setUp(self) -> None:
+        self.company = Company.objects.create_user(
+            email='company123@company.com',
+            password='password123',
+            company_name='Company123',
+            description='Company123 Description',
+            address='JL. Company Levinson Durbin 123'
+        )
+
+        self.assessor = Assessor.objects.create_user(
+            email='vandermonde@assessor.com',
+            password='password',
+            first_name='VanDer',
+            last_name='Monde',
+            phone_number='+6282312345673',
+            employee_id='A&EX4NDER3',
+            associated_company=self.company,
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+        self.request_data = {
+            'name': 'Communication Task 1',
+            'description': 'This is the first assignment',
+            'subject': 'This is a dummy email',
+            'prompt': 'Hi! This is a dummy email'
+        }
+
+        self.expected_response_test = ResponseTest(
+            name=self.request_data.get('name'),
+            description=self.request_data.get('description'),
+            prompt=self.request_data.get('prompt'),
+            subject=self.request_data.get('subject'),
+            sender=self.assessor,
+            owning_company=self.assessor.associated_company
+        )
+
+        self.expected_response_test_data = ResponseTestSerializer(self.expected_response_test).data
+
+    def test_validate_response_test_is_valid(self):
+        valid_request_data = self.request_data.copy()
+        try:
+            self.assertEqual(type(valid_request_data), dict)
+            assessment.validate_response_test(valid_request_data)
+        except InvalidResponseTestRegistration as exception:
+            self.fail(f'{exception} is raised')
+
+    def test_validate_response_test_when_subject_is_invalid(self):
+        request_data_with_no_subject = self.request_data.copy()
+        request_data_with_no_subject['subject'] = ''
+        expected_message = 'Subject Should Not Be Empty'
+        try:
+            assessment.validate_response_test(request_data_with_no_subject)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidResponseTestRegistration as exception:
+            self.assertEqual(str(exception), expected_message)
+
+    def test_validate_response_test_when_prompt_is_invalid(self):
+        request_data_with_no_subject = self.request_data.copy()
+        request_data_with_no_subject['prompt'] = ''
+        expected_message = 'Prompt Should Not Be Empty'
+        try:
+            assessment.validate_response_test(request_data_with_no_subject)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidResponseTestRegistration as exception:
+            self.assertEqual(str(exception), expected_message)
+
+    @patch.object(ResponseTest.objects, 'create')
+    def test_save_response_test_to_database(self, mocked_create):
+        mocked_create.return_value = self.expected_response_test
+        returned_assignment = assessment.save_response_test_to_database(self.request_data, self.assessor)
+        returned_assignment_data = ResponseTestSerializer(returned_assignment).data
+        mocked_create.assert_called_once()
+        self.assertDictEqual(returned_assignment_data, self.expected_response_test_data)
+
+    @patch.object(assessment, 'save_response_test_to_database')
+    @patch.object(assessment, 'validate_response_test')
+    @patch.object(assessment, 'validate_assessment_tool')
+    @patch.object(assessment, 'get_assessor_or_raise_exception')
+    def test_create_assignment(self, mocked_get_assessor, mocked_validate_assessment_tool,
+                               mocked_validate_response_test, mocked_save_response_test):
+        mocked_get_assessor.return_value = self.assessor
+        mocked_validate_assessment_tool.return_value = None
+        mocked_validate_response_test.return_value = None
+        mocked_save_response_test.return_value = self.expected_response_test
+        returned_assignment = assessment.create_response_test(self.request_data, self.assessor)
+        returned_assignment_data = ResponseTestSerializer(returned_assignment).data
+        self.assertDictEqual(returned_assignment_data, self.expected_response_test_data)
+
+    def test_create_response_test_when_complete_status_200(self):
+        assignment_data = json.dumps(self.request_data.copy())
+        client = APIClient()
+        client.force_authenticate(user=self.assessor)
+        response = client.post(CREATE_RESPONSE_TEST_URL, data=assignment_data, content_type=REQUEST_CONTENT_TYPE)
+        response_content = json.loads(response.content)
+        self.assertEqual(response.status_code, OK_RESPONSE_STATUS_CODE)
+        self.assertTrue(len(response_content) > 0)
+        self.assertIsNotNone(response_content.get('assessment_id'))
+        self.assertEqual(response_content.get('name'), self.expected_response_test_data.get('name'))
+        self.assertEqual(response_content.get('description'), self.expected_response_test_data.get('description'))
+        self.assertEqual(response_content.get('subject'), self.expected_response_test_data.get('subject'))
+        self.assertEqual(response_content.get('prompt'), self.expected_response_test_data.get('prompt'))
+        self.assertEqual(response_content.get('owning_company_id'), self.company.id)
+        self.assertEqual(response_content.get('owning_company_name'), self.company.company_name)
+
+
+class AssignmentSubmissionTest(TestCase):
+    def setUp(self) -> None:
+        self.assessee = Assessee.objects.create_user(
+            email='assessee1973@email.com',
+            password='Password1231974',
+            first_name='Assessee 1975',
+            last_name='Lastname 1976',
+            phone_number='+6212345901',
+            date_of_birth=datetime.date(2000, 12, 19),
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.company = Company.objects.create_user(
+            email='company1983@email.com',
+            password='Password1231984',
+            company_name='Company 1985',
+            description='A description 1986',
+            address='Gedung ABRR Jakarta Pusat, no 1987'
+        )
+
+        self.assessor = Assessor.objects.create_user(
+            email='assessor1991@email.com',
+            password='Password1992',
+            phone_number='+9123123123',
+            associated_company=self.company,
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.assignment = Assignment.objects.create(
+            name='Esai Singkat: The Power of Social Media',
+            description='Kerjakan sesuai pemahaman Anda',
+            owning_company=self.company,
+            expected_file_format='pdf',
+            duration_in_minutes=120
+        )
+
+        self.test_flow_used = TestFlow.objects.create(
+            name='Test Flow 2006',
+            owning_company=self.company
+        )
+
+        self.test_flow_used.add_tool(
+            assessment_tool=self.assignment,
+            release_time=datetime.time(11, 50),
+            start_working_time=datetime.time(11, 50)
+        )
+
+        self.assessment_event: AssessmentEvent = AssessmentEvent.objects.create(
+            name='Assessment Event 2017',
+            start_date_time=datetime.datetime(2022, 11, 25, tzinfo=pytz.utc),
+            owning_company=self.company,
+            test_flow_used=self.test_flow_used
+        )
+
+        self.assessment_event.add_participant(self.assessee, self.assessor)
+
+        self.event_participation = \
+            AssessmentEventParticipation.objects.get(assessee=self.assessee, assessment_event=self.assessment_event)
+
+        self.file = SimpleUploadedFile('report.pdf', b"file_content_2111", content_type=APPLICATION_PDF)
+        self.assessment_tool = AssessmentTool.objects.create(
+            name='Assessment Tool 2038',
+            description='Description 2039',
+            owning_company=self.company
+        )
+
+        self.assessment_event_2 = AssessmentEvent.objects.create(
+            name='Assessment Event 2046',
+            start_date_time=datetime.datetime(2022, 11, 27, tzinfo=pytz.utc),
+            owning_company=self.company,
+            test_flow_used=self.test_flow_used
+        )
+
+        self.request_data = {
+            'assessment-event-id': str(self.assessment_event.event_id),
+            'assessment-tool-id': str(self.assignment.assessment_id),
+            'file': self.file
+        }
+
+        self.assessee_2 = Assessee.objects.create_user(
+            email='assessee2060@email.com',
+            password='Password1232061',
+            first_name='Assessee 2062',
+            last_name='Lastname 2063',
+            phone_number='+6212342064',
+            date_of_birth=datetime.date(2000, 12, 19),
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+    def test_get_assessment_event_participation_by_assessee(self):
+        retrieved_assessment_event: AssessmentEventParticipation = (
+            self.assessment_event.get_assessment_event_participation_by_assessee(self.assessee))
+
+        self.assertEquals(retrieved_assessment_event.assessment_event, self.assessment_event)
+        self.assertEquals(retrieved_assessment_event.assessee, self.assessee)
+
+    def test_get_assignment_attempt_when_no_attempt_exist(self):
+        assignment_attempt = self.event_participation.get_assignment_attempt(self.assignment)
+        self.assertEquals(assignment_attempt, None)
+
+    def test_get_assignment_attempt_when_attempt_exists(self):
+        expected_attempt = AssignmentAttempt.objects.create(
+            test_flow_attempt=self.event_participation.attempt,
+            assessment_tool_attempted=self.assignment
+        )
+        assignment_attempt = self.event_participation.get_assignment_attempt(self.assignment)
+        self.assertIsNotNone(assignment_attempt)
+        self.assertEquals(assignment_attempt, expected_attempt)
+        del assignment_attempt
+
+    def test_create_assignment_attempt(self):
+        assignment_attempt = self.event_participation.create_assignment_attempt(self.assignment)
+        self.assertTrue(isinstance(assignment_attempt, AssignmentAttempt))
+        self.assertEqual(assignment_attempt.test_flow_attempt, self.event_participation.attempt)
+        self.assertEqual(assignment_attempt.assessment_tool_attempted, self.assignment)
+        del assignment_attempt
+
+    @patch.object(storage.Client, '__init__')
+    @patch.object(storage.Blob, 'upload_from_file')
+    @patch.object(storage.Bucket, 'blob')
+    @patch.object(storage.Client, 'get_bucket')
+    def test_upload_file_to_google_bucket(self, mocked_get_bucket, mocked_blob, mocked_upload, mocked_client):
+        destination_file_name = '/submissions/tests/test-uploaded_file.pdf'
+        bucket_name = 'one-day-intern-bucket'
+
+        mocked_client.return_value = None
+        mocked_get_bucket.return_value = storage.Bucket(client=None)
+        mocked_blob.return_value = storage.Blob(name=destination_file_name, bucket=None)
+
+        uploaded_file = SimpleUploadedFile('test-file.pdf', b'<sample-uploaded_file>', content_type=APPLICATION_PDF)
+        google_storage.upload_file_to_google_bucket(
+            destination_file_name=destination_file_name,
+            bucket_name=bucket_name,
+            file=uploaded_file
+        )
+
+        mocked_client.assert_called_once()
+        mocked_get_bucket.assert_called_with(bucket_name)
+        mocked_blob.assert_called_with(destination_file_name)
+        mocked_upload.assert_called_with(file_obj=uploaded_file, rewind=True)
+
+    @freeze_time("2022-11-05 12:00:00")
+    def test_update_attempt_cloud_directory(self):
+        assignment_attempt = AssignmentAttempt.objects.create(
+            test_flow_attempt=self.event_participation.attempt,
+            assessment_tool_attempted=self.assignment,
+            file_upload_directory='/directory',
+            filename='filename.jpg'
+        )
+        new_directory = '/new-directory'
+        assignment_attempt.update_attempt_cloud_directory(new_directory)
+
+        found_assignment_attempt = AssignmentAttempt.objects.get(tool_attempt_id=assignment_attempt.tool_attempt_id)
+        self.assertEqual(found_assignment_attempt.get_attempt_cloud_directory(), new_directory)
+        self.assertEqual(found_assignment_attempt.get_submitted_time(), datetime.datetime.now(tz=pytz.utc))
+
+    def test_update_file_name(self):
+        assignment_attempt = AssignmentAttempt.objects.create(
+            test_flow_attempt=self.event_participation.attempt,
+            assessment_tool_attempted=self.assignment,
+            file_upload_directory='/directory',
+            filename='filename-old.jpg'
+        )
+        new_name = 'filename-new.jpg'
+        assignment_attempt.update_file_name(new_name)
+
+        found_assignment_attempt = AssignmentAttempt.objects.get(tool_attempt_id=assignment_attempt.tool_attempt_id)
+        self.assertEqual(found_assignment_attempt.get_file_name(), new_name)
+
+    @patch.object(AssignmentAttempt, 'update_file_name')
+    @patch.object(AssignmentAttempt, 'update_attempt_cloud_directory')
+    @patch.object(google_storage, 'upload_file_to_google_bucket')
+    @patch.object(assessment_event_attempt, 'get_or_create_assignment_attempt')
+    def test_save_assignment_attempt(self, mocked_create_attempt, mocked_upload, mocked_update_stored_dir,
+                                     mocked_update_stored_filename):
+        assessment_event_attempt.save_assignment_attempt(
+            event=self.assessment_event,
+            assignment=self.assignment,
+            assessee=self.assessee,
+            file_to_be_uploaded=self.file
+        )
+        assignment_attempt = AssignmentAttempt.objects.create(
+            test_flow_attempt=self.event_participation.attempt,
+            assessment_tool_attempted=self.assignment
+        )
+        cloud_storage_file_name = f'{GOOGLE_BUCKET_BASE_DIRECTORY}/' \
+                                  f'{self.assessment_event.event_id}/' \
+                                  f'{assignment_attempt.tool_attempt_id}.{self.assignment.expected_file_format}'
+        mocked_create_attempt.return_value = assignment_attempt
+
+        assessment_event_attempt.save_assignment_attempt(self.assessment_event, self.assignment, self.assessee,
+                                                         self.file)
+        mocked_create_attempt.assert_called_with(self.assessment_event, self.assignment, self.assessee)
+        mocked_upload.assert_called_with(
+            cloud_storage_file_name,
+            GOOGLE_STORAGE_BUCKET_NAME,
+            self.file
+        )
+        mocked_update_stored_dir.assert_called_with(cloud_storage_file_name)
+        mocked_update_stored_filename.assert_called_with(self.file.name)
+
+    def test_get_assessment_tool_from_assessment_id_when_tool_exist(self):
+        try:
+            self.assessment_event.get_assessment_tool_from_assessment_id(assessment_id=self.assignment.assessment_id)
+        except Exception as exception:
+            self.fail(f'{exception} is raised')
+
+    def test_get_assessment_tool_from_assessment_id_when_tool_does_not_exist(self):
+        invalid_id = str(uuid.uuid4())
+        try:
+            self.assessment_event.get_assessment_tool_from_assessment_id(invalid_id)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except AssessmentToolDoesNotExist as exception:
+            self.assertEqual(str(exception), TOOL_OF_EVENT_NOT_FOUND.format(invalid_id, self.assessment_event.event_id))
+
+    def test_validate_submission_when_assessment_tool_does_not_exist(self):
+        try:
+            assessment_event_attempt.validate_submission(None, self.file.name)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidRequestException as exception:
+            self.assertEqual(str(exception), 'Assessment tool associated with event does not exist')
+
+    def test_validate_submission_when_assessment_tool_is_not_an_assignment(self):
+        try:
+            assessment_event_attempt.validate_submission(self.assessment_tool, self.file.name)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidRequestException as exception:
+            self.assertEqual(str(exception), TOOL_IS_NOT_ASSIGNMENT.format(self.assessment_tool.assessment_id))
+
+    def test_validate_submission_when_no_file_name(self):
+        try:
+            assessment_event_attempt.validate_submission(self.assignment, '')
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidRequestException as exception:
+            self.assertEqual(str(exception), 'File name should not be empty')
+
+    def test_validate_submission_when_improper_file_name(self):
+        improper_file_name = 'report'
+        try:
+            assessment_event_attempt.validate_submission(self.assignment, improper_file_name)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidRequestException as exception:
+            self.assertEqual(str(exception), IMPROPER_FILE_NAME.format(improper_file_name))
+
+    def test_validate_submission_when_prefix_does_not_match_expected(self):
+        non_matching_file_name = 'report.pptx'
+        try:
+            assessment_event_attempt.validate_submission(self.assignment, non_matching_file_name)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidRequestException as exception:
+            self.assertEqual(
+                str(exception), FILENAME_DOES_NOT_MATCH_FORMAT.format(self.assignment.expected_file_format))
+
+    def test_validate_submission_when_valid(self):
+        try:
+            assessment_event_attempt.validate_submission(self.assignment, self.file.name)
+        except Exception as exception:
+            self.fail(f'{exception} is raised')
+
+    def submit_file_and_get_request(self, request_data, authenticated_user):
+        client = APIClient()
+        client.force_authenticate(user=authenticated_user)
+        response = client.post(SUBMIT_ASSIGNMENT_URL, request_data)
+        return response
+
+    @freeze_time("2022-11-25 12:00:00")
+    @patch.object(google_storage, 'upload_file_to_google_bucket')
+    def test_serve_submit_assignment_when_event_with_id_does_not_exist(self, mocked_upload):
+        request_data = self.request_data.copy()
+        request_data['assessment-event-id'] = str(uuid.uuid4())
+        response = self.submit_file_and_get_request(request_data, authenticated_user=self.assessee)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            EVENT_DOES_NOT_EXIST.format(request_data['assessment-event-id'])
+        )
+
+    @freeze_time("2022-11-23 12:00:00")
+    @patch.object(google_storage, 'upload_file_to_google_bucket')
+    def test_serve_submit_assignment_when_event_with_id_is_not_active(self, mocked_upload):
+        response = self.submit_file_and_get_request(self.request_data, authenticated_user=self.assessee)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), EVENT_IS_NOT_ACTIVE.format(self.assessment_event.event_id))
+
+    @freeze_time("2022-11-25 12:00:00")
+    @patch.object(google_storage, 'upload_file_to_google_bucket')
+    def test_serve_submit_assignment_when_user_is_not_assessee(self, mocked_upload):
+        response = self.submit_file_and_get_request(self.request_data, authenticated_user=self.assessor)
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), f'User with email {self.assessor.email} is not an assessee')
+
+    @freeze_time("2022-11-25 12:00:00")
+    @patch.object(google_storage, 'upload_file_to_google_bucket')
+    def test_serve_submit_assignment_when_user_is_not_part_of_event(self, mocked_upload):
+        response = self.submit_file_and_get_request(self.request_data, authenticated_user=self.assessee_2)
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            NOT_PART_OF_EVENT.format(self.assessee_2.email, self.assessment_event.event_id)
+        )
+
+    @freeze_time("2022-11-25 12:00:00")
+    @patch.object(google_storage, 'upload_file_to_google_bucket')
+    def test_serve_submit_assignment_when_tool_is_not_part_of_event(self, mocked_upload):
+        request_data = self.request_data.copy()
+        request_data['assessment-tool-id'] = str(self.assessment_tool.assessment_id)
+        response = self.submit_file_and_get_request(request_data, authenticated_user=self.assessee)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            TOOL_OF_EVENT_NOT_FOUND.format(request_data['assessment-tool-id'], request_data['assessment-event-id'])
+        )
+
+    @freeze_time("2022-11-25 12:00:00")
+    @patch.object(google_storage, 'upload_file_to_google_bucket')
+    def test_serve_submit_assignment_when_file_name_is_invalid(self, mocked_upload):
+        invalid_filename = 'invalid_filename'
+        uploaded_file = SimpleUploadedFile(invalid_filename, b'file_content', content_type=APPLICATION_PDF)
+        request_data = self.request_data.copy()
+        request_data['file'] = uploaded_file
+        response = self.submit_file_and_get_request(request_data, authenticated_user=self.assessee)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), IMPROPER_FILE_NAME.format(invalid_filename))
+
+    @freeze_time("2022-11-25 12:00:00")
+    @patch.object(google_storage, 'upload_file_to_google_bucket')
+    def test_serve_submit_assignment_when_file_name_does_match_expected(self, mocked_upload):
+        non_matching_filename = 'report.pptx'
+        uploaded_file = SimpleUploadedFile(non_matching_filename, b'file_content', content_type=APPLICATION_PDF)
+        request_data = self.request_data.copy()
+        request_data['file'] = uploaded_file
+        response = self.submit_file_and_get_request(request_data, authenticated_user=self.assessee)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            FILENAME_DOES_NOT_MATCH_FORMAT.format(self.assignment.expected_file_format)
+        )
+
+    @freeze_time("2022-11-25 12:00:00")
+    @patch.object(google_storage, 'upload_file_to_google_bucket')
+    def test_serve_submit_assignment_when_request_is_valid(self, mocked_upload):
+        response = self.submit_file_and_get_request(self.request_data, authenticated_user=self.assessee)
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), 'File uploaded successfully')
+
+        created_attempt = self.event_participation.get_assignment_attempt(self.assignment)
+        self.assertEqual(created_attempt.filename, self.file.name)
+        self.assertEqual(created_attempt.submitted_time, datetime.datetime.now(tz=pytz.utc))

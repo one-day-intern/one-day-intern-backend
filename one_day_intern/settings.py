@@ -4,8 +4,12 @@ from urllib.parse import urlparse
 from dotenv import load_dotenv
 import dj_database_url
 import os
+from assessment.services.google_storage import setup_google_storage_credentials
+
 
 load_dotenv()
+setup_google_storage_credentials()
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -199,3 +203,7 @@ EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL')
 SERVER_EMAIL = os.getenv('SERVER_EMAIL')
+
+# Google Storage
+GOOGLE_BUCKET_BASE_DIRECTORY = '/submissions'
+GOOGLE_STORAGE_BUCKET_NAME = 'one-day-intern-bucket'

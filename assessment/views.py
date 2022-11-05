@@ -10,7 +10,7 @@ from assessment.services.assessment_tool import (
     serialize_assignment_list_using_serializer,
     serialize_test_flow_list
 )
-from .services.assessment import create_assignment, create_interactive_quiz
+from .services.assessment import create_assignment, create_interactive_quiz, create_response_test
 from one_day_intern.exceptions import RestrictedAccessException
 from users.services import utils as user_utils
 from .services.test_flow import create_test_flow
@@ -18,9 +18,16 @@ from .services.assessment_event import create_assessment_event, add_assessment_e
 from .services.assessment_event_attempt import (
     subscribe_to_assessment_flow,
     get_all_active_assignment,
-    verify_assessee_participation
+    verify_assessee_participation,
+    submit_assignment
 )
-from .models import AssignmentSerializer, TestFlowSerializer, AssessmentEventSerializer, InteractiveQuizSerializer
+from .models import (
+    AssignmentSerializer,
+    TestFlowSerializer,
+    AssessmentEventSerializer,
+    InteractiveQuizSerializer,
+    ResponseTestSerializer
+)
 import json
 
 
@@ -148,6 +155,19 @@ def serve_add_assessment_event_participant(request):
     return Response(data={'message': 'Participants are successfully added'})
 
 
+@require_POST
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def serve_create_response_test(request):
+    """
+    request_data must contain
+    prompt
+    subject
+    """
+    request_data = json.loads(request.body.decode('utf-8'))
+    assignment = create_response_test(request_data, request.user)
+    response_data = ResponseTestSerializer(assignment).data
+    return Response(data=response_data)
 @require_GET
 def serve_subscribe_to_assessment_flow(request):
     """
@@ -201,3 +221,22 @@ def serve_verify_participation(request):
     request_data = request.GET
     verify_assessee_participation(request_data, user=request.user)
     return Response(data={'message': 'Assessee is a participant of the event'}, status=200)
+
+
+@require_POST
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def serve_submit_assignment(request):
+    """
+    This view will serve as the end-point for assessees to submit their assignment
+    attempt to an assignment tool that they currently undergo in an assessment event.
+    ----------------------------------------------------------
+    request-data must contain:
+    assessment-event-id: string
+    assessment-tool-id: string
+    file: file
+    """
+    request_data = request.POST.dict()
+    submitted_file = request.FILES.get('file')
+    submit_assignment(request_data, submitted_file, user=request.user)
+    return Response(data={'message': 'File uploaded successfully'}, status=200)
