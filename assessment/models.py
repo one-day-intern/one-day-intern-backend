@@ -4,6 +4,7 @@ from rest_framework import serializers
 from polymorphic.models import PolymorphicModel
 from users.models import Assessor, AssessorSerializer
 from .services.TaskGenerator import TaskGenerator
+from .exceptions.exceptions import AssessmentToolDoesNotExist
 from typing import List, Optional
 import datetime
 import uuid
@@ -338,6 +339,9 @@ class AssessmentEvent(models.Model):
 
     def get_assessment_event_participation_by_assessee(self, assessee):
         return self.assessmenteventparticipation_set.get(assessee=assessee)
+
+    def get_assessment_tool_from_assessment_id(self, assessment_id):
+        return None
 
 
 class AssessmentEventSerializer(serializers.ModelSerializer):

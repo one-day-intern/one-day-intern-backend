@@ -71,6 +71,7 @@ ASSESSMENT_EVENT_OWNERSHIP_INVALID = 'Event with id {} does not belong to compan
 NOT_PART_OF_EVENT = 'Assessee with email {} is not part of assessment with id {}'
 ASSESSOR_NOT_PART_OF_EVENT = 'Assessor with email {} is not part of assessment with id {}'
 EVENT_DOES_NOT_EXIST = 'Assessment Event with ID {} does not exist'
+TOOL_OF_EVENT_NOT_FOUND = 'Tool with id {} associated with event with id {} is not found'
 CREATE_ASSIGNMENT_URL = '/assessment/create/assignment/'
 CREATE_INTERACTIVE_QUIZ_URL = '/assessment/create/interactive-quiz/'
 CREATE_TEST_FLOW_URL = reverse('test-flow-create')
@@ -2569,3 +2570,17 @@ class AssignmentSubmissionTest(TestCase):
         )
         mocked_update_stored_dir.assert_called_with(cloud_storage_file_name)
         mocked_update_stored_filename.assert_called_with(self.file.name)
+
+    def test_get_assessment_tool_from_assessment_id_when_tool_exist(self):
+        try:
+            self.assessment_event.get_assessment_tool_from_assessment_id(assessment_id=self.assignment.assessment_id)
+        except Exception as exception:
+            self.fail(f'{exception} is raised')
+
+    def test_get_assessment_tool_from_assessment_id_when_tool_does_not_exist(self):
+        invalid_id = str(uuid.uuid4())
+        try:
+            self.assessment_event.get_assessment_tool_from_assessment_id(invalid_id)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except AssessmentToolDoesNotExist as exception:
+            self.assertEqual(str(exception), TOOL_OF_EVENT_NOT_FOUND.format(invalid_id, self.assessment_event.event_id))
