@@ -1,8 +1,9 @@
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
 from one_day_intern.exceptions import RestrictedAccessException, InvalidRequestException
 from one_day_intern.settings import GOOGLE_BUCKET_BASE_DIRECTORY, GOOGLE_STORAGE_BUCKET_NAME
 from users.models import Assessee, Assessor
-from ..exceptions.exceptions import EventDoesNotExist
+from ..exceptions.exceptions import EventDoesNotExist, AssessmentToolDoesNotExist
 from ..models import AssessmentEvent, AssignmentAttempt, Assignment
 from .TaskGenerator import TaskGenerator
 from . import utils, google_storage
@@ -89,6 +90,24 @@ def save_assignment_attempt(event: AssessmentEvent, assignment: Assignment, asse
     cloud_storage_file_name = f'{GOOGLE_BUCKET_BASE_DIRECTORY}/' \
                               f'{event.event_id}/' \
                               f'{assignment_attempt.tool_attempt_id}.{assignment.expected_file_format}'
-    google_storage.upload_file_to_google_bucket(cloud_storage_file_name, GOOGLE_STORAGE_BUCKET_NAME, file_to_be_uploaded)
+    google_storage.upload_file_to_google_bucket(
+        cloud_storage_file_name,
+        GOOGLE_STORAGE_BUCKET_NAME,
+        file_to_be_uploaded
+    )
     assignment_attempt.update_attempt_cloud_directory(cloud_storage_file_name)
     assignment_attempt.update_file_name(file_to_be_uploaded.name)
+
+
+def submit_assignment(request_data, file, user):
+    try:
+        event = utils.get_active_assessment_event_from_id(request_data.get('assessment-event-id'))
+        assessee = utils.get_assessee_from_user(user)
+        validate_user_participation(event, assessee)
+        assessment_tool = \
+            event.get_assessment_tool_from_assessment_id(assessment_id=request_data.get('assessment-tool-id'))
+        validate_submission(assessment_tool, file.name)
+        save_assignment_attempt(event, assessment_tool, assessee, file)
+
+    except (AssessmentToolDoesNotExist, EventDoesNotExist, ValidationError) as exception:
+        raise InvalidRequestException(str(exception))

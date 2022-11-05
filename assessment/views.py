@@ -19,6 +19,7 @@ from .services.assessment_event_attempt import (
     subscribe_to_assessment_flow,
     get_all_active_assignment,
     verify_assessee_participation,
+    submit_assignment
 )
 from .models import (
     AssignmentSerializer,
@@ -235,4 +236,7 @@ def serve_submit_assignment(request):
     assessment-tool-id: string
     file: file
     """
-    return Response(data=None)
+    request_data = request.POST.dict()
+    submitted_file = request.FILES.get('file')
+    submit_assignment(request_data, submitted_file, user=request.user)
+    return Response(data={'message': 'File uploaded successfully'}, status=200)
