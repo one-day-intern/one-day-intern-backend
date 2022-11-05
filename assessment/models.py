@@ -11,6 +11,7 @@ USERS_COMPANY = 'users.Company'
 OWNING_COMPANY_COMPANY_ID = 'owning_company.company_id'
 OWNING_COMPANY_COMPANY_NAME = 'owning_company.company_name'
 
+
 class AssessmentTool(PolymorphicModel):
     assessment_id = models.UUIDField(primary_key=True, auto_created=True, default=uuid.uuid4)
     name = models.CharField(max_length=50, null=False)
@@ -418,6 +419,18 @@ class ToolAttempt(PolymorphicModel):
 class AssignmentAttempt(ToolAttempt):
     file_upload_directory = models.TextField(null=True)
     filename = models.TextField(default=None, null=True)
+
+    def update_attempt_cloud_directory(self, file_upload_directory):
+        pass
+
+    def get_attempt_cloud_directory(self):
+        return self.file_upload_directory
+
+    def update_file_name(self, filename):
+        pass
+
+    def get_file_name(self):
+        return self.filename
 
 
 class AssessmentEventParticipation(models.Model):
