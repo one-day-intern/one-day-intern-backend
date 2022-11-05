@@ -2003,7 +2003,7 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
         response_content = json.loads(response.content)
         self.assertEqual(
             response_content.get('message'),
-            f'Assessment with id {invalid_assessment_id} does not exist'
+            EVENT_DOES_NOT_EXIST.format(invalid_assessment_id)
         )
 
     def test_subscribe_when_assessment_id_is_random_string(self):

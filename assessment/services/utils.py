@@ -104,12 +104,12 @@ def get_active_assessment_event_from_id(event_id):
     if found_events:
         found_event: AssessmentEvent = found_events[0]
     else:
-        raise EventDoesNotExist(f'Assessment with id {event_id} does not exist')
+        raise EventDoesNotExist(f'Assessment Event with ID {event_id} does not exist')
 
     if found_event.is_active():
         return found_event
     else:
-        raise EventDoesNotExist(f'Assessment with id {event_id} is not active')
+        raise EventDoesNotExist(f'Assessment Event with ID {event_id} is not active')
 
 
 def get_assessee_from_user(user: User) -> Assessee:
