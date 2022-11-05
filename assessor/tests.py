@@ -141,7 +141,7 @@ class ActiveAssessmentEventParticipationTest(TestCase):
         response = fetch_all_active_assessees(invalid_event_id, authenticated_user=self.assessor_1)
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
-        self.assertEqual(response_content.get('message'), f'Assessment with id {invalid_event_id} does not exist')
+        self.assertEqual(response_content.get('message'), f'Assessment Event with ID {invalid_event_id} does not exist')
 
     @freeze_time("2022-02-27")
     def test_get_all_active_assessees_when_event_is_not_active(self):
@@ -153,7 +153,7 @@ class ActiveAssessmentEventParticipationTest(TestCase):
         response_content = json.loads(response.content)
         self.assertEqual(
             response_content.get('message'),
-            f'Assessment with id {str(self.assessment_event.event_id)} is not active'
+            f'Assessment Event with ID {str(self.assessment_event.event_id)} is not active'
         )
 
     @freeze_time("2022-03-30 11:00:00")

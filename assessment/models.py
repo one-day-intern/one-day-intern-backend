@@ -1,14 +1,17 @@
+import pytz
 from django.db import models
 from rest_framework import serializers
 from polymorphic.models import PolymorphicModel
 from users.models import Assessor, AssessorSerializer
 from .services.TaskGenerator import TaskGenerator
-from typing import List
+from .exceptions.exceptions import AssessmentToolDoesNotExist
+from typing import List, Optional
 import datetime
 import uuid
 
 USERS_COMPANY = 'users.Company'
 OWNING_COMPANY_COMPANY_ID = 'owning_company.company_id'
+OWNING_COMPANY_COMPANY_NAME = 'owning_company.company_name'
 
 
 class AssessmentTool(PolymorphicModel):
@@ -52,7 +55,7 @@ class Assignment(AssessmentTool):
 
 
 class AssignmentSerializer(serializers.ModelSerializer):
-    owning_company_name = serializers.ReadOnlyField(source='owning_company.company_name')
+    owning_company_name = serializers.ReadOnlyField(source=OWNING_COMPANY_COMPANY_NAME)
 
     class Meta:
         model = Assignment
@@ -159,7 +162,7 @@ class QuestionSerializer(serializers.ModelSerializer):
 
 
 class InteractiveQuizSerializer(serializers.ModelSerializer):
-    owning_company_name = serializers.ReadOnlyField(source='owning_company.company_name')
+    owning_company_name = serializers.ReadOnlyField(source=OWNING_COMPANY_COMPANY_NAME)
 
     class Meta:
         model = InteractiveQuiz
@@ -281,7 +284,7 @@ class AssessmentEvent(models.Model):
                 assessor=assessor
             )
 
-            TestFlowAttempt.objects.create(
+            test_flow_attempt = TestFlowAttempt.objects.create(
                 event_participation=assessment_event_participation,
                 test_flow_attempted=self.test_flow_used
             )
@@ -289,6 +292,9 @@ class AssessmentEvent(models.Model):
             VideoConferenceRoom.objects.create(
                 part_of=assessment_event_participation
             )
+
+            assessment_event_participation.attempt = test_flow_attempt
+            assessment_event_participation.save()
 
             return assessment_event_participation
 
@@ -331,6 +337,21 @@ class AssessmentEvent(models.Model):
 
         return released_assignments_data
 
+    def get_assessment_event_participation_by_assessee(self, assessee):
+        return self.assessmenteventparticipation_set.get(assessee=assessee)
+
+    def get_assessment_tool_from_assessment_id(self, assessment_id):
+        found_assessment_tools = self.test_flow_used.tools.filter(
+            assessment_id=assessment_id
+        )
+        if found_assessment_tools:
+            return found_assessment_tools[0]
+
+        else:
+            raise AssessmentToolDoesNotExist(
+                f'Tool with id {assessment_id} associated with event with id {self.event_id} is not found'
+            )
+
 
 class AssessmentEventSerializer(serializers.ModelSerializer):
     owning_company_id = serializers.ReadOnlyField(source=OWNING_COMPANY_COMPANY_ID)
@@ -341,26 +362,6 @@ class AssessmentEventSerializer(serializers.ModelSerializer):
         fields = ['event_id', 'name', 'start_date_time', 'owning_company_id', 'test_flow_id']
 
 
-class AssessmentEventParticipation(models.Model):
-    assessment_event = models.ForeignKey('assessment.AssessmentEvent', on_delete=models.CASCADE)
-    assessee = models.ForeignKey('users.Assessee', on_delete=models.CASCADE)
-    assessor = models.ForeignKey('users.Assessor', on_delete=models.RESTRICT)
-    attempt = models.OneToOneField('assessment.TestFlowAttempt', on_delete=models.CASCADE, null=True)
-
-
-class AssessmentEventParticipationSerializer(serializers.ModelSerializer):
-    assessment_event_id = serializers.ReadOnlyField(source='assessment_event.assessment_event_id')
-    assessee_id = serializers.ReadOnlyField(source='assessee.assessee_id')
-    assessor_id = serializers.ReadOnlyField(source='assessor.assessor_id')
-
-    # ini buat di test flow attempt ada serializer assessment event part
-    # attempt = models.OneToOneField('assessment.TestFlowAttempt', on_delete=models.CASCADE, null=True)
-
-    class Meta:
-        model = AssessmentEventParticipation
-        fields = ['assessment_event_id', 'assessee_id', 'assessor_id']
-
-
 class TestFlowAttempt(models.Model):
     attempt_id = models.UUIDField(default=uuid.uuid4, primary_key=True)
     note = models.TextField(null=True)
@@ -369,13 +370,27 @@ class TestFlowAttempt(models.Model):
     test_flow_attempted = models.ForeignKey('assessment.TestFlow', on_delete=models.RESTRICT)
 
 
-class TestFlowAttemptSerializer(serializers.ModelSerializer):
-    event_participation = AssessmentEventParticipationSerializer(source='assessmenteventparticipation', read_only=True)
-    test_flow_attempted_id = serializers.ReadOnlyField(source='test_flow_attempted.test_flow_attempted_id')
+class ResponseTest(AssessmentTool):
+    sender = models.ForeignKey('users.Assessor', on_delete=models.CASCADE)
+    subject = models.TextField(null=False)
+    prompt = models.TextField(null=False)
 
+
+class ResponseTestSerializer(serializers.ModelSerializer):
+    owning_company_name = serializers.ReadOnlyField(source=OWNING_COMPANY_COMPANY_NAME)
+    sender = serializers.ReadOnlyField(source='sender.email')
     class Meta:
-        model = TestFlowAttempt
-        fields = ['attempt_id', 'note', 'grade', 'event_participation', 'test_flow_attempted_id']
+        model = ResponseTest
+        fields = [
+            'assessment_id',
+            'name',
+            'description',
+            'subject',
+            'prompt',
+            'sender',
+            'owning_company_id',
+            'owning_company_name',
+        ]
 
 
 class VideoConferenceRoom(models.Model):
@@ -406,3 +421,89 @@ class VideoConferenceRoomSerializer(serializers.ModelSerializer):
     class Meta:
         model = VideoConferenceRoom
         fields = ['room_id', 'conference_in_assessment_event', 'conference_host', 'conference_assessee', 'room_opened', 'conference_participants']
+
+
+class ToolAttempt(PolymorphicModel):
+    tool_attempt_id = models.UUIDField(default=uuid.uuid4, primary_key=True)
+    grade = models.FloatField(default=0)
+    test_flow_attempt = models.ForeignKey('assessment.TestFlowAttempt', on_delete=models.CASCADE)
+    assessment_tool_attempted = models.ForeignKey('assessment.AssessmentTool', on_delete=models.CASCADE, default=None)
+
+
+class AssignmentAttempt(ToolAttempt):
+    file_upload_directory = models.TextField(null=True)
+    filename = models.TextField(default=None, null=True)
+    submitted_time = models.DateTimeField(default=None, null=True)
+
+    def update_attempt_cloud_directory(self, file_upload_directory):
+        self.submitted_time = datetime.datetime.now(tz=pytz.utc)
+        self.file_upload_directory = file_upload_directory
+        self.save()
+
+    def get_attempt_cloud_directory(self):
+        return self.file_upload_directory
+
+    def update_file_name(self, filename):
+        self.filename = filename
+        self.save()
+
+    def get_file_name(self):
+        return self.filename
+
+    def get_submitted_time(self):
+        return self.submitted_time
+
+
+class AssessmentEventParticipation(models.Model):
+    assessment_event = models.ForeignKey('assessment.AssessmentEvent', on_delete=models.CASCADE)
+    assessee = models.ForeignKey('users.Assessee', on_delete=models.CASCADE)
+    assessor = models.ForeignKey('users.Assessor', on_delete=models.RESTRICT)
+    attempt = models.OneToOneField('assessment.TestFlowAttempt', on_delete=models.CASCADE, null=True)
+
+    def get_all_assignment_attempts(self):
+        return self.attempt.toolattempt_set.instance_of(AssignmentAttempt)
+
+    def get_assignment_attempt(self, assignment: Assignment) -> Optional[AssignmentAttempt]:
+        assignment_attempts = self.get_all_assignment_attempts()
+        matching_assignment_attempts = assignment_attempts.filter(assessment_tool_attempted=assignment)
+
+        if matching_assignment_attempts:
+            return matching_assignment_attempts[0]
+
+        else:
+            return None
+
+    def create_assignment_attempt(self, assignment: Assignment) -> AssignmentAttempt:
+        assignment_attempt = AssignmentAttempt.objects.create(
+            test_flow_attempt=self.attempt,
+            assessment_tool_attempted=assignment
+        )
+        return assignment_attempt
+
+
+class AssessmentEventParticipationSerializer(serializers.ModelSerializer):
+    assessment_event_id = serializers.ReadOnlyField(source='assessment_event.assessment_event_id')
+    assessee_id = serializers.ReadOnlyField(source='assessee.assessee_id')
+    assessor_id = serializers.ReadOnlyField(source='assessor.assessor_id')
+
+    class Meta:
+        model = AssessmentEventParticipation
+        fields = ['assessment_event_id', 'assessee_id', 'assessor_id']
+
+
+class TestFlowAttemptSerializer(serializers.ModelSerializer):
+    event_participation = AssessmentEventParticipationSerializer(source='assessmenteventparticipation', read_only=True)
+    test_flow_attempted_id = serializers.ReadOnlyField(source='test_flow_attempted.test_flow_attempted_id')
+
+    class Meta:
+        model = TestFlowAttempt
+        fields = ['attempt_id', 'note', 'grade', 'event_participation', 'test_flow_attempted_id']
+
+
+class TestFlowAttemptSerializer(serializers.ModelSerializer):
+    event_participation = AssessmentEventParticipationSerializer(source='assessmenteventparticipation', read_only=True)
+    test_flow_attempted_id = serializers.ReadOnlyField(source='test_flow_attempted.test_flow_attempted_id')
+
+    class Meta:
+        model = TestFlowAttempt
+        fields = ['attempt_id', 'note', 'grade', 'event_participation', 'test_flow_attempted_id']
