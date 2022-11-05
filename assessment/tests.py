@@ -43,7 +43,8 @@ from .models import (
     MultipleChoiceQuestion,
     InteractiveQuizSerializer,
     InteractiveQuiz, MultipleChoiceQuestionSerializer, TextQuestionSerializer,
-    VideoConferenceRoom
+    VideoConferenceRoom,
+    AssignmentAttempt
 )
 from .services import assessment, utils, test_flow, assessment_event, assessment_event_attempt, TaskGenerator
 import datetime
@@ -2457,3 +2458,17 @@ class AssignmentSubmissionTest(TestCase):
 
         self.assertEquals(retrieved_assessment_event.assessment_event, self.assessment_event)
         self.assertEquals(retrieved_assessment_event.assessee, self.assessee)
+
+    def test_get_assignment_attempt_when_no_attempt_exist(self):
+        assignment_attempt = self.event_participation.get_assignment_attempt(self.assignment)
+        self.assertEquals(assignment_attempt, None)
+
+    def test_get_assignment_attempt_when_attempt_exists(self):
+        expected_attempt = AssignmentAttempt.objects.create(
+            test_flow_attempt=self.event_participation.attempt,
+            assessment_tool_attempted=self.assignment
+        )
+        assignment_attempt = self.event_participation.get_assignment_attempt(self.assignment)
+        self.assertIsNotNone(assignment_attempt)
+        self.assertEquals(assignment_attempt, expected_attempt)
+        del assignment_attempt
