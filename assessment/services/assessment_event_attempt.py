@@ -1,10 +1,11 @@
 from django.contrib.auth.models import User
 from one_day_intern.exceptions import RestrictedAccessException, InvalidRequestException
+from one_day_intern.settings import GOOGLE_BUCKET_BASE_DIRECTORY, GOOGLE_STORAGE_BUCKET_NAME
 from users.models import Assessee, Assessor
 from ..exceptions.exceptions import EventDoesNotExist
-from ..models import AssessmentEvent, Assignment
+from ..models import AssessmentEvent, AssignmentAttempt, Assignment, AssessmentEventParticipation
 from .TaskGenerator import TaskGenerator
-from . import utils
+from . import utils, google_storage
 
 ASSESEE_NOT_PART_OF_EVENT = 'Assessee with email {} is not part of assessment with id {}'
 
@@ -53,8 +54,18 @@ def verify_assessee_participation(request_data, user: User):
 
 
 def get_or_create_assignment_attempt(event: AssessmentEvent, assignment: Assignment, assessee: Assessee):
-    return None
+    assessee_participation: AssessmentEventParticipation = event.get_assessment_event_participation_by_assessee(assessee)
+    found_attempt = assessee_participation.get_assignment_attempt(assignment)
+
+    if found_attempt:
+        return found_attempt
+    else:
+        return assessee_participation.create_assignment_attempt(assignment)
 
 
 def save_assignment_attempt(event: AssessmentEvent, assignment: Assignment, assessee: Assessee, file_to_be_uploaded):
-    pass
+    assignment_attempt: AssignmentAttempt = get_or_create_assignment_attempt(event, assignment, assessee)
+    cloud_storage_file_name = f'{GOOGLE_BUCKET_BASE_DIRECTORY}/{event.event_id}/{assignment_attempt.tool_attempt_id}.{assignment.expected_file_format}'
+    google_storage.upload_file_to_google_bucket(cloud_storage_file_name, GOOGLE_STORAGE_BUCKET_NAME, file_to_be_uploaded)
+    assignment_attempt.update_attempt_cloud_directory(cloud_storage_file_name)
+    assignment_attempt.update_file_name(file_to_be_uploaded.name)
