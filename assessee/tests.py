@@ -1,3 +1,4 @@
+import pytz
 from django.test import TestCase
 from freezegun import freeze_time
 from rest_framework.reverse import reverse
@@ -8,7 +9,6 @@ from assessment.models import AssessmentEvent, Assignment, TestFlow, AssessmentE
 from .services import assessee_assessment_events
 import datetime
 import json
-import pytz
 
 GET_ASSESSEE_EVENTS_URL = reverse('get-assessee-assessment-events')
 
@@ -84,7 +84,7 @@ class GetAssessmentEventTest(TestCase):
 
         self.assessment_event = AssessmentEvent.objects.create(
             name='Assessment Event 80',
-            start_date_time=datetime.datetime(2022, 12, 12, hour=8, minute=0, tzinfo=pytz.utc),
+            start_date_time=datetime.datetime(2022, 12, 12, hour=8, minute=0, tzinfo=datetime.timezone.utc),
             owning_company=self.company,
             test_flow_used=self.test_flow
         )

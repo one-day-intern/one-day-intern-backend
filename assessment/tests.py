@@ -56,7 +56,6 @@ from .services import (
 import datetime
 import json
 import schedule
-import pytz
 import uuid
 
 ASSESSMENT_EVENT_ID_PARAM_NAME = '?assessment-event-id='
@@ -152,7 +151,7 @@ class AssessmentTest(TestCase):
             first_name='Assessee',
             last_name='Ajax',
             phone_number='+621234567192',
-            date_of_birth=datetime.datetime.now(),
+            date_of_birth=datetime.datetime.now(datetime.timezone.utc),
             authentication_service=AuthenticationService.GOOGLE.value
         )
         expected_message = f'User {user.email} is not an assessor'
@@ -1093,11 +1092,11 @@ class AssessmentEventTest(TestCase):
             start_working_time=datetime.time(11, 00)
         )
 
-        self.start_date = datetime.datetime(year=2022, month=12, day=2)
+        self.start_date = datetime.datetime(2022, 12, 2, tzinfo=datetime.timezone.utc)
 
         self.base_request_data = {
             'name': 'Assessment Manajer Tingkat 1 TE 2022',
-            'start_date': '2022-12-02',
+            'start_date': '2022-12-02T00:00:00Z',
             'test_flow_id': str(self.test_flow_1.test_flow_id)
         }
 
@@ -1399,7 +1398,7 @@ class AssessmentEventTest(TestCase):
 
     def test_create_assessment_event_when_request_is_valid(self):
         request_data = self.base_request_data.copy()
-        expected_start_date_in_response = request_data['start_date'] + 'T00:00:00Z'
+        expected_start_date_in_response = request_data['start_date']
         response = fetch_and_get_response(
             path=CREATE_ASSESSMENT_EVENT_URL,
             request_data=request_data,
@@ -1471,7 +1470,7 @@ class AssessmentEventParticipationTest(TestCase):
 
         self.assessment_event = AssessmentEvent.objects.create(
             name='Assessment Event',
-            start_date_time=datetime.datetime.now(),
+            start_date_time=datetime.datetime.now(datetime.timezone.utc),
             owning_company=self.company_1,
             test_flow_used=self.test_flow_1
         )
@@ -1851,7 +1850,7 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
 
         self.assessment_event = AssessmentEvent.objects.create(
             name='Assessment Event 2022',
-            start_date_time=datetime.datetime(2022, 3, 30),
+            start_date_time=datetime.datetime(2022, 3, 30, hour=0, minute=0, second=0, tzinfo=datetime.timezone.utc),
             owning_company=self.company,
             test_flow_used=self.test_flow
         )
@@ -2169,7 +2168,7 @@ class VerifyParticipantTest(TestCase):
 
         self.assessment_event = AssessmentEvent.objects.create(
             name='Assessment Event 2131',
-            start_date_time=datetime.datetime(2022, 12, 12, hour=8, minute=0, tzinfo=pytz.utc),
+            start_date_time=datetime.datetime(2022, 12, 12, hour=8, minute=0, tzinfo=datetime.timezone.utc),
             owning_company=self.company,
             test_flow_used=self.test_flow
         )
@@ -2184,7 +2183,7 @@ class VerifyParticipantTest(TestCase):
 
         self.assessment_event_2 = AssessmentEvent.objects.create(
             name='Assessment Event 1845',
-            start_date_time=datetime.datetime(2022, 12, 12, hour=8, minute=0, tzinfo=pytz.utc),
+            start_date_time=datetime.datetime(2022, 12, 12, hour=8, minute=0, tzinfo=datetime.timezone.utc),
             owning_company=self.company,
             test_flow_used=self.test_flow
         )
@@ -2424,7 +2423,7 @@ class AssignmentSubmissionTest(TestCase):
 
         self.assessment_event: AssessmentEvent = AssessmentEvent.objects.create(
             name='Assessment Event 2017',
-            start_date_time=datetime.datetime(2022, 11, 25, tzinfo=pytz.utc),
+            start_date_time=datetime.datetime(2022, 11, 25, tzinfo=datetime.timezone.utc),
             owning_company=self.company,
             test_flow_used=self.test_flow_used
         )
@@ -2443,7 +2442,7 @@ class AssignmentSubmissionTest(TestCase):
 
         self.assessment_event_2 = AssessmentEvent.objects.create(
             name='Assessment Event 2046',
-            start_date_time=datetime.datetime(2022, 11, 27, tzinfo=pytz.utc),
+            start_date_time=datetime.datetime(2022, 11, 27, tzinfo=datetime.timezone.utc),
             owning_company=self.company,
             test_flow_used=self.test_flow_used
         )
@@ -2529,7 +2528,7 @@ class AssignmentSubmissionTest(TestCase):
 
         found_assignment_attempt = AssignmentAttempt.objects.get(tool_attempt_id=assignment_attempt.tool_attempt_id)
         self.assertEqual(found_assignment_attempt.get_attempt_cloud_directory(), new_directory)
-        self.assertEqual(found_assignment_attempt.get_submitted_time(), datetime.datetime.now(tz=pytz.utc))
+        self.assertEqual(found_assignment_attempt.get_submitted_time(), datetime.datetime.now(datetime.timezone.utc))
 
     def test_update_file_name(self):
         assignment_attempt = AssignmentAttempt.objects.create(
@@ -2730,4 +2729,4 @@ class AssignmentSubmissionTest(TestCase):
 
         created_attempt = self.event_participation.get_assignment_attempt(self.assignment)
         self.assertEqual(created_attempt.filename, self.file.name)
-        self.assertEqual(created_attempt.submitted_time, datetime.datetime.now(tz=pytz.utc))
+        self.assertEqual(created_attempt.submitted_time, datetime.datetime.now(datetime.timezone.utc))
