@@ -3,6 +3,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, Client
 from django.urls import reverse
 from freezegun import freeze_time
+from google.cloud import storage
 from http import HTTPStatus
 from assessment.services.assessment_tool import get_assessment_tool_by_company, get_test_flow_by_company
 from one_day_intern.exceptions import (
@@ -46,7 +47,11 @@ from .models import (
     VideoConferenceRoom,
     AssignmentAttempt
 )
-from .services import assessment, utils, test_flow, assessment_event, assessment_event_attempt, TaskGenerator
+from .services import (
+    assessment, utils, test_flow,
+    assessment_event, assessment_event_attempt, TaskGenerator,
+    google_storage
+)
 import datetime
 import json
 import schedule
@@ -2479,3 +2484,27 @@ class AssignmentSubmissionTest(TestCase):
         self.assertEqual(assignment_attempt.test_flow_attempt, self.event_participation.attempt)
         self.assertEqual(assignment_attempt.assessment_tool_attempted, self.assignment)
         del assignment_attempt
+
+    @patch.object(storage.Client, '__init__')
+    @patch.object(storage.Blob, 'upload_from_file')
+    @patch.object(storage.Bucket, 'blob')
+    @patch.object(storage.Client, 'get_bucket')
+    def test_upload_file_to_google_bucket(self, mocked_get_bucket, mocked_blob, mocked_upload, mocked_client):
+        destination_file_name = '/submissions/tests/test-file.pdf'
+        bucket_name = 'one-day-intern-bucket'
+
+        mocked_client.return_value = None
+        mocked_get_bucket.return_value = storage.Bucket(client=None)
+        mocked_blob.return_value = storage.Blob(name=destination_file_name, bucket=None)
+
+        file = SimpleUploadedFile('test-file.pdf', b'<sample-file>', content_type='application/pdf')
+        google_storage.upload_file_to_google_bucket(
+            destination_file_name=destination_file_name,
+            bucket_name=bucket_name,
+            file=file
+        )
+
+        mocked_client.assert_called_once()
+        mocked_get_bucket.assert_called_with(bucket_name)
+        mocked_blob.assert_called_with(destination_file_name)
+        mocked_upload.assert_called_with(file_obj=file, rewind=True)
