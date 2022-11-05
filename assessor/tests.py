@@ -193,7 +193,7 @@ class ActiveAssessmentEventParticipationTest(TestCase):
         response = fetch_all_assessment_events(
             authenticated_user=self.assessee_1
         )
-        self.assertEqual(response.status_code, HTTPStatus.UNAUTHORIZED)
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
         response_content = json.loads(response.content)
         self.assertEqual(
             response_content.get('message'),
@@ -212,6 +212,16 @@ class ActiveAssessmentEventParticipationTest(TestCase):
         expected_assessment_event_data['owning_company_id'] = str(self.company.company_id)
         expected_assessment_event_data['test_flow_id'] = str(self.test_flow.test_flow_id)
         self.assertEqual(response_content, [expected_assessment_event_data])
+
+        response = fetch_all_assessment_events(
+            authenticated_user=self.company
+        )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertTrue(isinstance(response_content, list))
+        expected_assessment_event_data = AssessmentEventSerializer(self.assessment_event).data
+        expected_assessment_event_data['owning_company_id'] = str(self.company.company_id)
+        expected_assessment_event_data['test_flow_id'] = str(self.test_flow.test_flow_id)
 
 
 class ViewsTestCase(TestCase):
