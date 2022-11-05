@@ -9,7 +9,7 @@ import uuid
 
 USERS_COMPANY = 'users.Company'
 OWNING_COMPANY_COMPANY_ID = 'owning_company.company_id'
-
+OWNING_COMPANY_COMPANY_NAME = 'owning_company.company_name'
 
 class AssessmentTool(PolymorphicModel):
     assessment_id = models.UUIDField(primary_key=True, auto_created=True, default=uuid.uuid4)
@@ -52,7 +52,7 @@ class Assignment(AssessmentTool):
 
 
 class AssignmentSerializer(serializers.ModelSerializer):
-    owning_company_name = serializers.ReadOnlyField(source='owning_company.company_name')
+    owning_company_name = serializers.ReadOnlyField(source=OWNING_COMPANY_COMPANY_NAME)
 
     class Meta:
         model = Assignment
@@ -159,7 +159,7 @@ class QuestionSerializer(serializers.ModelSerializer):
 
 
 class InteractiveQuizSerializer(serializers.ModelSerializer):
-    owning_company_name = serializers.ReadOnlyField(source='owning_company.company_name')
+    owning_company_name = serializers.ReadOnlyField(source=OWNING_COMPANY_COMPANY_NAME)
 
     class Meta:
         model = InteractiveQuiz
@@ -368,6 +368,26 @@ class TestFlowAttempt(models.Model):
     event_participation = models.ForeignKey('assessment.AssessmentEventParticipation', on_delete=models.CASCADE)
     test_flow_attempted = models.ForeignKey('assessment.TestFlow', on_delete=models.RESTRICT)
 
+class ResponseTest(AssessmentTool):
+    sender = models.ForeignKey('users.Assessor', on_delete=models.CASCADE)
+    subject = models.TextField(null=False)
+    prompt = models.TextField(null=False)
+
+class ResponseTestSerializer(serializers.ModelSerializer):
+    owning_company_name = serializers.ReadOnlyField(source=OWNING_COMPANY_COMPANY_NAME)
+    sender = serializers.ReadOnlyField(source='sender.email')
+    class Meta:
+        model = ResponseTest
+        fields = [
+            'assessment_id',
+            'name',
+            'description',
+            'subject',
+            'prompt',
+            'sender',
+            'owning_company_id',
+            'owning_company_name',
+        ]
 
 class TestFlowAttemptSerializer(serializers.ModelSerializer):
     event_participation = AssessmentEventParticipationSerializer(source='assessmenteventparticipation', read_only=True)

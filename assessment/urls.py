@@ -4,6 +4,8 @@ from .views import (
     serve_create_assignment,
     serve_create_test_flow,
     serve_create_assessment_event,
+    serve_add_assessment_event_participant,
+    serve_create_response_test,
     serve_get_all_active_assignment,
     serve_create_interactive_quiz,
     serve_add_assessment_event_participant,
@@ -15,6 +17,7 @@ from .views import (
 urlpatterns = [
     path('tools/', serve_get_assessment_tool),
     path('create/assignment/', serve_create_assignment),
+    path('create/response-test/', serve_create_response_test, name='create-response-test'),
     path('create/interactive-quiz/', serve_create_interactive_quiz),
     path('test-flow/create/', serve_create_test_flow, name='test-flow-create'),
     path('test-flow/all/', serve_get_test_flow, name='test-flow-get'),

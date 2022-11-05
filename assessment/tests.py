@@ -8,7 +8,8 @@ from one_day_intern.exceptions import (
     RestrictedAccessException,
     InvalidAssignmentRegistration,
     InvalidInteractiveQuizRegistration,
-    InvalidRequestException
+    InvalidRequestException,
+    InvalidResponseTestRegistration
 )
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -29,6 +30,8 @@ from .models import (
     AssessmentTool,
     Assignment,
     AssignmentSerializer,
+    ResponseTest,
+    ResponseTestSerializer,
     TestFlow,
     TestFlowTool,
     AssessmentEvent,
@@ -69,8 +72,9 @@ EVENT_SUBSCRIPTION_URL = reverse('event-subscription')
 GET_RELEASED_ASSIGNMENTS = reverse('event-active-assignments') + ASSESSMENT_EVENT_ID_PARAM_NAME
 VERIFY_ASSESSEE_PARTICIPATION_URL = reverse('verify-participation') + ASSESSMENT_EVENT_ID_PARAM_NAME
 OK_RESPONSE_STATUS_CODE = 200
-GET_TOOLS_URL = '/assessment/tools/'
-
+CREATE_RESPONSE_TEST_URL = '/assessment/create/response-test/'
+GET_TOOLS_URL="/assessment/tools/"
+REQUEST_CONTENT_TYPE = 'application/json'
 
 class AssessmentTest(TestCase):
     def setUp(self) -> None:
@@ -249,20 +253,20 @@ class AssessmentTest(TestCase):
 class InteractiveQuizTest(TestCase):
     def setUp(self) -> None:
         self.company = Company.objects.create_user(
-            email='company@company.com',
-            password='password',
-            company_name='Company',
-            description='Company Description',
-            address='JL. Company Levinson Durbin Householder'
+            email='company213@company.com',
+            password='password213',
+            company_name='Company213',
+            description='Company213 Description',
+            address='JL. Company213 Levinson Durbin Householder'
         )
 
         self.assessor = Assessor.objects.create_user(
-            email='assessor@assessor.com',
-            password='password',
-            first_name='Levinson',
-            last_name='Durbin',
-            phone_number='+6282312345678',
-            employee_id='A&EX4NDER',
+            email='assessor213@assessor.com',
+            password='password213',
+            first_name='Levinson213',
+            last_name='Durbin213',
+            phone_number='+6282312345213',
+            employee_id='A&EX4ND3R',
             associated_company=self.company,
             authentication_service=AuthenticationService.DEFAULT.value
         )
@@ -462,7 +466,7 @@ class InteractiveQuizTest(TestCase):
         client = APIClient()
         client.force_authenticate(user=self.assessor)
 
-        response = client.post(CREATE_INTERACTIVE_QUIZ_URL, data=interactive_quiz_data, content_type='application/json')
+        response = client.post(CREATE_INTERACTIVE_QUIZ_URL, data=interactive_quiz_data, content_type=REQUEST_CONTENT_TYPE)
         self.assertEqual(response.status_code, OK_RESPONSE_STATUS_CODE)
         response_content = json.loads(response.content)
         self.assertTrue(len(response_content) > 0)
@@ -483,8 +487,7 @@ def fetch_and_get_response(path, request_data, authenticated_user):
     client = APIClient()
     client.force_authenticate(user=authenticated_user)
     request_data_json = json.dumps(request_data)
-    response = client.post(path, data=request_data_json,
-                           content_type='application/json')
+    response = client.post(path, data=request_data_json, content_type=REQUEST_CONTENT_TYPE)
     return response
 
 
@@ -2249,4 +2252,109 @@ class VerifyParticipantTest(TestCase):
         self.assertEqual(response.status_code, HTTPStatus.OK)
         response_content = json.loads(response.content)
         self.assertEqual(response_content.get('message'), 'Assessee is a participant of the event')
+        
+
+class ResponseTestTest(TestCase):
+    def setUp(self) -> None:
+        self.company = Company.objects.create_user(
+            email='company123@company.com',
+            password='password123',
+            company_name='Company123',
+            description='Company123 Description',
+            address='JL. Company Levinson Durbin 123'
+        )
+
+        self.assessor = Assessor.objects.create_user(
+            email='vandermonde@assessor.com',
+            password='password',
+            first_name='VanDer',
+            last_name='Monde',
+            phone_number='+6282312345673',
+            employee_id='A&EX4NDER3',
+            associated_company=self.company,
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+        self.request_data = {
+            'name': 'Communication Task 1',
+            'description': 'This is the first assignment',
+            'subject': 'This is a dummy email',
+            'prompt': 'Hi! This is a dummy email'
+        }
+
+        self.expected_response_test = ResponseTest(
+            name=self.request_data.get('name'),
+            description=self.request_data.get('description'),
+            prompt=self.request_data.get('prompt'),
+            subject=self.request_data.get('subject'),
+            sender=self.assessor,
+            owning_company=self.assessor.associated_company
+        )
+
+        self.expected_response_test_data = ResponseTestSerializer(self.expected_response_test).data
+
+    def test_validate_response_test_is_valid(self):
+        valid_request_data = self.request_data.copy()
+        try:
+            self.assertEqual(type(valid_request_data), dict)
+            assessment.validate_response_test(valid_request_data)
+        except InvalidResponseTestRegistration as exception:
+            self.fail(f'{exception} is raised')
+
+    def test_validate_response_test_when_subject_is_invalid(self):
+        request_data_with_no_subject = self.request_data.copy()
+        request_data_with_no_subject['subject'] = ''
+        expected_message = 'Subject Should Not Be Empty'
+        try:
+            assessment.validate_response_test(request_data_with_no_subject)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidResponseTestRegistration as exception:
+            self.assertEqual(str(exception), expected_message)
+
+    def test_validate_response_test_when_prompt_is_invalid(self):
+        request_data_with_no_subject = self.request_data.copy()
+        request_data_with_no_subject['prompt'] = ''
+        expected_message = 'Prompt Should Not Be Empty'
+        try:
+            assessment.validate_response_test(request_data_with_no_subject)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidResponseTestRegistration as exception:
+            self.assertEqual(str(exception), expected_message)
+
+    @patch.object(ResponseTest.objects, 'create')
+    def test_save_response_test_to_database(self, mocked_create):
+        mocked_create.return_value = self.expected_response_test
+        returned_assignment = assessment.save_response_test_to_database(self.request_data, self.assessor)
+        returned_assignment_data = ResponseTestSerializer(returned_assignment).data
+        mocked_create.assert_called_once()
+        self.assertDictEqual(returned_assignment_data, self.expected_response_test_data)
+
+    @patch.object(assessment, 'save_response_test_to_database')
+    @patch.object(assessment, 'validate_response_test')
+    @patch.object(assessment, 'validate_assessment_tool')
+    @patch.object(assessment, 'get_assessor_or_raise_exception')
+    def test_create_assignment(self, mocked_get_assessor, mocked_validate_assessment_tool,
+                               mocked_validate_response_test, mocked_save_response_test):
+        mocked_get_assessor.return_value = self.assessor
+        mocked_validate_assessment_tool.return_value = None
+        mocked_validate_response_test.return_value = None
+        mocked_save_response_test.return_value = self.expected_response_test
+        returned_assignment = assessment.create_response_test(self.request_data, self.assessor)
+        returned_assignment_data = ResponseTestSerializer(returned_assignment).data
+        self.assertDictEqual(returned_assignment_data, self.expected_response_test_data)
+
+    def test_create_response_test_when_complete_status_200(self):
+        assignment_data = json.dumps(self.request_data.copy())
+        client = APIClient()
+        client.force_authenticate(user=self.assessor)
+        response = client.post(CREATE_RESPONSE_TEST_URL, data=assignment_data, content_type=REQUEST_CONTENT_TYPE)
+        response_content = json.loads(response.content)
+        self.assertEqual(response.status_code, OK_RESPONSE_STATUS_CODE)
+        self.assertTrue(len(response_content) > 0)
+        self.assertIsNotNone(response_content.get('assessment_id'))
+        self.assertEqual(response_content.get('name'), self.expected_response_test_data.get('name'))
+        self.assertEqual(response_content.get('description'), self.expected_response_test_data.get('description'))
+        self.assertEqual(response_content.get('subject'), self.expected_response_test_data.get('subject'))
+        self.assertEqual(response_content.get('prompt'), self.expected_response_test_data.get('prompt'))
+        self.assertEqual(response_content.get('owning_company_id'), self.company.id)
+        self.assertEqual(response_content.get('owning_company_name'), self.company.company_name)
 
