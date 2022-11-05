@@ -71,6 +71,7 @@ ASSESSMENT_EVENT_OWNERSHIP_INVALID = 'Event with id {} does not belong to compan
 NOT_PART_OF_EVENT = 'Assessee with email {} is not part of assessment with id {}'
 ASSESSOR_NOT_PART_OF_EVENT = 'Assessor with email {} is not part of assessment with id {}'
 EVENT_DOES_NOT_EXIST = 'Assessment Event with ID {} does not exist'
+EVENT_IS_NOT_ACTIVE = 'Assessment Event with ID {} is not active'
 TOOL_OF_EVENT_NOT_FOUND = 'Tool with id {} associated with event with id {} is not found'
 TOOL_IS_NOT_ASSIGNMENT = 'Assessment tool with id {} is not an assignment'
 FILENAME_DOES_NOT_MATCH_FORMAT = 'File type does not match expected format (expected {})'
@@ -81,6 +82,7 @@ CREATE_TEST_FLOW_URL = reverse('test-flow-create')
 CREATE_ASSESSMENT_EVENT_URL = reverse('assessment-event-create')
 ADD_PARTICIPANT_URL = reverse('event-add-participation')
 EVENT_SUBSCRIPTION_URL = reverse('event-subscription')
+SUBMIT_ASSIGNMENT_URL = reverse('submit-assignments')
 GET_RELEASED_ASSIGNMENTS = reverse('event-active-assignments') + ASSESSMENT_EVENT_ID_PARAM_NAME
 VERIFY_ASSESSEE_PARTICIPATION_URL = reverse('verify-participation') + ASSESSMENT_EVENT_ID_PARAM_NAME
 OK_RESPONSE_STATUS_CODE = 200
@@ -2631,3 +2633,101 @@ class AssignmentSubmissionTest(TestCase):
             assessment_event_attempt.validate_submission(self.assignment, self.file.name)
         except Exception as exception:
             self.fail(f'{exception} is raised')
+
+    def submit_file_and_get_request(self, request_data, authenticated_user):
+        client = APIClient()
+        client.force_authenticate(user=authenticated_user)
+        response = client.post(SUBMIT_ASSIGNMENT_URL, request_data)
+        return response
+
+    @freeze_time("2022-11-25 12:00:00")
+    @patch.object(google_storage, 'upload_file_to_google_bucket')
+    def test_serve_submit_assignment_when_event_with_id_does_not_exist(self, mocked_upload):
+        request_data = self.request_data.copy()
+        request_data['assessment-event-id'] = str(uuid.uuid4())
+        response = self.submit_file_and_get_request(request_data, authenticated_user=self.assessee)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            EVENT_DOES_NOT_EXIST.format(request_data['assessment-event-id'])
+        )
+
+    @freeze_time("2022-11-23 12:00:00")
+    @patch.object(google_storage, 'upload_file_to_google_bucket')
+    def test_serve_submit_assignment_when_event_with_id_is_not_active(self, mocked_upload):
+        response = self.submit_file_and_get_request(self.request_data, authenticated_user=self.assessee)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), EVENT_IS_NOT_ACTIVE.format(self.assessment_event.event_id))
+
+    @freeze_time("2022-11-25 12:00:00")
+    @patch.object(google_storage, 'upload_file_to_google_bucket')
+    def test_serve_submit_assignment_when_user_is_not_assessee(self, mocked_upload):
+        response = self.submit_file_and_get_request(self.request_data, authenticated_user=self.assessor)
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), f'User with email {self.assessor.email} is not an assessee')
+
+    @freeze_time("2022-11-25 12:00:00")
+    @patch.object(google_storage, 'upload_file_to_google_bucket')
+    def test_serve_submit_assignment_when_user_is_not_part_of_event(self, mocked_upload):
+        response = self.submit_file_and_get_request(self.request_data, authenticated_user=self.assessee_2)
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            NOT_PART_OF_EVENT.format(self.assessee_2.email, self.assessment_event.event_id)
+        )
+
+    @freeze_time("2022-11-25 12:00:00")
+    @patch.object(google_storage, 'upload_file_to_google_bucket')
+    def test_serve_submit_assignment_when_tool_is_not_part_of_event(self, mocked_upload):
+        request_data = self.request_data.copy()
+        request_data['assessment-tool-id'] = str(self.assessment_tool.assessment_id)
+        response = self.submit_file_and_get_request(request_data, authenticated_user=self.assessee)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            TOOL_OF_EVENT_NOT_FOUND.format(request_data['assessment-tool-id'], request_data['assessment-event-id'])
+        )
+
+    @freeze_time("2022-11-25 12:00:00")
+    @patch.object(google_storage, 'upload_file_to_google_bucket')
+    def test_serve_submit_assignment_when_file_name_is_invalid(self, mocked_upload):
+        invalid_filename = 'invalid_filename'
+        file = SimpleUploadedFile(invalid_filename, b'file_content', content_type='application/pdf')
+        request_data = self.request_data.copy()
+        request_data['file'] = file
+        response = self.submit_file_and_get_request(request_data, authenticated_user=self.assessee)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), IMPROPER_FILE_NAME.format(invalid_filename))
+
+    @freeze_time("2022-11-25 12:00:00")
+    @patch.object(google_storage, 'upload_file_to_google_bucket')
+    def test_serve_submit_assignment_when_file_name_does_match_expected(self, mocked_upload):
+        non_matching_filename = 'report.pptx'
+        file = SimpleUploadedFile(non_matching_filename, b'file_content', content_type='application/pdf')
+        request_data = self.request_data.copy()
+        request_data['file'] = file
+        response = self.submit_file_and_get_request(request_data, authenticated_user=self.assessee)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            FILENAME_DOES_NOT_MATCH_FORMAT.format(self.assignment.expected_file_format)
+        )
+
+    @freeze_time("2022-11-25 12:00:00")
+    @patch.object(google_storage, 'upload_file_to_google_bucket')
+    def test_serve_submit_assignment_when_request_is_valid(self, mocked_upload):
+        response = self.submit_file_and_get_request(self.request_data, authenticated_user=self.assessee)
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), 'File uploaded successfully')
+
+        created_attempt = self.event_participation.get_assignment_attempt(self.assignment)
+        self.assertEqual(created_attempt.filename, self.file.name)
+        self.assertEqual(created_attempt.submitted_time, datetime.datetime.now(tz=pytz.utc))
