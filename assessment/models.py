@@ -1,3 +1,4 @@
+import pytz
 from django.db import models
 from rest_framework import serializers
 from polymorphic.models import PolymorphicModel
@@ -419,6 +420,22 @@ class ToolAttempt(PolymorphicModel):
 class AssignmentAttempt(ToolAttempt):
     file_upload_directory = models.TextField(null=True)
     filename = models.TextField(default=None, null=True)
+    submitted_time = models.DateTimeField(default=None, null=True)
+
+    def update_attempt_cloud_directory(self, file_upload_directory):
+        pass
+
+    def get_attempt_cloud_directory(self):
+        return self.file_upload_directory
+
+    def update_file_name(self, filename):
+        pass
+
+    def get_file_name(self):
+        return self.filename
+
+    def get_submitted_time(self):
+        return self.submitted_time
 
 
 class AssessmentEventParticipation(models.Model):

@@ -2508,3 +2508,31 @@ class AssignmentSubmissionTest(TestCase):
         mocked_get_bucket.assert_called_with(bucket_name)
         mocked_blob.assert_called_with(destination_file_name)
         mocked_upload.assert_called_with(file_obj=file, rewind=True)
+
+    @freeze_time("2022-11-05 12:00:00")
+    def test_update_attempt_cloud_directory(self):
+        assignment_attempt = AssignmentAttempt.objects.create(
+            test_flow_attempt=self.event_participation.attempt,
+            assessment_tool_attempted=self.assignment,
+            file_upload_directory='/directory',
+            filename='filename.jpg'
+        )
+        new_directory = '/new-directory'
+        assignment_attempt.update_attempt_cloud_directory(new_directory)
+
+        found_assignment_attempt = AssignmentAttempt.objects.get(tool_attempt_id=assignment_attempt.tool_attempt_id)
+        self.assertEqual(found_assignment_attempt.get_attempt_cloud_directory(), new_directory)
+        self.assertEqual(found_assignment_attempt.get_submitted_time(), datetime.datetime.now(tz=pytz.utc))
+
+    def test_update_file_name(self):
+        assignment_attempt = AssignmentAttempt.objects.create(
+            test_flow_attempt=self.event_participation.attempt,
+            assessment_tool_attempted=self.assignment,
+            file_upload_directory='/directory',
+            filename='filename-old.jpg'
+        )
+        new_name = 'filename-new.jpg'
+        assignment_attempt.update_file_name(new_name)
+
+        found_assignment_attempt = AssignmentAttempt.objects.get(tool_attempt_id=assignment_attempt.tool_attempt_id)
+        self.assertEqual(found_assignment_attempt.get_file_name(), new_name)
