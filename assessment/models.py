@@ -341,7 +341,16 @@ class AssessmentEvent(models.Model):
         return self.assessmenteventparticipation_set.get(assessee=assessee)
 
     def get_assessment_tool_from_assessment_id(self, assessment_id):
-        return None
+        found_assessment_tools = self.test_flow_used.tools.filter(
+            assessment_id=assessment_id
+        )
+        if found_assessment_tools:
+            return found_assessment_tools[0]
+
+        else:
+            raise AssessmentToolDoesNotExist(
+                f'Tool with id {assessment_id} associated with event with id {self.event_id} is not found'
+            )
 
 
 class AssessmentEventSerializer(serializers.ModelSerializer):
