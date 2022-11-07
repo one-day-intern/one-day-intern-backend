@@ -9,6 +9,8 @@ from typing import List, Optional
 import datetime
 import uuid
 
+
+USERS_ASSESSOR = 'users.Assessor'
 USERS_COMPANY = 'users.Company'
 OWNING_COMPANY_COMPANY_ID = 'owning_company.company_id'
 OWNING_COMPANY_COMPANY_NAME = 'owning_company.company_name'
@@ -371,7 +373,7 @@ class TestFlowAttempt(models.Model):
 
 
 class ResponseTest(AssessmentTool):
-    sender = models.ForeignKey('users.Assessor', on_delete=models.CASCADE)
+    sender = models.ForeignKey(USERS_ASSESSOR, on_delete=models.CASCADE)
     subject = models.TextField(null=False)
     prompt = models.TextField(null=False)
 
@@ -396,7 +398,7 @@ class ResponseTestSerializer(serializers.ModelSerializer):
 class VideoConferenceRoom(models.Model):
     part_of = models.ForeignKey('assessment.AssessmentEventParticipation', on_delete=models.CASCADE)
     room_id = models.TextField(null=True, default=None)
-    conference_participants = models.ManyToManyField('users.Assessor')
+    conference_participants = models.ManyToManyField(USERS_ASSESSOR)
     room_opened = models.BooleanField(default=False)
 
     def is_room_created(self) -> bool:
@@ -457,7 +459,7 @@ class AssignmentAttempt(ToolAttempt):
 class AssessmentEventParticipation(models.Model):
     assessment_event = models.ForeignKey('assessment.AssessmentEvent', on_delete=models.CASCADE)
     assessee = models.ForeignKey('users.Assessee', on_delete=models.CASCADE)
-    assessor = models.ForeignKey('users.Assessor', on_delete=models.RESTRICT)
+    assessor = models.ForeignKey(USERS_ASSESSOR, on_delete=models.RESTRICT)
     attempt = models.OneToOneField('assessment.TestFlowAttempt', on_delete=models.CASCADE, null=True)
 
     def get_all_assignment_attempts(self):

@@ -25,7 +25,6 @@ def serve_get_all_assessment_events(request):
     Assessor authentication-related information should be present through the JWT.
     URL structure /assessment-event-list/
     """
-    request_data = request.GET
     assessment_events = get_assessor_assessment_events(user=request.user)
     return Response(data=assessment_events)
 
