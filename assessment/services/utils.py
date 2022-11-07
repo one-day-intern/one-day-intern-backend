@@ -75,13 +75,13 @@ def get_active_test_flow_of_company_from_id(test_flow_id, owning_company) -> Tes
 
 def get_assessee_from_email(email):
     try:
-        return Assessee.objects.get(email=email)
+        return Assessee.objects.get(email=email.lower())
     except ObjectDoesNotExist:
         raise ObjectDoesNotExist(f'Assessee with email {email} not found')
 
 
 def get_company_assessor_from_email(email, company: Company):
-    found_assessors = company.assessor_set.filter(email=email)
+    found_assessors = company.assessor_set.filter(email=email.lower())
 
     if found_assessors:
         return found_assessors[0]

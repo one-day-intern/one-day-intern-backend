@@ -11,8 +11,6 @@ from assessment.models import AssessmentTool, Assignment, TestFlow, AssessmentEv
 from users.models import OdiUser, Assessee, AuthenticationService, Company, Assessor, AssesseeSerializer
 import json
 
-EVENT_IS_NOT_ACTIVE = 'Assessment Event with ID {} is not active'
-EVENT_DOES_NOT_EXIST = 'Assessment Event with ID {} does not exist'
 GET_ACTIVE_ASSESSEES = reverse('assessee_list') + '?assessment-event-id='
 GET_ACTIVE_EVENT_PARTICIPATIONS = reverse('assessment_event_list')
 
@@ -143,7 +141,7 @@ class ActiveAssessmentEventParticipationTest(TestCase):
         response = fetch_all_active_assessees(invalid_event_id, authenticated_user=self.assessor_1)
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
-        self.assertEqual(response_content.get('message'), EVENT_DOES_NOT_EXIST.format(invalid_event_id))
+        self.assertEqual(response_content.get('message'), f'Assessment Event with ID {invalid_event_id} does not exist')
 
     @freeze_time("2022-02-27")
     def test_get_all_active_assessees_when_event_is_not_active(self):
@@ -155,7 +153,7 @@ class ActiveAssessmentEventParticipationTest(TestCase):
         response_content = json.loads(response.content)
         self.assertEqual(
             response_content.get('message'),
-            EVENT_IS_NOT_ACTIVE.format(str(self.assessment_event.event_id))
+            f'Assessment Event with ID {str(self.assessment_event.event_id)} is not active'
         )
 
     @freeze_time("2022-03-30 11:00:00")
@@ -214,6 +212,16 @@ class ActiveAssessmentEventParticipationTest(TestCase):
         expected_assessment_event_data['owning_company_id'] = str(self.company.company_id)
         expected_assessment_event_data['test_flow_id'] = str(self.test_flow.test_flow_id)
         self.assertEqual(response_content, [expected_assessment_event_data])
+
+        response = fetch_all_assessment_events(
+            authenticated_user=self.company
+        )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertTrue(isinstance(response_content, list))
+        expected_assessment_event_data = AssessmentEventSerializer(self.assessment_event).data
+        expected_assessment_event_data['owning_company_id'] = str(self.company.company_id)
+        expected_assessment_event_data['test_flow_id'] = str(self.test_flow.test_flow_id)
 
 
 class ViewsTestCase(TestCase):
