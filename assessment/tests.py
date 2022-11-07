@@ -1543,7 +1543,7 @@ class AssessmentEventParticipationTest(TestCase):
     def test_get_assessor_from_email_when_assessor_exist_but_is_not_associated_with_company(self):
         try:
             utils.get_company_assessor_from_email(
-                self.assessor_1.email, self.company_2)
+                self.assessor_1, self.company_2)
             self.fail(EXCEPTION_NOT_RAISED)
         except ObjectDoesNotExist as exception:
             self.assertEqual(

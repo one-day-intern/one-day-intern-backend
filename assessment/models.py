@@ -1,3 +1,4 @@
+import pytz
 from django.db import models
 from rest_framework import serializers
 from polymorphic.models import PolymorphicModel
@@ -48,7 +49,7 @@ class Assignment(AssessmentTool):
         return tool_base_data
 
     def get_end_working_time(self, start_time: datetime.time):
-        temporary_datetime = datetime.datetime(2000, 1, 1, start_time.hour, start_time.minute, start_time.second, tzinfo=datetime.timezone.utc)
+        temporary_datetime = datetime.datetime(2000, 1, 1, start_time.hour, start_time.minute, start_time.second)
         temporary_datetime = temporary_datetime + datetime.timedelta(minutes=self.duration_in_minutes)
         return temporary_datetime.time()
 
@@ -218,7 +219,7 @@ class TestFlowTool(models.Model):
         }
 
     def release_time_has_passed(self):
-        return self.release_time <= datetime.datetime.now(datetime.timezone.utc).time()
+        return self.release_time <= datetime.datetime.now().time()
 
     def get_released_tool_data(self) -> dict:
         """
@@ -435,7 +436,7 @@ class AssignmentAttempt(ToolAttempt):
     submitted_time = models.DateTimeField(default=None, null=True)
 
     def update_attempt_cloud_directory(self, file_upload_directory):
-        self.submitted_time = datetime.datetime.now(datetime.timezone.utc)
+        self.submitted_time = datetime.datetime.now(tz=pytz.utc)
         self.file_upload_directory = file_upload_directory
         self.save()
 
