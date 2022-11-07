@@ -11,7 +11,8 @@ from .views import (
     serve_get_test_flow,
     serve_subscribe_to_assessment_flow,
     serve_verify_participation,
-    serve_submit_assignment
+    serve_submit_assignment,
+    serve_get_submitted_assignment
 )
 
 urlpatterns = [
@@ -27,4 +28,5 @@ urlpatterns = [
     path('assessment-event/released-assignments/', serve_get_all_active_assignment, name='event-active-assignments'),
     path('assessment-event/verify-participant/', serve_verify_participation, name='verify-participation'),
     path('assessment-event/submit-assignments/', serve_submit_assignment, name='submit-assignments'),
+    path('assessment-event/get-submitted-assignment/', serve_get_submitted_assignment, name='get-submitted-assignment'),
 ]
