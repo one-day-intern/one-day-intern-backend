@@ -4,8 +4,12 @@ from urllib.parse import urlparse
 from dotenv import load_dotenv
 import dj_database_url
 import os
+from assessment.services.google_storage import setup_google_storage_credentials
+
 
 load_dotenv()
+setup_google_storage_credentials()
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -49,8 +53,10 @@ INSTALLED_APPS = [
     'main',
     'users',
     'assessee',
+    'assessor',
     'assessment',
     'company',
+    'video_conference'
 ]
 
 REST_FRAMEWORK = {
@@ -187,6 +193,8 @@ GOOGLE_AUTH_REGISTER_ASSESSEE_REDIRECT_URI = os.getenv('GOOGLE_AUTH_REGISTER_ASS
 GOOGLE_AUTH_REGISTER_ASSESSOR_REDIRECT_URI = os.getenv('GOOGLE_AUTH_REGISTER_ASSESSOR_REDIRECT_URI')
 GOOGLE_AUTH_CLIENT_CALLBACK_URL = os.getenv('GOOGLE_AUTH_CLIENT_CALLBACK_URL')
 
+ASSESSOR_FE_REGISTRATION_URL = os.getenv('ASSESSOR_FE_REGISTRATION_URL', default='')
+
 # Settings for Automatic Email
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
@@ -196,3 +204,7 @@ EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL')
 SERVER_EMAIL = os.getenv('SERVER_EMAIL')
+
+# Google Storage
+GOOGLE_BUCKET_BASE_DIRECTORY = '/submissions'
+GOOGLE_STORAGE_BUCKET_NAME = 'one-day-intern-bucket'

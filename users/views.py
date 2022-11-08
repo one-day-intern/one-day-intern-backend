@@ -113,6 +113,23 @@ def serve_google_register_assessee(request):
     response.set_cookie('refreshToken', tokens.get('refresh'))
     return response
 
+@require_POST
+@api_view(['POST'])
+def serve_register_assessee(request):
+    """
+        request_data must contain
+        email,
+        password,
+        confirmed_password,
+        first_name,
+        last_name,
+        phone_number,
+        date_of_birth,
+    """
+    request_data = json.loads(request.body.decode('utf-8'))
+    assessee = register_assessee(request_data)
+    response_data = AssesseeSerializer(assessee).data
+    return Response(data=response_data)
 
 @require_POST
 @api_view(['POST'])

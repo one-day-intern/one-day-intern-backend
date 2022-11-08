@@ -2,7 +2,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.contrib.auth.models import User
 from datetime import time, datetime
 from users.models import Company, Assessor, Assessee
-from one_day_intern.exceptions import RestrictedAccessException, AuthorizationException
+from one_day_intern.exceptions import RestrictedAccessException
 from ..models import TestFlow, AssessmentEvent
 from ..exceptions.exceptions import AssessmentToolDoesNotExist, TestFlowDoesNotExist, EventDoesNotExist
 
@@ -75,13 +75,13 @@ def get_active_test_flow_of_company_from_id(test_flow_id, owning_company) -> Tes
 
 def get_assessee_from_email(email):
     try:
-        return Assessee.objects.get(email=email)
+        return Assessee.objects.get(email=email.lower())
     except ObjectDoesNotExist:
         raise ObjectDoesNotExist(f'Assessee with email {email} not found')
 
 
 def get_company_assessor_from_email(email, company: Company):
-    found_assessors = company.assessor_set.filter(email=email)
+    found_assessors = company.assessor_set.filter(email=email.lower())
 
     if found_assessors:
         return found_assessors[0]
@@ -104,12 +104,12 @@ def get_active_assessment_event_from_id(event_id):
     if found_events:
         found_event: AssessmentEvent = found_events[0]
     else:
-        raise EventDoesNotExist(f'Assessment with id {event_id} does not exist')
+        raise EventDoesNotExist(f'Assessment Event with ID {event_id} does not exist')
 
     if found_event.is_active():
         return found_event
     else:
-        raise EventDoesNotExist(f'Assessment with id {event_id} is not active')
+        raise EventDoesNotExist(f'Assessment Event with ID {event_id} is not active')
 
 
 def get_assessee_from_user(user: User) -> Assessee:
@@ -118,4 +118,12 @@ def get_assessee_from_user(user: User) -> Assessee:
     if found_assessees:
         return found_assessees[0]
     else:
-        raise AuthorizationException(f'User with email {user.email} is not an assessee')
+        raise RestrictedAccessException(f'User with email {user.email} is not an assessee')
+
+
+def get_prefix_from_file_name(file_name):
+    try:
+        prefix = file_name.split('.')[1]
+        return prefix
+    except IndexError:
+        raise ValueError(f'{file_name} is not a proper file name')

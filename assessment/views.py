@@ -4,14 +4,51 @@ from django.http.response import HttpResponse, StreamingHttpResponse
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from .services.assessment import create_assignment, create_interactive_quiz
-from one_day_intern.exceptions import AuthorizationException, RestrictedAccessException
+from assessment.services.assessment_tool import (
+    get_assessment_tool_by_company,
+    get_test_flow_by_company,
+    serialize_assignment_list_using_serializer,
+    serialize_test_flow_list
+)
+from .services.assessment import create_assignment, create_interactive_quiz, create_response_test
+from one_day_intern.exceptions import RestrictedAccessException
 from users.services import utils as user_utils
 from .services.test_flow import create_test_flow
 from .services.assessment_event import create_assessment_event, add_assessment_event_participation
-from .services.assessment_event_attempt import subscribe_to_assessment_flow, get_all_active_assignment
-from .models import AssignmentSerializer, TestFlowSerializer, AssessmentEventSerializer, InteractiveQuizSerializer
+from .services.assessment_event_attempt import (
+    subscribe_to_assessment_flow,
+    get_all_active_assignment,
+    verify_assessee_participation,
+    submit_assignment,
+    get_submitted_assignment
+)
+from .models import (
+    AssignmentSerializer,
+    TestFlowSerializer,
+    AssessmentEventSerializer,
+    InteractiveQuizSerializer,
+    ResponseTestSerializer
+)
 import json
+import mimetypes
+
+
+@require_GET
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def serve_get_assessment_tool(request):
+    assignments = get_assessment_tool_by_company(request.user)
+    response_data = serialize_assignment_list_using_serializer(assignments)
+    return Response(data=response_data)
+
+
+@require_GET
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def serve_get_test_flow(request):
+    test_flows = get_test_flow_by_company(request.user)
+    response_data = serialize_test_flow_list(test_flows)
+    return Response(data=response_data)
 
 
 @require_POST
@@ -120,6 +157,19 @@ def serve_add_assessment_event_participant(request):
     return Response(data={'message': 'Participants are successfully added'})
 
 
+@require_POST
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def serve_create_response_test(request):
+    """
+    request_data must contain
+    prompt
+    subject
+    """
+    request_data = json.loads(request.body.decode('utf-8'))
+    assignment = create_response_test(request_data, request.user)
+    response_data = ResponseTestSerializer(assignment).data
+    return Response(data=response_data)
 @require_GET
 def serve_subscribe_to_assessment_flow(request):
     """
@@ -134,12 +184,9 @@ def serve_subscribe_to_assessment_flow(request):
         user = user_utils.get_user_from_request(request)
         task_generator = subscribe_to_assessment_flow(request_data, user=user)
         return StreamingHttpResponse(task_generator.generate(), status=200, content_type='text/event-stream')
-    except AuthorizationException as exception:
-        response_content = {'message': str(exception)}
-        return HttpResponse(content=json.dumps(response_content), status=403)
     except RestrictedAccessException as exception:
         response_content = {'message': str(exception)}
-        return HttpResponse(content=json.dumps(response_content), status=401)
+        return HttpResponse(content=json.dumps(response_content), status=403)
     except ObjectDoesNotExist as exception:
         response_content = {'message': str(exception)}
         return HttpResponse(content=json.dumps(response_content), status=400)
@@ -160,3 +207,64 @@ def serve_get_all_active_assignment(request):
     request_data = request.GET
     active_assignments = get_all_active_assignment(request_data, user=request.user)
     return Response(data=active_assignments)
+
+
+@require_GET
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def serve_verify_participation(request):
+    """
+    This view will verify whether an assessee if part of an
+    assessment event.
+    ----------------------------------------------------------
+    request-param must contain:
+    assessment-event-id: string
+    """
+    request_data = request.GET
+    verify_assessee_participation(request_data, user=request.user)
+    return Response(data={'message': 'Assessee is a participant of the event'}, status=200)
+
+
+@require_POST
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def serve_submit_assignment(request):
+    """
+    This view will serve as the end-point for assessees to submit their assignment
+    attempt to an assignment tool that they currently undergo in an assessment event.
+    ----------------------------------------------------------
+    request-data must contain:
+    assessment-event-id: string
+    assessment-tool-id: string
+    file: file
+    """
+    request_data = request.POST.dict()
+    submitted_file = request.FILES.get('file')
+    submit_assignment(request_data, submitted_file, user=request.user)
+    return Response(data={'message': 'File uploaded successfully'}, status=200)
+
+
+@require_GET
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def serve_get_submitted_assignment(request):
+    """
+    This view will serve as the end-point for assessees to download their submitted assignment
+    ----------------------------------------------------------
+    request-data must contain:
+    assessment-event-id: string
+    assessment-tool-id: string
+    Format:
+    assessment/assessment-event/?assessment-event-id=<AssessmentEventId>&assignment-tool-id=<AssignmentId>
+    """
+    request_data = request.GET
+    downloaded_file = get_submitted_assignment(request_data, user=request.user)
+    if downloaded_file:
+        content_type = mimetypes.guess_type(downloaded_file.name)[0]
+        response = HttpResponse(downloaded_file, content_type=content_type)
+        response['Content-Length'] = downloaded_file.size
+        response['Content-Disposition'] = f'attachment; filename="{downloaded_file.name}"'
+        response['Access-Control-Expose-Headers'] = 'Content-Disposition'
+        return response
+    else:
+        return Response(data={'message': 'No attempt found'}, status=200)

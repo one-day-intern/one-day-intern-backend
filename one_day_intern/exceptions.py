@@ -13,7 +13,6 @@ class InvalidAssignmentRegistration(InvalidRequestException):
 class InvalidInteractiveQuizRegistration(InvalidRequestException):
     pass
 
-
 class InvalidRegistrationException(Exception):
     pass
 
@@ -30,9 +29,8 @@ class InvalidGoogleIDTokenException(Exception):
     pass
 
 
-class AuthorizationException(Exception):
+class InvalidGoogleLoginException(Exception):
     pass
 
-
-class InvalidGoogleLoginException(Exception):
+class InvalidResponseTestRegistration(Exception):
     pass
