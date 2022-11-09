@@ -1618,9 +1618,4 @@ class UserInfoViewTestCase(TestCase):
         self.assertEqual(response_content.get('first_name'), self.assessee.first_name)
         self.assertEqual(response_content.get('last_name'), self.assessee.last_name)
         self.assertEqual(response_content.get('phone_number'), self.assessee.phone_number)
-<<<<<<< HEAD
         self.assertEqual(response_content.get('date_of_birth'), self.assessee.date_of_birth)
-
-=======
-        self.assertEqual(response_content.get('date_of_birth'), self.assessee.date_of_birth)
->>>>>>> ef5acee98ee97ca6b1ea31185f26ab16a418cc31
