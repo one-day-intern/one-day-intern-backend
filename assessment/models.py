@@ -218,10 +218,10 @@ class TestFlowTool(models.Model):
             'assessment_data': self.assessment_tool.get_tool_data()
         }
 
-    def release_time_has_passed(self):
+    def release_time_has_passed_on_event_day(self, event_date):
         return self.release_time <= datetime.datetime.now().time()
 
-    def get_released_tool_data(self) -> dict:
+    def get_released_tool_data(self, event_date) -> dict:
         """
         Data format for assignment
         {
@@ -332,8 +332,8 @@ class AssessmentEvent(models.Model):
         released_assignments_data = []
         for test_flow_tool in test_flow_tools:
             tool_used = test_flow_tool.assessment_tool
-            if isinstance(tool_used, Assignment) and test_flow_tool.release_time_has_passed():
-                released_assignments_data.append(test_flow_tool.get_released_tool_data())
+            if isinstance(tool_used, Assignment) and test_flow_tool.release_time_has_passed_on_event_day(self.start_date_time.date()):
+                released_assignments_data.append(test_flow_tool.get_released_tool_data(self.start_date_time.date()))
 
         return released_assignments_data
 

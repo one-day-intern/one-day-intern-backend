@@ -170,6 +170,8 @@ def serve_create_response_test(request):
     assignment = create_response_test(request_data, request.user)
     response_data = ResponseTestSerializer(assignment).data
     return Response(data=response_data)
+
+
 @require_GET
 def serve_subscribe_to_assessment_flow(request):
     """

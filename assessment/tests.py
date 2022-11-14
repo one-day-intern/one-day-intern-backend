@@ -2378,6 +2378,13 @@ class ResponseTestTest(TestCase):
         self.assertEqual(response_content.get('owning_company_name'), self.company.company_name)
 
 
+def submit_file_and_get_request(request_data, authenticated_user):
+    client = APIClient()
+    client.force_authenticate(user=authenticated_user)
+    response = client.post(SUBMIT_ASSIGNMENT_URL, request_data)
+    return response
+
+
 class AssignmentSubmissionTest(TestCase):
     def setUp(self) -> None:
         self.assessee = Assessee.objects.create_user(
@@ -2649,18 +2656,12 @@ class AssignmentSubmissionTest(TestCase):
         except Exception as exception:
             self.fail(f'{exception} is raised')
 
-    def submit_file_and_get_request(self, request_data, authenticated_user):
-        client = APIClient()
-        client.force_authenticate(user=authenticated_user)
-        response = client.post(SUBMIT_ASSIGNMENT_URL, request_data)
-        return response
-
     @freeze_time("2022-11-25 12:00:00")
     @patch.object(google_storage, 'upload_file_to_google_bucket')
     def test_serve_submit_assignment_when_event_with_id_does_not_exist(self, mocked_upload):
         request_data = self.request_data.copy()
         request_data['assessment-event-id'] = str(uuid.uuid4())
-        response = self.submit_file_and_get_request(request_data, authenticated_user=self.assessee)
+        response = submit_file_and_get_request(request_data, authenticated_user=self.assessee)
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
         self.assertEqual(
@@ -2671,7 +2672,7 @@ class AssignmentSubmissionTest(TestCase):
     @freeze_time("2022-11-23 12:00:00")
     @patch.object(google_storage, 'upload_file_to_google_bucket')
     def test_serve_submit_assignment_when_event_with_id_is_not_active(self, mocked_upload):
-        response = self.submit_file_and_get_request(self.request_data, authenticated_user=self.assessee)
+        response = submit_file_and_get_request(self.request_data, authenticated_user=self.assessee)
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
         self.assertEqual(response_content.get('message'), EVENT_IS_NOT_ACTIVE.format(self.assessment_event.event_id))
@@ -2679,7 +2680,7 @@ class AssignmentSubmissionTest(TestCase):
     @freeze_time("2022-11-25 12:00:00")
     @patch.object(google_storage, 'upload_file_to_google_bucket')
     def test_serve_submit_assignment_when_user_is_not_assessee(self, mocked_upload):
-        response = self.submit_file_and_get_request(self.request_data, authenticated_user=self.assessor)
+        response = submit_file_and_get_request(self.request_data, authenticated_user=self.assessor)
         self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
         response_content = json.loads(response.content)
         self.assertEqual(response_content.get('message'), f'User with email {self.assessor.email} is not an assessee')
@@ -2687,7 +2688,7 @@ class AssignmentSubmissionTest(TestCase):
     @freeze_time("2022-11-25 12:00:00")
     @patch.object(google_storage, 'upload_file_to_google_bucket')
     def test_serve_submit_assignment_when_user_is_not_part_of_event(self, mocked_upload):
-        response = self.submit_file_and_get_request(self.request_data, authenticated_user=self.assessee_2)
+        response = submit_file_and_get_request(self.request_data, authenticated_user=self.assessee_2)
         self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
         response_content = json.loads(response.content)
         self.assertEqual(
@@ -2700,7 +2701,7 @@ class AssignmentSubmissionTest(TestCase):
     def test_serve_submit_assignment_when_tool_is_not_part_of_event(self, mocked_upload):
         request_data = self.request_data.copy()
         request_data['assessment-tool-id'] = str(self.assessment_tool.assessment_id)
-        response = self.submit_file_and_get_request(request_data, authenticated_user=self.assessee)
+        response = submit_file_and_get_request(request_data, authenticated_user=self.assessee)
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
         self.assertEqual(
@@ -2715,7 +2716,7 @@ class AssignmentSubmissionTest(TestCase):
         uploaded_file = SimpleUploadedFile(invalid_filename, b'file_content', content_type=APPLICATION_PDF)
         request_data = self.request_data.copy()
         request_data['file'] = uploaded_file
-        response = self.submit_file_and_get_request(request_data, authenticated_user=self.assessee)
+        response = submit_file_and_get_request(request_data, authenticated_user=self.assessee)
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
         self.assertEqual(response_content.get('message'), IMPROPER_FILE_NAME.format(invalid_filename))
@@ -2727,7 +2728,7 @@ class AssignmentSubmissionTest(TestCase):
         uploaded_file = SimpleUploadedFile(non_matching_filename, b'file_content', content_type=APPLICATION_PDF)
         request_data = self.request_data.copy()
         request_data['file'] = uploaded_file
-        response = self.submit_file_and_get_request(request_data, authenticated_user=self.assessee)
+        response = submit_file_and_get_request(request_data, authenticated_user=self.assessee)
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
         self.assertEqual(
@@ -2738,7 +2739,7 @@ class AssignmentSubmissionTest(TestCase):
     @freeze_time("2022-11-25 12:00:00")
     @patch.object(google_storage, 'upload_file_to_google_bucket')
     def test_serve_submit_assignment_when_request_is_valid(self, mocked_upload):
-        response = self.submit_file_and_get_request(self.request_data, authenticated_user=self.assessee)
+        response = submit_file_and_get_request(self.request_data, authenticated_user=self.assessee)
         self.assertEqual(response.status_code, HTTPStatus.OK)
         response_content = json.loads(response.content)
         self.assertEqual(response_content.get('message'), 'File uploaded successfully')
@@ -2934,3 +2935,226 @@ class AssignmentSubmissionTest(TestCase):
         self.assertEqual(response.status_code, HTTPStatus.OK)
         response_content = json.loads(response.content)
         self.assertEqual(response_content.get('message'), 'No attempt found')
+
+
+class ActiveAssignmentTest(TestCase):
+    def setUp(self) -> None:
+        self.company = Company.objects.create_user(
+            email='company12943@email.com',
+            password='Password1232944',
+            company_name='Company 2945',
+            description='A description 2946',
+            address='Gedung ABRR Jakarta Pusat, no 2947'
+        )
+
+        self.assessor = Assessor.objects.create_user(
+            email='assessor@email.com',
+            password='Password2952',
+            phone_number='+9123122953',
+            associated_company=self.company,
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.assessee = Assessee.objects.create_user(
+            email='assessee2959@gmail.com',
+            password='password2960',
+            first_name='Assessee2061',
+            last_name='Ajax2962',
+            phone_number='+621234562963',
+            date_of_birth=datetime.datetime.now(),
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.assessee_2 = Assessee.objects.create_user(
+            email='assessee2969@gmail.com',
+            password='password2970',
+            first_name='Assessee2971',
+            last_name='Ajax2972',
+            phone_number='+621234562973',
+            date_of_birth=datetime.datetime.now(),
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.assignment = Assignment.objects.create(
+            name='Esai Singkat: The Power of Mass Media',
+            description='Kerjakan sesuai pemahaman Anda',
+            owning_company=self.company,
+            expected_file_format='pdf',
+            duration_in_minutes=120
+        )
+
+        self.test_flow_used = TestFlow.objects.create(
+            name='Test Flow 2967',
+            owning_company=self.company
+        )
+
+        self.test_flow_used.add_tool(
+            assessment_tool=self.assignment,
+            release_time=datetime.time(11, 50),
+            start_working_time=datetime.time(11, 50)
+        )
+
+        self.test_flow_tool = self.test_flow_used.testflowtool_set.all()[0]
+
+        self.assessment_event = AssessmentEvent.objects.create(
+            name='Assessment Event 2978',
+            start_date_time=datetime.datetime(2022, 11, 25, 8, 0),
+            owning_company=self.company,
+            test_flow_used=self.test_flow_used
+        )
+
+        self.expected_tool_data = {
+            'id': str(self.assignment.assessment_id),
+            'type': 'assignment',
+            'name': self.assignment.name,
+            'description': self.assignment.description,
+            'additional_info': {
+                'duration': self.assignment.duration_in_minutes,
+                'expected_file_format': self.assignment.expected_file_format
+            },
+            'released_time': '2022-11-25T11:50:00',
+            'end_working_time': '2022-11-25T13:50:00'
+        }
+
+        self.assessment_event.add_participant(
+            assessee=self.assessee,
+            assessor=self.assessor
+        )
+
+    @freeze_time("2022-11-25 12:00:00")
+    def test_release_time_has_passed_on_event_day_when_time_has_passed_on_event_day(self):
+        self.assertTrue(self.test_flow_tool.release_time_has_passed_on_event_day(
+            self.assessment_event.start_date_time.date()))
+
+    @freeze_time("2022-11-25 10:00:00")
+    def test_release_time_has_passed_on_event_day_when_time_has_not_passed_on_event_day(self):
+        self.assertFalse(self.test_flow_tool.release_time_has_passed_on_event_day(
+            self.assessment_event.start_date_time.date()))
+
+    @freeze_time("2022-11-26 12:00:00")
+    def test_release_time_has_passed_on_event_day_when_time_has_passed_not_on_event_day(self):
+        self.assertFalse(self.test_flow_tool.release_time_has_passed_on_event_day(
+            self.assessment_event.start_date_time.date()))
+
+    @freeze_time("2022-11-26 10:00:00")
+    def test_release_time_has_passed_on_event_day_when_time_has_not_passed_not_on_event_day(self):
+        self.assertFalse(self.test_flow_tool.release_time_has_passed_on_event_day(
+            self.assessment_event.start_date_time.date()))
+
+    def test_get_released_tool_data(self):
+        tool_data = self.test_flow_tool.get_released_tool_data(self.assessment_event.start_date_time.date())
+        self.assertDictEqual(tool_data, self.expected_tool_data)
+
+    @freeze_time("2022-11-25 10:00:00")
+    def get_released_assignments_when_its_event_day_but_no_assignment_is_released(self):
+        released_assignments = self.assessment_event.get_released_assignments()
+        self.assertEqual(len(released_assignments), 0)
+
+    @freeze_time("2022-11-25 12:00:00")
+    def get_released_assignments_when_its_event_day_and_assignment_has_been_released(self):
+        released_assignments = self.assessment_event.get_released_assignments()
+        self.assertEqual(len(released_assignments), 1)
+        released_assignment = released_assignments[0]
+        self.assertDictEqual(released_assignment, self.expected_tool_data)
+
+    @freeze_time("2022-11-26 12:00:00")
+    def get_released_assignments_when_its_not_event_day_but_time_has_passed(self):
+        released_assignments = self.assessment_event.get_released_assignments()
+        self.assertEqual(len(released_assignments), 0)
+
+    @freeze_time("2022-11-26 10:00:00")
+    def get_released_assignments_when_its_not_event_day_and_time_has_not_passed(self):
+        released_assignments = self.assessment_event.get_released_assignments()
+        self.assertEqual(len(released_assignments), 0)
+
+    def test_serve_get_all_active_assignment_when_event_with_id_does_not_exist(self):
+        invalid_id = str(uuid.uuid4())
+        response = get_fetch_and_get_response(
+            base_url=GET_RELEASED_ASSIGNMENTS,
+            request_param=str(invalid_id),
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'), EVENT_DOES_NOT_EXIST.format(invalid_id)
+        )
+
+    @freeze_time("2022-11-24 08:00:00")
+    def test_serve_get_all_active_assignment_when_event_is_not_active(self):
+        response = get_fetch_and_get_response(
+            base_url=GET_RELEASED_ASSIGNMENTS,
+            request_param=str(self.assessment_event.event_id),
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'), EVENT_IS_NOT_ACTIVE.format(self.assessment_event.event_id)
+        )
+
+    @freeze_time("2022-11-25 08:00:00")
+    def test_serve_get_all_active_assignment_when_user_is_not_assessee(self):
+        response = get_fetch_and_get_response(
+            base_url=GET_RELEASED_ASSIGNMENTS,
+            request_param=str(self.assessment_event.event_id),
+            authenticated_user=self.company
+        )
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'), USER_IS_NOT_ASSESSEE.format(self.company.email)
+        )
+
+    @freeze_time("2022-11-25 08:00:00")
+    def test_serve_get_all_active_assignment_when_user_is_non_participating_assessee(self):
+        response = get_fetch_and_get_response(
+            base_url=GET_RELEASED_ASSIGNMENTS,
+            request_param=str(self.assessment_event.event_id),
+            authenticated_user=self.assessee_2
+        )
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            NOT_PART_OF_EVENT.format(self.assessee_2.email, self.assessment_event.event_id)
+        )
+
+    @freeze_time("2022-11-25 08:00:00")
+    def test_serve_get_all_active_assignment_when_its_event_day_but_time_has_not_passed(self):
+        response = get_fetch_and_get_response(
+            base_url=GET_RELEASED_ASSIGNMENTS,
+            request_param=str(self.assessment_event.event_id),
+            authenticated_user=self.assessee
+        )
+        # self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        print(response_content)
+        self.assertEqual(response_content, [])
+
+    @freeze_time("2022-11-24 08:00:00")
+    def test_serve_get_all_active_assignment_when_its_not_event_day(self):
+        response = get_fetch_and_get_response(
+            base_url=GET_RELEASED_ASSIGNMENTS,
+            request_param=str(self.assessment_event.event_id),
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'), EVENT_IS_NOT_ACTIVE.format(self.assessment_event.event_id)
+        )
+
+    @freeze_time("2022-11-25 12:00:00")
+    def test_serve_get_all_active_assignment_when_its_event_day_and_time_has_passed(self):
+        response = get_fetch_and_get_response(
+            base_url=GET_RELEASED_ASSIGNMENTS,
+            request_param=str(self.assessment_event.event_id),
+            authenticated_user=self.assessee
+        )
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content, [self.expected_tool_data])
+
+
+
+
