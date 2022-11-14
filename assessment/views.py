@@ -223,7 +223,10 @@ def serve_get_assessment_event_data(request):
     request-param must contain:
     assessment-event-id: string
     """
-    return Response(data=None, status=200)
+    request_data = request.GET
+    event = get_assessment_event_data(request_data, user=request.user)
+    response_data = AssessmentEventSerializer(event).data
+    return Response(data=response_data, status=200)
 
 
 @require_POST

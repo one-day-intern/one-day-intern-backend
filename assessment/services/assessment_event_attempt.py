@@ -44,7 +44,13 @@ def get_all_active_assignment(request_data: dict, user: User):
 
 
 def get_assessment_event_data(request_data, user: User):
-    return None
+    try:
+        event = utils.get_active_assessment_event_from_id(request_data.get('assessment-event-id'))
+        assessee = utils.get_assessee_from_user(user)
+        validate_user_participation(event, assessee)
+        return event
+    except EventDoesNotExist as exception:
+        raise InvalidRequestException(str(exception))
 
 
 def get_or_create_assignment_attempt(event: AssessmentEvent, assignment: Assignment, assessee: Assessee):
