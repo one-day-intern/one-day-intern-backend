@@ -216,7 +216,30 @@ class TestFlow(models.Model):
         For assignments and Interactive Quiz, end time is computed by start time + duration,
         For response test, end time is computed by start time + 30 minutes
         """
-        return datetime.datetime.now()
+        test_flow_tools = TestFlowTool.objects.filter(test_flow=self)
+        last_end_datetime = datetime.datetime(event_date.year, event_date.month, event_date.day, 0, 0, tzinfo=pytz.utc)
+
+        for test_flow_tool in test_flow_tools:
+            tool = test_flow_tool.assessment_tool
+            tool_start_time = test_flow_tool.start_working_time
+
+            if isinstance(tool, (Assignment, InteractiveQuiz)):
+                tool_end_datetime = tool.get_end_working_time_if_executed_on_event_date(tool_start_time, event_date)
+            else:
+                tool_start_datetime = datetime.datetime(
+                    event_date.year,
+                    event_date.month,
+                    event_date.day,
+                    tool_start_time.hour,
+                    tool_start_time.minute,
+                    tzinfo=pytz.utc
+                )
+                tool_end_datetime = tool_start_datetime + datetime.timedelta(minutes=settings.QUIZ_BASE_DURATION)
+
+            if tool_end_datetime > last_end_datetime:
+                last_end_datetime = tool_end_datetime
+
+        return last_end_datetime
 
 
 class TestFlowTool(models.Model):
