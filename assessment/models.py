@@ -409,7 +409,10 @@ class AssessmentEvent(models.Model):
             )
 
     def get_event_end_date_time(self):
-        return datetime.datetime.now()
+        extra_minutes_before_end = 10
+        last_end_time = \
+            self.test_flow_used.get_test_flow_last_end_time_when_executed_on_event(self.start_date_time.date())
+        return last_end_time + datetime.timedelta(minutes=extra_minutes_before_end)
 
 
 class AssessmentEventSerializer(serializers.ModelSerializer):
