@@ -55,6 +55,10 @@ def verify_assessee_participation(request_data, user: User):
         raise RestrictedAccessException(ASSESEE_NOT_PART_OF_EVENT.format(assessee.email, assessment_event.event_id))
 
 
+def get_assessment_event_data(request_data, user: User):
+    pass
+
+
 def get_or_create_assignment_attempt(event: AssessmentEvent, assignment: Assignment, assessee: Assessee):
     assessee_participation = event.get_assessment_event_participation_by_assessee(assessee)
     found_attempt = assessee_participation.get_assignment_attempt(assignment)
