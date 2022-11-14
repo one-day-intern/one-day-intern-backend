@@ -408,6 +408,9 @@ class AssessmentEvent(models.Model):
                 f'Tool with id {assessment_id} associated with event with id {self.event_id} is not found'
             )
 
+    def get_event_end_date_time(self):
+        return datetime.datetime.now()
+
 
 class AssessmentEventSerializer(serializers.ModelSerializer):
     owning_company_id = serializers.ReadOnlyField(source=OWNING_COMPANY_COMPANY_ID)

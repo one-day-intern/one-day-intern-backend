@@ -2202,6 +2202,8 @@ class VerifyParticipantTest(TestCase):
             owning_company=self.company,
             test_flow_used=self.test_flow_1
         )
+        self.assessment_event_expected_end_time = datetime.datetime(2022, 12, 13, 0, 20, tzinfo=pytz.utc)
+
         self.expected_assessment_event = {
             'event_id': str(self.assessment_event.event_id),
             'name': self.assessment_event.name,
@@ -2327,6 +2329,10 @@ class VerifyParticipantTest(TestCase):
             self.assessment_event.start_date_time.date()
         )
         self.assertEqual(end_datetime, self.expected_test_flow_2_end_time)
+
+    def test_get_event_end_date_time(self):
+        end_datetime = self.assessment_event.get_event_end_date_time()
+        self.assertEqual(end_datetime, self.assessment_event_expected_end_time)
 
 
 class ResponseTestTest(TestCase):
