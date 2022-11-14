@@ -48,10 +48,12 @@ class Assignment(AssessmentTool):
         }
         return tool_base_data
 
-    def get_end_working_time(self, start_time: datetime.time):
-        temporary_datetime = datetime.datetime(2000, 1, 1, start_time.hour, start_time.minute, start_time.second)
-        temporary_datetime = temporary_datetime + datetime.timedelta(minutes=self.duration_in_minutes)
-        return temporary_datetime.time()
+    def get_end_working_time_if_executed_on_event_date(self, start_time: datetime.time, event_date):
+        end_working_time = datetime.datetime(
+            event_date.year, event_date.month, event_date.day, start_time.hour, start_time.minute, start_time.second
+        )
+        end_working_time = end_working_time + datetime.timedelta(minutes=self.duration_in_minutes)
+        return end_working_time.isoformat()
 
 
 class AssignmentSerializer(serializers.ModelSerializer):
@@ -218,10 +220,10 @@ class TestFlowTool(models.Model):
             'assessment_data': self.assessment_tool.get_tool_data()
         }
 
-    def release_time_has_passed_on_event_day(self, event_date):
-        return self.release_time <= datetime.datetime.now().time()
+    def release_time_has_passed_on_event_day(self, event_day: datetime.date):
+        return datetime.datetime.now().date() == event_day and self.release_time <= datetime.datetime.now().time()
 
-    def get_released_tool_data(self, event_date) -> dict:
+    def get_released_tool_data(self, execution_date: datetime.date = None) -> dict:
         """
         Data format for assignment
         {
@@ -234,18 +236,31 @@ class TestFlowTool(models.Model):
                 'expected_file_format': 'pdf'
             },
             'released_time': '12:00:00',
-            'end_working_time': '15:00:00' (release-time + duration)
+            'end_working_time': '2022-15:00:00' (release-time + duration)
         }
         """
         released_data = self.assessment_tool.get_tool_data()
         released_data['id'] = str(self.assessment_tool.assessment_id)
 
         if isinstance(self.assessment_tool, Assignment):
-            released_data['released_time'] = str(self.release_time)
-            released_data['end_working_time'] = str(
-                self.assessment_tool.get_end_working_time(start_time=self.release_time))
+            released_data['released_time'] = self.get_iso_release_time_on_event_date(execution_date)
+            released_data['end_working_time'] = \
+                self.assessment_tool.get_end_working_time_if_executed_on_event_date(
+                    start_time=self.release_time,
+                    event_date=execution_date
+                )
 
         return released_data
+
+    def get_iso_release_time_on_event_date(self, execution_date):
+        release_time = datetime.datetime(
+            year=execution_date.year,
+            month=execution_date.month,
+            day=execution_date.day,
+            hour=self.release_time.hour,
+            minute=self.release_time.minute
+        )
+        return release_time.isoformat()
 
 
 class TestFlowToolSerializer(serializers.ModelSerializer):
@@ -330,10 +345,14 @@ class AssessmentEvent(models.Model):
     def get_released_assignments(self):
         test_flow_tools = self.test_flow_used.testflowtool_set.all()
         released_assignments_data = []
+        event_date = self.start_date_time.date()
+
         for test_flow_tool in test_flow_tools:
             tool_used = test_flow_tool.assessment_tool
-            if isinstance(tool_used, Assignment) and test_flow_tool.release_time_has_passed_on_event_day(self.start_date_time.date()):
-                released_assignments_data.append(test_flow_tool.get_released_tool_data(self.start_date_time.date()))
+            if isinstance(tool_used, Assignment) and test_flow_tool.release_time_has_passed_on_event_day(event_date):
+                released_assignments_data.append(
+                    test_flow_tool.get_released_tool_data(execution_date=self.start_date_time.date())
+                )
 
         return released_assignments_data
 

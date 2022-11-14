@@ -2748,7 +2748,6 @@ class AssignmentSubmissionTest(TestCase):
         self.assertEqual(created_attempt.filename, self.file.name)
         self.assertEqual(created_attempt.submitted_time, datetime.datetime.now(tz=pytz.utc))
 
-
     @patch.object(storage.Client, '__init__')
     @patch.object(storage.Blob, 'download_as_bytes')
     @patch.object(storage.Bucket, 'get_blob')
@@ -3127,9 +3126,8 @@ class ActiveAssignmentTest(TestCase):
             request_param=str(self.assessment_event.event_id),
             authenticated_user=self.assessee
         )
-        # self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertEqual(response.status_code, HTTPStatus.OK)
         response_content = json.loads(response.content)
-        print(response_content)
         self.assertEqual(response_content, [])
 
     @freeze_time("2022-11-24 08:00:00")
