@@ -2152,7 +2152,7 @@ class VerifyParticipantTest(TestCase):
             authentication_service=AuthenticationService.DEFAULT.value
         )
 
-        self.assignment = Assignment.objects.create(
+        self.assignment_1 = Assignment.objects.create(
             name='ASG Audit Kasus BPK',
             description='Audit kasus Korupsi PT ZK',
             owning_company=self.company,
@@ -2160,36 +2160,78 @@ class VerifyParticipantTest(TestCase):
             duration_in_minutes=180
         )
 
-        self.test_flow = TestFlow.objects.create(
+        self.assignment_2 = Assignment.objects.create(
+            name='ASG Audit Kasus G20',
+            description='Pembuktian Pemberkasan Pengadaan Barang dan Jasa Terkait G20',
+            owning_company=self.company,
+            expected_file_format='pdf',
+            duration_in_minutes=100
+        )
+
+        self.response_test = ResponseTest.objects.create(
+            name='Response Test 2172',
+            description='Description of Response Test',
+            owning_company=self.company,
+            sender=self.assessor,
+            subject='Welcome Onboard!',
+            prompt='Hello, welcome to Google'
+        )
+
+        self.test_flow_1 = TestFlow.objects.create(
             name='KPK Subdit Siber Lat 1',
             owning_company=self.company
         )
-        self.test_flow.add_tool(
-            assessment_tool=self.assignment,
+
+        self.test_flow_1.add_tool(
+            assessment_tool=self.assignment_1,
             release_time=datetime.time(9, 30),
             start_working_time=datetime.time(9, 50)
         )
+
+        self.test_flow_1.add_tool(
+            assessment_tool=self.assignment_2,
+            release_time=datetime.time(22, 30),
+            start_working_time=datetime.time(22, 30)
+        )
+
+        self.expected_test_flow_1_end_time = datetime.datetime(2022, 12, 13, 0, 10, tzinfo=pytz.utc)
 
         self.assessment_event = AssessmentEvent.objects.create(
             name='Assessment Event 2131',
             start_date_time=datetime.datetime(2022, 12, 12, hour=8, minute=0, tzinfo=pytz.utc),
             owning_company=self.company,
-            test_flow_used=self.test_flow
+            test_flow_used=self.test_flow_1
         )
         self.expected_assessment_event = {
             'event_id': str(self.assessment_event.event_id),
             'name': self.assessment_event.name,
             'owning_company_id': str(self.company.company_id),
             'start_date_time': '2022-12-12T08:00:00Z',
-            'test_flow_id': str(self.test_flow.test_flow_id)
+            'test_flow_id': str(self.test_flow_1.test_flow_id)
         }
         self.assessment_event.add_participant(self.assessee, self.assessor)
+
+        self.test_flow_2 = TestFlow.objects.create(
+            name='Test Flow 2',
+            owning_company=self.company
+        )
+        self.test_flow_2.add_tool(
+            assessment_tool=self.assignment_1,
+            release_time=datetime.time(10, 15),
+            start_working_time=datetime.time(10, 15)
+        )
+        self.test_flow_2.add_tool(
+            assessment_tool=self.response_test,
+            release_time=datetime.time(13, 00),
+            start_working_time=datetime.time(13, 00)
+        )
+        self.expected_test_flow_2_end_time = datetime.datetime(2022, 12, 12, 13, 30, tzinfo=pytz.utc)
 
         self.assessment_event_2 = AssessmentEvent.objects.create(
             name='Assessment Event 1845',
             start_date_time=datetime.datetime(2022, 12, 12, hour=8, minute=0, tzinfo=pytz.utc),
             owning_company=self.company,
-            test_flow_used=self.test_flow
+            test_flow_used=self.test_flow_2
         )
 
         self.base_request_data = {
@@ -2271,6 +2313,20 @@ class VerifyParticipantTest(TestCase):
         self.assertEqual(response.status_code, HTTPStatus.OK)
         response_content = json.loads(response.content)
         self.assertEqual(response_content.get('message'), 'Assessee is a participant of the event')
+
+    def test_get_test_flow_last_end_time_when_latest_is_not_response_test(self):
+        test_flow_used = self.assessment_event.test_flow_used
+        end_datetime = test_flow_used.get_test_flow_last_end_time_when_executed_on_event(
+            self.assessment_event.start_date_time.date()
+        )
+        self.assertEqual(end_datetime, self.expected_test_flow_1_end_time)
+
+    def test_get_test_flow_last_end_time_when_latest_is_a_response_test(self):
+        test_flow_used = self.assessment_event_2.test_flow_used
+        end_datetime = test_flow_used.get_test_flow_last_end_time_when_executed_on_event(
+            self.assessment_event.start_date_time.date()
+        )
+        self.assertEqual(end_datetime, self.expected_test_flow_2_end_time)
 
 
 class ResponseTestTest(TestCase):
@@ -3012,7 +3068,7 @@ class ActiveAssignmentTest(TestCase):
                 'expected_file_format': self.assignment.expected_file_format
             },
             'released_time': '2022-11-25T11:50:00',
-            'end_working_time': '2022-11-25T13:50:00'
+            'end_working_time': '2022-11-25T13:50:00+00:00'
         }
 
         self.assessment_event.add_participant(
@@ -3152,7 +3208,4 @@ class ActiveAssignmentTest(TestCase):
         )
         response_content = json.loads(response.content)
         self.assertEqual(response_content, [self.expected_tool_data])
-
-
-
 

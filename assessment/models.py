@@ -1,12 +1,13 @@
-import pytz
 from django.db import models
+from one_day_intern import settings
 from rest_framework import serializers
 from polymorphic.models import PolymorphicModel
+from typing import List, Optional
 from users.models import Assessor, AssessorSerializer
 from .services.TaskGenerator import TaskGenerator
 from .exceptions.exceptions import AssessmentToolDoesNotExist
-from typing import List, Optional
 import datetime
+import pytz
 import uuid
 
 USERS_COMPANY = 'users.Company'
@@ -50,10 +51,16 @@ class Assignment(AssessmentTool):
 
     def get_end_working_time_if_executed_on_event_date(self, start_time: datetime.time, event_date):
         end_working_time = datetime.datetime(
-            event_date.year, event_date.month, event_date.day, start_time.hour, start_time.minute, start_time.second
+            event_date.year,
+            event_date.month,
+            event_date.day,
+            start_time.hour,
+            start_time.minute,
+            start_time.second,
+            tzinfo=pytz.utc
         )
         end_working_time = end_working_time + datetime.timedelta(minutes=self.duration_in_minutes)
-        return end_working_time.isoformat()
+        return end_working_time
 
 
 class AssignmentSerializer(serializers.ModelSerializer):
@@ -203,6 +210,14 @@ class TestFlow(models.Model):
         test_flow_tools = TestFlowTool.objects.filter(test_flow=self)
         return [test_flow_tool.get_release_time_and_assessment_data() for test_flow_tool in test_flow_tools]
 
+    def get_test_flow_last_end_time_when_executed_on_event(self, event_date):
+        """
+        This method computes the last deadline time of all tools that are part of the test flow.
+        For assignments and Interactive Quiz, end time is computed by start time + duration,
+        For response test, end time is computed by start time + 30 minutes
+        """
+        return datetime.datetime.now()
+
 
 class TestFlowTool(models.Model):
     assessment_tool = models.ForeignKey('assessment.AssessmentTool', on_delete=models.CASCADE)
@@ -211,8 +226,8 @@ class TestFlowTool(models.Model):
     start_working_time = models.TimeField(auto_now=False, auto_now_add=False, default=datetime.time(0, 0))
 
     class Meta:
-        ordering = ['release_time']
-        get_latest_by = 'release_time'
+        ordering = ['release_time', 'start_working_time']
+        get_latest_by = 'start_working_time'
 
     def get_release_time_and_assessment_data(self) -> (str, dict):
         return {
@@ -244,11 +259,10 @@ class TestFlowTool(models.Model):
 
         if isinstance(self.assessment_tool, Assignment):
             released_data['released_time'] = self.get_iso_release_time_on_event_date(execution_date)
-            released_data['end_working_time'] = \
-                self.assessment_tool.get_end_working_time_if_executed_on_event_date(
-                    start_time=self.release_time,
-                    event_date=execution_date
-                )
+            released_data['end_working_time'] = self.assessment_tool.get_end_working_time_if_executed_on_event_date(
+                start_time=self.release_time,
+                event_date=execution_date
+            ).isoformat()
 
         return released_data
 
@@ -398,6 +412,7 @@ class ResponseTest(AssessmentTool):
 class ResponseTestSerializer(serializers.ModelSerializer):
     owning_company_name = serializers.ReadOnlyField(source=OWNING_COMPANY_COMPANY_NAME)
     sender = serializers.ReadOnlyField(source='sender.email')
+
     class Meta:
         model = ResponseTest
         fields = [
