@@ -419,9 +419,13 @@ class AssessmentEventSerializer(serializers.ModelSerializer):
     owning_company_id = serializers.ReadOnlyField(source=OWNING_COMPANY_COMPANY_ID)
     test_flow_id = serializers.ReadOnlyField(source='test_flow_used.test_flow_id')
     end_date_time = serializers.SerializerMethodField(method_name='get_end_time_iso')
+    start_date_time = serializers.SerializerMethodField(method_name='get_start_time_iso')
 
     def get_end_time_iso(obj, self):
         return self.get_event_end_date_time().isoformat()
+
+    def get_start_time_iso(obj, self):
+        return self.start_date_time.isoformat()
 
     class Meta:
         model = AssessmentEvent

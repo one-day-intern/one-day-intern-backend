@@ -46,7 +46,7 @@ from .models import (
     InteractiveQuizSerializer,
     InteractiveQuiz, MultipleChoiceQuestionSerializer, TextQuestionSerializer,
     VideoConferenceRoom,
-    AssignmentAttempt
+    AssignmentAttempt, AssessmentEventSerializer
 )
 from .services import (
     assessment, utils, test_flow,
@@ -85,7 +85,7 @@ ADD_PARTICIPANT_URL = reverse('event-add-participation')
 EVENT_SUBSCRIPTION_URL = reverse('event-subscription')
 SUBMIT_ASSIGNMENT_URL = reverse('submit-assignments')
 GET_RELEASED_ASSIGNMENTS = reverse('event-active-assignments') + ASSESSMENT_EVENT_ID_PARAM_NAME
-VERIFY_ASSESSEE_PARTICIPATION_URL = reverse('verify-participation') + ASSESSMENT_EVENT_ID_PARAM_NAME
+GET_EVENT_DATA = reverse('get-event-data') + ASSESSMENT_EVENT_ID_PARAM_NAME
 GET_AND_DOWNLOAD_ATTEMPT_URL = reverse('get-submitted-assignment')
 OK_RESPONSE_STATUS_CODE = 200
 CREATE_RESPONSE_TEST_URL = '/assessment/create/response-test/'
@@ -1402,7 +1402,7 @@ class AssessmentEventTest(TestCase):
 
     def test_create_assessment_event_when_request_is_valid(self):
         request_data = self.base_request_data.copy()
-        expected_start_date_in_response = request_data['start_date'] + 'T00:00:00Z'
+        expected_start_date_in_response = request_data['start_date'] + 'T00:00:00'
         response = fetch_and_get_response(
             path=CREATE_ASSESSMENT_EVENT_URL,
             request_data=request_data,
@@ -1412,12 +1412,9 @@ class AssessmentEventTest(TestCase):
         response_content = json.loads(response.content)
         self.assertIsNotNone(response_content.get('event_id'))
         self.assertEqual(response_content.get('name'), request_data['name'])
-        self.assertEqual(response_content.get(
-            'start_date_time'), expected_start_date_in_response)
-        self.assertEqual(response_content.get(
-            'owning_company_id'), str(self.company_1.company_id))
-        self.assertEqual(response_content.get('test_flow_id'),
-                         request_data['test_flow_id'])
+        self.assertEqual(response_content.get('start_date_time'), expected_start_date_in_response)
+        self.assertEqual(response_content.get('owning_company_id'), str(self.company_1.company_id))
+        self.assertEqual(response_content.get('test_flow_id'), request_data['test_flow_id'])
 
 
 class AssessmentEventParticipationTest(TestCase):
@@ -2122,7 +2119,7 @@ def get_fetch_and_get_response(base_url, request_param, authenticated_user):
     return response
 
 
-class VerifyParticipantTest(TestCase):
+class GetEventDataTest(TestCase):
     def setUp(self) -> None:
         self.assessee = Assessee.objects.create_user(
             email='assessee_1783@email.com',
@@ -2207,10 +2204,12 @@ class VerifyParticipantTest(TestCase):
         self.expected_assessment_event = {
             'event_id': str(self.assessment_event.event_id),
             'name': self.assessment_event.name,
+            'start_date_time': self.assessment_event.start_date_time.isoformat(),
+            'end_date_time': self.assessment_event_expected_end_time.isoformat(),
             'owning_company_id': str(self.company.company_id),
-            'start_date_time': '2022-12-12T08:00:00Z',
             'test_flow_id': str(self.test_flow_1.test_flow_id)
         }
+
         self.assessment_event.add_participant(self.assessee, self.assessor)
 
         self.test_flow_2 = TestFlow.objects.create(
@@ -2240,82 +2239,6 @@ class VerifyParticipantTest(TestCase):
             'assessment-event-id': str(self.assessment_event.event_id)
         }
 
-    def test_verify_assessee_participation_when_assessee_is_participant(self):
-        request_data = self.base_request_data.copy()
-
-        try:
-            assessment_event_attempt.verify_assessee_participation(request_data, user=self.assessee)
-        except Exception as exception:
-            self.fail(f'{exception} is raised')
-
-    def test_verify_assessee_participation_when_event_does_not_exist(self):
-        request_data = self.base_request_data.copy()
-        request_data['assessment-event-id'] = str(uuid.uuid4())
-
-        try:
-            assessment_event_attempt.verify_assessee_participation(request_data, user=self.assessee)
-            self.fail(EXCEPTION_NOT_RAISED)
-        except InvalidRequestException as exception:
-            self.assertEquals(
-                str(exception), EVENT_DOES_NOT_EXIST.format(request_data.get('assessment-event-id'))
-            )
-
-    def test_verify_assessee_participation_when_assessee_is_not_participant(self):
-        request_data = self.base_request_data.copy()
-        request_data['assessment-event-id'] = str(self.assessment_event_2.event_id)
-
-        try:
-            assessment_event_attempt.verify_assessee_participation(request_data, user=self.assessee)
-            self.fail(EXCEPTION_NOT_RAISED)
-        except RestrictedAccessException as exception:
-            self.assertEquals(
-                str(exception), NOT_PART_OF_EVENT.format(self.assessee.email, request_data.get('assessment-event-id'))
-            )
-
-    def test_serve_verify_assessee_participation_when_user_is_not_an_assessee(self):
-        assessment_event_id = str(self.assessment_event.event_id)
-        response = get_fetch_and_get_response(
-            base_url=VERIFY_ASSESSEE_PARTICIPATION_URL,
-            request_param=assessment_event_id,
-            authenticated_user=self.company
-        )
-        self.assertEquals(response.status_code, HTTPStatus.FORBIDDEN)
-
-    def test_serve_verify_assessee_participation_when_user_is_an_assessee_but_event_does_not_exist(self):
-        assessment_event_id = str(uuid.uuid4())
-        response = get_fetch_and_get_response(
-            base_url=VERIFY_ASSESSEE_PARTICIPATION_URL,
-            request_param=assessment_event_id,
-            authenticated_user=self.assessee
-        )
-        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
-        response_content = json.loads(response.content)
-        self.assertEqual(response_content.get('message'), EVENT_DOES_NOT_EXIST.format(assessment_event_id))
-
-    def test_serve_verify_assessee_participation_when_user_is_an_assessee_but_not_part_of_assessment_event(self):
-        assessment_event_id = str(self.assessment_event_2.event_id)
-        response = get_fetch_and_get_response(
-            base_url=VERIFY_ASSESSEE_PARTICIPATION_URL,
-            request_param=assessment_event_id,
-            authenticated_user=self.assessee
-        )
-        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
-        response_content = json.loads(response.content)
-        self.assertEqual(
-            response_content.get('message'), NOT_PART_OF_EVENT.format(self.assessee.email, assessment_event_id)
-        )
-
-    def test_serve_verify_assessee_participation_when_user_is_an_assessee_and_is_part_of_assessment_event(self):
-        assessment_event_id = str(self.assessment_event.event_id)
-        response = get_fetch_and_get_response(
-            base_url=VERIFY_ASSESSEE_PARTICIPATION_URL,
-            request_param=assessment_event_id,
-            authenticated_user=self.assessee
-        )
-        self.assertEqual(response.status_code, HTTPStatus.OK)
-        response_content = json.loads(response.content)
-        self.assertEqual(response_content.get('message'), 'Assessee is a participant of the event')
-
     def test_get_test_flow_last_end_time_when_latest_is_not_response_test(self):
         test_flow_used = self.assessment_event.test_flow_used
         end_datetime = test_flow_used.get_test_flow_last_end_time_when_executed_on_event(
@@ -2333,6 +2256,54 @@ class VerifyParticipantTest(TestCase):
     def test_get_event_end_date_time(self):
         end_datetime = self.assessment_event.get_event_end_date_time()
         self.assertEqual(end_datetime, self.assessment_event_expected_end_time)
+
+    @freeze_time('2022-12-12 10:00:00')
+    def test_serve_verify_assessee_participation_when_user_is_not_an_assessee(self):
+        assessment_event_id = str(self.assessment_event.event_id)
+        response = get_fetch_and_get_response(
+            base_url=GET_EVENT_DATA,
+            request_param=assessment_event_id,
+            authenticated_user=self.company
+        )
+        self.assertEquals(response.status_code, HTTPStatus.FORBIDDEN)
+
+    @freeze_time('2022-12-12 10:00:00')
+    def test_serve_verify_assessee_participation_when_user_is_an_assessee_but_event_does_not_exist(self):
+        assessment_event_id = str(uuid.uuid4())
+        response = get_fetch_and_get_response(
+            base_url=GET_EVENT_DATA,
+            request_param=assessment_event_id,
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), EVENT_DOES_NOT_EXIST.format(assessment_event_id))
+
+    @freeze_time('2022-12-12 10:00:00')
+    def test_serve_verify_assessee_participation_when_user_is_an_assessee_but_not_part_of_assessment_event(self):
+        assessment_event_id = str(self.assessment_event_2.event_id)
+        response = get_fetch_and_get_response(
+            base_url=GET_EVENT_DATA,
+            request_param=assessment_event_id,
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'), NOT_PART_OF_EVENT.format(self.assessee.email, assessment_event_id)
+        )
+
+    @freeze_time('2022-12-12 10:00:00')
+    def test_serve_verify_assessee_participation_when_user_is_an_assessee_and_is_part_of_assessment_event(self):
+        assessment_event_id = str(self.assessment_event.event_id)
+        response = get_fetch_and_get_response(
+            base_url=GET_EVENT_DATA,
+            request_param=assessment_event_id,
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertDictEqual(response_content, self.expected_assessment_event)
 
 
 class ResponseTestTest(TestCase):
