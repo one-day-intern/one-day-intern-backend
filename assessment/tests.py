@@ -3186,3 +3186,103 @@ class ActiveAssignmentTest(TestCase):
         response_content = json.loads(response.content)
         self.assertEqual(response_content, [self.expected_tool_data])
 
+
+class AssessmentToolDeadlineTest(TestCase):
+    def setUp(self) -> None:
+        self.company = Company.objects.create_user(
+            email='company2942@email.com',
+            password='Password1232943',
+            company_name='Company 2945',
+            description='A description 2945',
+            address='Gedung ABRR Jakarta Pusat, no 2946'
+        )
+
+        self.assessor = Assessor.objects.create(
+            email='assessor2927@gmail.com',
+            password='Password2798',
+            first_name='First 2799',
+            last_name='Last 2800',
+            phone_number='+182312332801',
+            associated_company=self.company,
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.assignment = Assignment.objects.create(
+            name='Esai Singkat: Menilik G20 untuk Perusahaan Tuitter',
+            description='Kerjakan sesuai pemahaman Anda',
+            owning_company=self.company,
+            expected_file_format='pdf',
+            duration_in_minutes=120
+        )
+
+        self.test_flow_used = TestFlow.objects.create(
+            name='Test Flow 2958',
+            owning_company=self.company
+        )
+
+        self.test_flow_used.add_tool(
+            assessment_tool=self.assignment,
+            release_time=datetime.time(12, 00),
+            start_working_time=datetime.time(12, 00)
+        )
+
+        self.assessment_event: AssessmentEvent = AssessmentEvent.objects.create(
+            name='Assessment Event 2969',
+            start_date_time=datetime.datetime(2022, 11, 25, tzinfo=pytz.utc),
+            owning_company=self.company,
+            test_flow_used=self.test_flow_used
+        )
+
+        self.response_test = ResponseTest.objects.create(
+            name='Response Test 2823',
+            description='A response test 2824',
+            owning_company=self.company,
+            sender=self.assessor,
+            subject='ASAP Contact Me',
+            prompt='Contact me ASAP'
+        )
+
+        self.test_flow_used.add_tool(
+            self.response_test,
+            release_time=datetime.time(13, 00),
+            start_working_time=datetime.time(13, 00)
+        )
+
+    @freeze_time('2022-11-25 14:00:00')
+    def test_check_if_it_is_submittable_when_tool_is_released_and_deadline_has_not_passed(self):
+        self.assertTrue(
+            self.test_flow_used.check_if_is_submittable(
+                self.assignment, self.assessment_event.start_date_time.date()
+            )
+        )
+
+    @freeze_time('2022-11-25 15:00:00')
+    def test_check_if_it_is_submittable_when_tool_is_released_and_deadline_has_passed(self):
+        self.assertFalse(
+            self.test_flow_used.check_if_is_submittable(
+                self.assignment, self.assessment_event.start_date_time.date()
+            )
+        )
+
+    @freeze_time('2022-11-25 11:00:00')
+    def test_check_if_it_is_submittable_when_tool_has_not_been_released_and_deadline_has_not_passed(self):
+        self.assertFalse(
+            self.test_flow_used.check_if_is_submittable(
+                self.assignment, self.assessment_event.start_date_time.date()
+            )
+        )
+
+    @freeze_time('2022-11-24 15:00:00')
+    def test_check_if_it_is_submittable_when_tool_has_not_been_released_and_deadline_has_passed(self):
+        self.assertFalse(
+            self.test_flow_used.check_if_is_submittable(
+                self.assignment, self.assessment_event.start_date_time.date()
+            )
+        )
+
+    def test_check_if_it_is_submittable_when_tool_is_a_response_test(self):
+        self.assertTrue(
+            self.test_flow_used.check_if_is_submittable(
+                self.response_test, self.assessment_event.start_date_time.date()
+            )
+        )

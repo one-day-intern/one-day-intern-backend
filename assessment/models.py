@@ -243,6 +243,12 @@ class TestFlow(models.Model):
 
         return last_end_datetime
 
+    def get_test_flow_tool_of_assessment_tool(self, assessment_tool):
+        return None
+
+    def check_if_is_submittable(self, assessment_tool: AssessmentTool, event_date):
+        return False
+
 
 class TestFlowTool(models.Model):
     assessment_tool = models.ForeignKey('assessment.AssessmentTool', on_delete=models.CASCADE)
