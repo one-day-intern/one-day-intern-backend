@@ -1,12 +1,13 @@
-import pytz
 from django.db import models
+from one_day_intern import settings
 from rest_framework import serializers
 from polymorphic.models import PolymorphicModel
+from typing import List, Optional
 from users.models import Assessor, AssessorSerializer
 from .services.TaskGenerator import TaskGenerator
 from .exceptions.exceptions import AssessmentToolDoesNotExist
-from typing import List, Optional
 import datetime
+import pytz
 import uuid
 
 USERS_COMPANY = 'users.Company'
@@ -48,10 +49,18 @@ class Assignment(AssessmentTool):
         }
         return tool_base_data
 
-    def get_end_working_time(self, start_time: datetime.time):
-        temporary_datetime = datetime.datetime(2000, 1, 1, start_time.hour, start_time.minute, start_time.second)
-        temporary_datetime = temporary_datetime + datetime.timedelta(minutes=self.duration_in_minutes)
-        return temporary_datetime.time()
+    def get_end_working_time_if_executed_on_event_date(self, start_time: datetime.time, event_date):
+        end_working_time = datetime.datetime(
+            event_date.year,
+            event_date.month,
+            event_date.day,
+            start_time.hour,
+            start_time.minute,
+            start_time.second,
+            tzinfo=pytz.utc
+        )
+        end_working_time = end_working_time + datetime.timedelta(minutes=self.duration_in_minutes)
+        return end_working_time
 
 
 class AssignmentSerializer(serializers.ModelSerializer):
@@ -201,6 +210,37 @@ class TestFlow(models.Model):
         test_flow_tools = TestFlowTool.objects.filter(test_flow=self)
         return [test_flow_tool.get_release_time_and_assessment_data() for test_flow_tool in test_flow_tools]
 
+    def get_test_flow_last_end_time_when_executed_on_event(self, event_date):
+        """
+        This method computes the last deadline time of all tools that are part of the test flow.
+        For assignments and Interactive Quiz, end time is computed by start time + duration,
+        For response test, end time is computed by start time + 30 minutes
+        """
+        test_flow_tools = TestFlowTool.objects.filter(test_flow=self)
+        last_end_datetime = datetime.datetime(event_date.year, event_date.month, event_date.day, 0, 0, tzinfo=pytz.utc)
+
+        for test_flow_tool in test_flow_tools:
+            tool = test_flow_tool.assessment_tool
+            tool_start_time = test_flow_tool.start_working_time
+
+            if isinstance(tool, (Assignment, InteractiveQuiz)):
+                tool_end_datetime = tool.get_end_working_time_if_executed_on_event_date(tool_start_time, event_date)
+            else:
+                tool_start_datetime = datetime.datetime(
+                    event_date.year,
+                    event_date.month,
+                    event_date.day,
+                    tool_start_time.hour,
+                    tool_start_time.minute,
+                    tzinfo=pytz.utc
+                )
+                tool_end_datetime = tool_start_datetime + datetime.timedelta(minutes=settings.QUIZ_BASE_DURATION)
+
+            if tool_end_datetime > last_end_datetime:
+                last_end_datetime = tool_end_datetime
+
+        return last_end_datetime
+
 
 class TestFlowTool(models.Model):
     assessment_tool = models.ForeignKey('assessment.AssessmentTool', on_delete=models.CASCADE)
@@ -209,8 +249,8 @@ class TestFlowTool(models.Model):
     start_working_time = models.TimeField(auto_now=False, auto_now_add=False, default=datetime.time(0, 0))
 
     class Meta:
-        ordering = ['release_time']
-        get_latest_by = 'release_time'
+        ordering = ['release_time', 'start_working_time']
+        get_latest_by = 'start_working_time'
 
     def get_release_time_and_assessment_data(self) -> (str, dict):
         return {
@@ -218,10 +258,10 @@ class TestFlowTool(models.Model):
             'assessment_data': self.assessment_tool.get_tool_data()
         }
 
-    def release_time_has_passed(self):
-        return self.release_time <= datetime.datetime.now().time()
+    def release_time_has_passed_on_event_day(self, event_day: datetime.date):
+        return datetime.datetime.now().date() == event_day and self.release_time <= datetime.datetime.now().time()
 
-    def get_released_tool_data(self) -> dict:
+    def get_released_tool_data(self, execution_date: datetime.date = None) -> dict:
         """
         Data format for assignment
         {
@@ -234,18 +274,30 @@ class TestFlowTool(models.Model):
                 'expected_file_format': 'pdf'
             },
             'released_time': '12:00:00',
-            'end_working_time': '15:00:00' (release-time + duration)
+            'end_working_time': '2022-15:00:00' (release-time + duration)
         }
         """
         released_data = self.assessment_tool.get_tool_data()
         released_data['id'] = str(self.assessment_tool.assessment_id)
 
         if isinstance(self.assessment_tool, Assignment):
-            released_data['released_time'] = str(self.release_time)
-            released_data['end_working_time'] = str(
-                self.assessment_tool.get_end_working_time(start_time=self.release_time))
+            released_data['released_time'] = self.get_iso_release_time_on_event_date(execution_date)
+            released_data['end_working_time'] = self.assessment_tool.get_end_working_time_if_executed_on_event_date(
+                start_time=self.release_time,
+                event_date=execution_date
+            ).isoformat()
 
         return released_data
+
+    def get_iso_release_time_on_event_date(self, execution_date):
+        release_time = datetime.datetime(
+            year=execution_date.year,
+            month=execution_date.month,
+            day=execution_date.day,
+            hour=self.release_time.hour,
+            minute=self.release_time.minute
+        )
+        return release_time.isoformat()
 
 
 class TestFlowToolSerializer(serializers.ModelSerializer):
@@ -330,10 +382,14 @@ class AssessmentEvent(models.Model):
     def get_released_assignments(self):
         test_flow_tools = self.test_flow_used.testflowtool_set.all()
         released_assignments_data = []
+        event_date = self.start_date_time.date()
+
         for test_flow_tool in test_flow_tools:
             tool_used = test_flow_tool.assessment_tool
-            if isinstance(tool_used, Assignment) and test_flow_tool.release_time_has_passed():
-                released_assignments_data.append(test_flow_tool.get_released_tool_data())
+            if isinstance(tool_used, Assignment) and test_flow_tool.release_time_has_passed_on_event_day(event_date):
+                released_assignments_data.append(
+                    test_flow_tool.get_released_tool_data(execution_date=self.start_date_time.date())
+                )
 
         return released_assignments_data
 
@@ -352,14 +408,28 @@ class AssessmentEvent(models.Model):
                 f'Tool with id {assessment_id} associated with event with id {self.event_id} is not found'
             )
 
+    def get_event_end_date_time(self):
+        extra_minutes_before_end = 10
+        last_end_time = \
+            self.test_flow_used.get_test_flow_last_end_time_when_executed_on_event(self.start_date_time.date())
+        return last_end_time + datetime.timedelta(minutes=extra_minutes_before_end)
+
 
 class AssessmentEventSerializer(serializers.ModelSerializer):
     owning_company_id = serializers.ReadOnlyField(source=OWNING_COMPANY_COMPANY_ID)
     test_flow_id = serializers.ReadOnlyField(source='test_flow_used.test_flow_id')
+    end_date_time = serializers.SerializerMethodField(method_name='get_end_time_iso')
+    start_date_time = serializers.SerializerMethodField(method_name='get_start_time_iso')
+
+    def get_end_time_iso(obj, self):
+        return self.get_event_end_date_time().isoformat()
+
+    def get_start_time_iso(obj, self):
+        return self.start_date_time.isoformat()
 
     class Meta:
         model = AssessmentEvent
-        fields = ['event_id', 'name', 'start_date_time', 'owning_company_id', 'test_flow_id']
+        fields = ['event_id', 'name', 'start_date_time', 'end_date_time', 'owning_company_id', 'test_flow_id']
 
 
 class TestFlowAttempt(models.Model):
@@ -379,6 +449,7 @@ class ResponseTest(AssessmentTool):
 class ResponseTestSerializer(serializers.ModelSerializer):
     owning_company_name = serializers.ReadOnlyField(source=OWNING_COMPANY_COMPANY_NAME)
     sender = serializers.ReadOnlyField(source='sender.email')
+
     class Meta:
         model = ResponseTest
         fields = [

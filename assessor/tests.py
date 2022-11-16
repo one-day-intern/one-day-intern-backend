@@ -1,15 +1,14 @@
-import uuid
-import datetime
-from http import HTTPStatus
-
+from assessment.models import AssessmentTool, Assignment, TestFlow, AssessmentEvent, AssessmentEventSerializer
 from django.test import TestCase
 from freezegun import freeze_time
+from http import HTTPStatus
+from users.models import OdiUser, Assessee, AuthenticationService, Company, Assessor, AssesseeSerializer
 from rest_framework.reverse import reverse
 from rest_framework.test import APIClient
-
-from assessment.models import AssessmentTool, Assignment, TestFlow, AssessmentEvent, AssessmentEventSerializer
-from users.models import OdiUser, Assessee, AuthenticationService, Company, Assessor, AssesseeSerializer
+import datetime
 import json
+import pytz
+import uuid
 
 GET_ACTIVE_ASSESSEES = reverse('assessee_list') + '?assessment-event-id='
 GET_ACTIVE_EVENT_PARTICIPATIONS = reverse('assessment_event_list')
@@ -116,7 +115,7 @@ class ActiveAssessmentEventParticipationTest(TestCase):
 
         self.assessment_event = AssessmentEvent.objects.create(
             name='Assessment Event 1635',
-            start_date_time=datetime.datetime(2022, 3, 30),
+            start_date_time=datetime.datetime(2022, 3, 30, tzinfo=pytz.utc),
             owning_company=self.company,
             test_flow_used=self.test_flow
         )
@@ -200,7 +199,7 @@ class ActiveAssessmentEventParticipationTest(TestCase):
             f'User with email {self.assessee_1.email} is not an assessor'
         )
 
-    @freeze_time("2022-03-30 11:00:00")
+    @freeze_time("2022-03-30 11:00:00", tz_offset=0)
     def test_get_all_assessment_events_when_request_is_valid(self):
         response = fetch_all_assessment_events(
             authenticated_user=self.assessor_1

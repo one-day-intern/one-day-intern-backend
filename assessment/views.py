@@ -18,7 +18,7 @@ from .services.assessment_event import create_assessment_event, add_assessment_e
 from .services.assessment_event_attempt import (
     subscribe_to_assessment_flow,
     get_all_active_assignment,
-    verify_assessee_participation,
+    get_assessment_event_data,
     submit_assignment,
     get_submitted_assignment
 )
@@ -170,6 +170,8 @@ def serve_create_response_test(request):
     assignment = create_response_test(request_data, request.user)
     response_data = ResponseTestSerializer(assignment).data
     return Response(data=response_data)
+
+
 @require_GET
 def serve_subscribe_to_assessment_flow(request):
     """
@@ -212,17 +214,19 @@ def serve_get_all_active_assignment(request):
 @require_GET
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def serve_verify_participation(request):
+def serve_get_assessment_event_data(request):
     """
     This view will verify whether an assessee if part of an
-    assessment event.
+    assessment event. When the participation is valid, the
+    view will return the assessment event data to the assessee.
     ----------------------------------------------------------
     request-param must contain:
     assessment-event-id: string
     """
     request_data = request.GET
-    verify_assessee_participation(request_data, user=request.user)
-    return Response(data={'message': 'Assessee is a participant of the event'}, status=200)
+    event = get_assessment_event_data(request_data, user=request.user)
+    response_data = AssessmentEventSerializer(event).data
+    return Response(data=response_data, status=200)
 
 
 @require_POST
