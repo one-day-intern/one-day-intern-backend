@@ -46,7 +46,7 @@ from .models import (
     InteractiveQuizSerializer,
     InteractiveQuiz, MultipleChoiceQuestionSerializer, TextQuestionSerializer,
     VideoConferenceRoom,
-    AssignmentAttempt
+    AssignmentAttempt, AssessmentEventSerializer
 )
 from .services import (
     assessment, utils, test_flow,
@@ -85,7 +85,7 @@ ADD_PARTICIPANT_URL = reverse('event-add-participation')
 EVENT_SUBSCRIPTION_URL = reverse('event-subscription')
 SUBMIT_ASSIGNMENT_URL = reverse('submit-assignments')
 GET_RELEASED_ASSIGNMENTS = reverse('event-active-assignments') + ASSESSMENT_EVENT_ID_PARAM_NAME
-VERIFY_ASSESSEE_PARTICIPATION_URL = reverse('verify-participation') + ASSESSMENT_EVENT_ID_PARAM_NAME
+GET_EVENT_DATA = reverse('get-event-data') + ASSESSMENT_EVENT_ID_PARAM_NAME
 GET_AND_DOWNLOAD_ATTEMPT_URL = reverse('get-submitted-assignment')
 OK_RESPONSE_STATUS_CODE = 200
 CREATE_RESPONSE_TEST_URL = '/assessment/create/response-test/'
@@ -1402,7 +1402,7 @@ class AssessmentEventTest(TestCase):
 
     def test_create_assessment_event_when_request_is_valid(self):
         request_data = self.base_request_data.copy()
-        expected_start_date_in_response = request_data['start_date'] + 'T00:00:00Z'
+        expected_start_date_in_response = request_data['start_date'] + 'T00:00:00'
         response = fetch_and_get_response(
             path=CREATE_ASSESSMENT_EVENT_URL,
             request_data=request_data,
@@ -1412,12 +1412,9 @@ class AssessmentEventTest(TestCase):
         response_content = json.loads(response.content)
         self.assertIsNotNone(response_content.get('event_id'))
         self.assertEqual(response_content.get('name'), request_data['name'])
-        self.assertEqual(response_content.get(
-            'start_date_time'), expected_start_date_in_response)
-        self.assertEqual(response_content.get(
-            'owning_company_id'), str(self.company_1.company_id))
-        self.assertEqual(response_content.get('test_flow_id'),
-                         request_data['test_flow_id'])
+        self.assertEqual(response_content.get('start_date_time'), expected_start_date_in_response)
+        self.assertEqual(response_content.get('owning_company_id'), str(self.company_1.company_id))
+        self.assertEqual(response_content.get('test_flow_id'), request_data['test_flow_id'])
 
 
 class AssessmentEventParticipationTest(TestCase):
@@ -2122,7 +2119,7 @@ def get_fetch_and_get_response(base_url, request_param, authenticated_user):
     return response
 
 
-class VerifyParticipantTest(TestCase):
+class GetEventDataTest(TestCase):
     def setUp(self) -> None:
         self.assessee = Assessee.objects.create_user(
             email='assessee_1783@email.com',
@@ -2152,7 +2149,7 @@ class VerifyParticipantTest(TestCase):
             authentication_service=AuthenticationService.DEFAULT.value
         )
 
-        self.assignment = Assignment.objects.create(
+        self.assignment_1 = Assignment.objects.create(
             name='ASG Audit Kasus BPK',
             description='Audit kasus Korupsi PT ZK',
             owning_company=self.company,
@@ -2160,87 +2157,121 @@ class VerifyParticipantTest(TestCase):
             duration_in_minutes=180
         )
 
-        self.test_flow = TestFlow.objects.create(
+        self.assignment_2 = Assignment.objects.create(
+            name='ASG Audit Kasus G20',
+            description='Pembuktian Pemberkasan Pengadaan Barang dan Jasa Terkait G20',
+            owning_company=self.company,
+            expected_file_format='pdf',
+            duration_in_minutes=100
+        )
+
+        self.response_test = ResponseTest.objects.create(
+            name='Response Test 2172',
+            description='Description of Response Test',
+            owning_company=self.company,
+            sender=self.assessor,
+            subject='Welcome Onboard!',
+            prompt='Hello, welcome to Google'
+        )
+
+        self.test_flow_1 = TestFlow.objects.create(
             name='KPK Subdit Siber Lat 1',
             owning_company=self.company
         )
-        self.test_flow.add_tool(
-            assessment_tool=self.assignment,
+
+        self.test_flow_1.add_tool(
+            assessment_tool=self.assignment_1,
             release_time=datetime.time(9, 30),
             start_working_time=datetime.time(9, 50)
         )
+
+        self.test_flow_1.add_tool(
+            assessment_tool=self.assignment_2,
+            release_time=datetime.time(22, 30),
+            start_working_time=datetime.time(22, 30)
+        )
+
+        self.expected_test_flow_1_end_time = datetime.datetime(2022, 12, 13, 0, 10, tzinfo=pytz.utc)
 
         self.assessment_event = AssessmentEvent.objects.create(
             name='Assessment Event 2131',
             start_date_time=datetime.datetime(2022, 12, 12, hour=8, minute=0, tzinfo=pytz.utc),
             owning_company=self.company,
-            test_flow_used=self.test_flow
+            test_flow_used=self.test_flow_1
         )
+        self.assessment_event_expected_end_time = datetime.datetime(2022, 12, 13, 0, 20, tzinfo=pytz.utc)
+
         self.expected_assessment_event = {
             'event_id': str(self.assessment_event.event_id),
             'name': self.assessment_event.name,
+            'start_date_time': self.assessment_event.start_date_time.isoformat(),
+            'end_date_time': self.assessment_event_expected_end_time.isoformat(),
             'owning_company_id': str(self.company.company_id),
-            'start_date_time': '2022-12-12T08:00:00Z',
-            'test_flow_id': str(self.test_flow.test_flow_id)
+            'test_flow_id': str(self.test_flow_1.test_flow_id)
         }
+
         self.assessment_event.add_participant(self.assessee, self.assessor)
+
+        self.test_flow_2 = TestFlow.objects.create(
+            name='Test Flow 2',
+            owning_company=self.company
+        )
+        self.test_flow_2.add_tool(
+            assessment_tool=self.assignment_1,
+            release_time=datetime.time(10, 15),
+            start_working_time=datetime.time(10, 15)
+        )
+        self.test_flow_2.add_tool(
+            assessment_tool=self.response_test,
+            release_time=datetime.time(13, 00),
+            start_working_time=datetime.time(13, 00)
+        )
+        self.expected_test_flow_2_end_time = datetime.datetime(2022, 12, 12, 13, 30, tzinfo=pytz.utc)
 
         self.assessment_event_2 = AssessmentEvent.objects.create(
             name='Assessment Event 1845',
             start_date_time=datetime.datetime(2022, 12, 12, hour=8, minute=0, tzinfo=pytz.utc),
             owning_company=self.company,
-            test_flow_used=self.test_flow
+            test_flow_used=self.test_flow_2
         )
 
         self.base_request_data = {
             'assessment-event-id': str(self.assessment_event.event_id)
         }
 
-    def test_verify_assessee_participation_when_assessee_is_participant(self):
-        request_data = self.base_request_data.copy()
+    def test_get_test_flow_last_end_time_when_latest_is_not_response_test(self):
+        test_flow_used = self.assessment_event.test_flow_used
+        end_datetime = test_flow_used.get_test_flow_last_end_time_when_executed_on_event(
+            self.assessment_event.start_date_time.date()
+        )
+        self.assertEqual(end_datetime, self.expected_test_flow_1_end_time)
 
-        try:
-            assessment_event_attempt.verify_assessee_participation(request_data, user=self.assessee)
-        except Exception as exception:
-            self.fail(f'{exception} is raised')
+    def test_get_test_flow_last_end_time_when_latest_is_a_response_test(self):
+        test_flow_used = self.assessment_event_2.test_flow_used
+        end_datetime = test_flow_used.get_test_flow_last_end_time_when_executed_on_event(
+            self.assessment_event.start_date_time.date()
+        )
+        self.assertEqual(end_datetime, self.expected_test_flow_2_end_time)
 
-    def test_verify_assessee_participation_when_event_does_not_exist(self):
-        request_data = self.base_request_data.copy()
-        request_data['assessment-event-id'] = str(uuid.uuid4())
+    def test_get_event_end_date_time(self):
+        end_datetime = self.assessment_event.get_event_end_date_time()
+        self.assertEqual(end_datetime, self.assessment_event_expected_end_time)
 
-        try:
-            assessment_event_attempt.verify_assessee_participation(request_data, user=self.assessee)
-            self.fail(EXCEPTION_NOT_RAISED)
-        except InvalidRequestException as exception:
-            self.assertEquals(
-                str(exception), EVENT_DOES_NOT_EXIST.format(request_data.get('assessment-event-id'))
-            )
-
-    def test_verify_assessee_participation_when_assessee_is_not_participant(self):
-        request_data = self.base_request_data.copy()
-        request_data['assessment-event-id'] = str(self.assessment_event_2.event_id)
-
-        try:
-            assessment_event_attempt.verify_assessee_participation(request_data, user=self.assessee)
-            self.fail(EXCEPTION_NOT_RAISED)
-        except RestrictedAccessException as exception:
-            self.assertEquals(
-                str(exception), NOT_PART_OF_EVENT.format(self.assessee.email, request_data.get('assessment-event-id'))
-            )
-
+    @freeze_time('2022-12-12 10:00:00')
     def test_serve_verify_assessee_participation_when_user_is_not_an_assessee(self):
         assessment_event_id = str(self.assessment_event.event_id)
         response = get_fetch_and_get_response(
-            base_url=VERIFY_ASSESSEE_PARTICIPATION_URL,
+            base_url=GET_EVENT_DATA,
             request_param=assessment_event_id,
             authenticated_user=self.company
         )
         self.assertEquals(response.status_code, HTTPStatus.FORBIDDEN)
 
+    @freeze_time('2022-12-12 10:00:00')
     def test_serve_verify_assessee_participation_when_user_is_an_assessee_but_event_does_not_exist(self):
         assessment_event_id = str(uuid.uuid4())
         response = get_fetch_and_get_response(
-            base_url=VERIFY_ASSESSEE_PARTICIPATION_URL,
+            base_url=GET_EVENT_DATA,
             request_param=assessment_event_id,
             authenticated_user=self.assessee
         )
@@ -2248,10 +2279,11 @@ class VerifyParticipantTest(TestCase):
         response_content = json.loads(response.content)
         self.assertEqual(response_content.get('message'), EVENT_DOES_NOT_EXIST.format(assessment_event_id))
 
+    @freeze_time('2022-12-12 10:00:00')
     def test_serve_verify_assessee_participation_when_user_is_an_assessee_but_not_part_of_assessment_event(self):
         assessment_event_id = str(self.assessment_event_2.event_id)
         response = get_fetch_and_get_response(
-            base_url=VERIFY_ASSESSEE_PARTICIPATION_URL,
+            base_url=GET_EVENT_DATA,
             request_param=assessment_event_id,
             authenticated_user=self.assessee
         )
@@ -2261,16 +2293,17 @@ class VerifyParticipantTest(TestCase):
             response_content.get('message'), NOT_PART_OF_EVENT.format(self.assessee.email, assessment_event_id)
         )
 
+    @freeze_time('2022-12-12 10:00:00')
     def test_serve_verify_assessee_participation_when_user_is_an_assessee_and_is_part_of_assessment_event(self):
         assessment_event_id = str(self.assessment_event.event_id)
         response = get_fetch_and_get_response(
-            base_url=VERIFY_ASSESSEE_PARTICIPATION_URL,
+            base_url=GET_EVENT_DATA,
             request_param=assessment_event_id,
             authenticated_user=self.assessee
         )
         self.assertEqual(response.status_code, HTTPStatus.OK)
         response_content = json.loads(response.content)
-        self.assertEqual(response_content.get('message'), 'Assessee is a participant of the event')
+        self.assertDictEqual(response_content, self.expected_assessment_event)
 
 
 class ResponseTestTest(TestCase):
@@ -2376,6 +2409,13 @@ class ResponseTestTest(TestCase):
         self.assertEqual(response_content.get('prompt'), self.expected_response_test_data.get('prompt'))
         self.assertEqual(response_content.get('owning_company_id'), self.company.id)
         self.assertEqual(response_content.get('owning_company_name'), self.company.company_name)
+
+
+def submit_file_and_get_request(request_data, authenticated_user):
+    client = APIClient()
+    client.force_authenticate(user=authenticated_user)
+    response = client.post(SUBMIT_ASSIGNMENT_URL, request_data)
+    return response
 
 
 class AssignmentSubmissionTest(TestCase):
@@ -2649,18 +2689,12 @@ class AssignmentSubmissionTest(TestCase):
         except Exception as exception:
             self.fail(f'{exception} is raised')
 
-    def submit_file_and_get_request(self, request_data, authenticated_user):
-        client = APIClient()
-        client.force_authenticate(user=authenticated_user)
-        response = client.post(SUBMIT_ASSIGNMENT_URL, request_data)
-        return response
-
     @freeze_time("2022-11-25 12:00:00")
     @patch.object(google_storage, 'upload_file_to_google_bucket')
     def test_serve_submit_assignment_when_event_with_id_does_not_exist(self, mocked_upload):
         request_data = self.request_data.copy()
         request_data['assessment-event-id'] = str(uuid.uuid4())
-        response = self.submit_file_and_get_request(request_data, authenticated_user=self.assessee)
+        response = submit_file_and_get_request(request_data, authenticated_user=self.assessee)
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
         self.assertEqual(
@@ -2671,7 +2705,7 @@ class AssignmentSubmissionTest(TestCase):
     @freeze_time("2022-11-23 12:00:00")
     @patch.object(google_storage, 'upload_file_to_google_bucket')
     def test_serve_submit_assignment_when_event_with_id_is_not_active(self, mocked_upload):
-        response = self.submit_file_and_get_request(self.request_data, authenticated_user=self.assessee)
+        response = submit_file_and_get_request(self.request_data, authenticated_user=self.assessee)
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
         self.assertEqual(response_content.get('message'), EVENT_IS_NOT_ACTIVE.format(self.assessment_event.event_id))
@@ -2679,7 +2713,7 @@ class AssignmentSubmissionTest(TestCase):
     @freeze_time("2022-11-25 12:00:00")
     @patch.object(google_storage, 'upload_file_to_google_bucket')
     def test_serve_submit_assignment_when_user_is_not_assessee(self, mocked_upload):
-        response = self.submit_file_and_get_request(self.request_data, authenticated_user=self.assessor)
+        response = submit_file_and_get_request(self.request_data, authenticated_user=self.assessor)
         self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
         response_content = json.loads(response.content)
         self.assertEqual(response_content.get('message'), f'User with email {self.assessor.email} is not an assessee')
@@ -2687,7 +2721,7 @@ class AssignmentSubmissionTest(TestCase):
     @freeze_time("2022-11-25 12:00:00")
     @patch.object(google_storage, 'upload_file_to_google_bucket')
     def test_serve_submit_assignment_when_user_is_not_part_of_event(self, mocked_upload):
-        response = self.submit_file_and_get_request(self.request_data, authenticated_user=self.assessee_2)
+        response = submit_file_and_get_request(self.request_data, authenticated_user=self.assessee_2)
         self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
         response_content = json.loads(response.content)
         self.assertEqual(
@@ -2700,7 +2734,7 @@ class AssignmentSubmissionTest(TestCase):
     def test_serve_submit_assignment_when_tool_is_not_part_of_event(self, mocked_upload):
         request_data = self.request_data.copy()
         request_data['assessment-tool-id'] = str(self.assessment_tool.assessment_id)
-        response = self.submit_file_and_get_request(request_data, authenticated_user=self.assessee)
+        response = submit_file_and_get_request(request_data, authenticated_user=self.assessee)
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
         self.assertEqual(
@@ -2715,7 +2749,7 @@ class AssignmentSubmissionTest(TestCase):
         uploaded_file = SimpleUploadedFile(invalid_filename, b'file_content', content_type=APPLICATION_PDF)
         request_data = self.request_data.copy()
         request_data['file'] = uploaded_file
-        response = self.submit_file_and_get_request(request_data, authenticated_user=self.assessee)
+        response = submit_file_and_get_request(request_data, authenticated_user=self.assessee)
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
         self.assertEqual(response_content.get('message'), IMPROPER_FILE_NAME.format(invalid_filename))
@@ -2727,7 +2761,7 @@ class AssignmentSubmissionTest(TestCase):
         uploaded_file = SimpleUploadedFile(non_matching_filename, b'file_content', content_type=APPLICATION_PDF)
         request_data = self.request_data.copy()
         request_data['file'] = uploaded_file
-        response = self.submit_file_and_get_request(request_data, authenticated_user=self.assessee)
+        response = submit_file_and_get_request(request_data, authenticated_user=self.assessee)
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
         self.assertEqual(
@@ -2738,7 +2772,7 @@ class AssignmentSubmissionTest(TestCase):
     @freeze_time("2022-11-25 12:00:00")
     @patch.object(google_storage, 'upload_file_to_google_bucket')
     def test_serve_submit_assignment_when_request_is_valid(self, mocked_upload):
-        response = self.submit_file_and_get_request(self.request_data, authenticated_user=self.assessee)
+        response = submit_file_and_get_request(self.request_data, authenticated_user=self.assessee)
         self.assertEqual(response.status_code, HTTPStatus.OK)
         response_content = json.loads(response.content)
         self.assertEqual(response_content.get('message'), 'File uploaded successfully')
@@ -2746,7 +2780,6 @@ class AssignmentSubmissionTest(TestCase):
         created_attempt = self.event_participation.get_assignment_attempt(self.assignment)
         self.assertEqual(created_attempt.filename, self.file.name)
         self.assertEqual(created_attempt.submitted_time, datetime.datetime.now(tz=pytz.utc))
-
 
     @patch.object(storage.Client, '__init__')
     @patch.object(storage.Blob, 'download_as_bytes')
@@ -2934,3 +2967,222 @@ class AssignmentSubmissionTest(TestCase):
         self.assertEqual(response.status_code, HTTPStatus.OK)
         response_content = json.loads(response.content)
         self.assertEqual(response_content.get('message'), 'No attempt found')
+
+
+class ActiveAssignmentTest(TestCase):
+    def setUp(self) -> None:
+        self.company = Company.objects.create_user(
+            email='company12943@email.com',
+            password='Password1232944',
+            company_name='Company 2945',
+            description='A description 2946',
+            address='Gedung ABRR Jakarta Pusat, no 2947'
+        )
+
+        self.assessor = Assessor.objects.create_user(
+            email='assessor@email.com',
+            password='Password2952',
+            phone_number='+9123122953',
+            associated_company=self.company,
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.assessee = Assessee.objects.create_user(
+            email='assessee2959@gmail.com',
+            password='password2960',
+            first_name='Assessee2061',
+            last_name='Ajax2962',
+            phone_number='+621234562963',
+            date_of_birth=datetime.datetime.now(),
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.assessee_2 = Assessee.objects.create_user(
+            email='assessee2969@gmail.com',
+            password='password2970',
+            first_name='Assessee2971',
+            last_name='Ajax2972',
+            phone_number='+621234562973',
+            date_of_birth=datetime.datetime.now(),
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.assignment = Assignment.objects.create(
+            name='Esai Singkat: The Power of Mass Media',
+            description='Kerjakan sesuai pemahaman Anda',
+            owning_company=self.company,
+            expected_file_format='pdf',
+            duration_in_minutes=120
+        )
+
+        self.test_flow_used = TestFlow.objects.create(
+            name='Test Flow 2967',
+            owning_company=self.company
+        )
+
+        self.test_flow_used.add_tool(
+            assessment_tool=self.assignment,
+            release_time=datetime.time(11, 50),
+            start_working_time=datetime.time(11, 50)
+        )
+
+        self.test_flow_tool = self.test_flow_used.testflowtool_set.all()[0]
+
+        self.assessment_event = AssessmentEvent.objects.create(
+            name='Assessment Event 2978',
+            start_date_time=datetime.datetime(2022, 11, 25, 8, 0),
+            owning_company=self.company,
+            test_flow_used=self.test_flow_used
+        )
+
+        self.expected_tool_data = {
+            'id': str(self.assignment.assessment_id),
+            'type': 'assignment',
+            'name': self.assignment.name,
+            'description': self.assignment.description,
+            'additional_info': {
+                'duration': self.assignment.duration_in_minutes,
+                'expected_file_format': self.assignment.expected_file_format
+            },
+            'released_time': '2022-11-25T11:50:00',
+            'end_working_time': '2022-11-25T13:50:00+00:00'
+        }
+
+        self.assessment_event.add_participant(
+            assessee=self.assessee,
+            assessor=self.assessor
+        )
+
+    @freeze_time("2022-11-25 12:00:00")
+    def test_release_time_has_passed_on_event_day_when_time_has_passed_on_event_day(self):
+        self.assertTrue(self.test_flow_tool.release_time_has_passed_on_event_day(
+            self.assessment_event.start_date_time.date()))
+
+    @freeze_time("2022-11-25 10:00:00")
+    def test_release_time_has_passed_on_event_day_when_time_has_not_passed_on_event_day(self):
+        self.assertFalse(self.test_flow_tool.release_time_has_passed_on_event_day(
+            self.assessment_event.start_date_time.date()))
+
+    @freeze_time("2022-11-26 12:00:00")
+    def test_release_time_has_passed_on_event_day_when_time_has_passed_not_on_event_day(self):
+        self.assertFalse(self.test_flow_tool.release_time_has_passed_on_event_day(
+            self.assessment_event.start_date_time.date()))
+
+    @freeze_time("2022-11-26 10:00:00")
+    def test_release_time_has_passed_on_event_day_when_time_has_not_passed_not_on_event_day(self):
+        self.assertFalse(self.test_flow_tool.release_time_has_passed_on_event_day(
+            self.assessment_event.start_date_time.date()))
+
+    def test_get_released_tool_data(self):
+        tool_data = self.test_flow_tool.get_released_tool_data(self.assessment_event.start_date_time.date())
+        self.assertDictEqual(tool_data, self.expected_tool_data)
+
+    @freeze_time("2022-11-25 10:00:00")
+    def get_released_assignments_when_its_event_day_but_no_assignment_is_released(self):
+        released_assignments = self.assessment_event.get_released_assignments()
+        self.assertEqual(len(released_assignments), 0)
+
+    @freeze_time("2022-11-25 12:00:00")
+    def get_released_assignments_when_its_event_day_and_assignment_has_been_released(self):
+        released_assignments = self.assessment_event.get_released_assignments()
+        self.assertEqual(len(released_assignments), 1)
+        released_assignment = released_assignments[0]
+        self.assertDictEqual(released_assignment, self.expected_tool_data)
+
+    @freeze_time("2022-11-26 12:00:00")
+    def get_released_assignments_when_its_not_event_day_but_time_has_passed(self):
+        released_assignments = self.assessment_event.get_released_assignments()
+        self.assertEqual(len(released_assignments), 0)
+
+    @freeze_time("2022-11-26 10:00:00")
+    def get_released_assignments_when_its_not_event_day_and_time_has_not_passed(self):
+        released_assignments = self.assessment_event.get_released_assignments()
+        self.assertEqual(len(released_assignments), 0)
+
+    def test_serve_get_all_active_assignment_when_event_with_id_does_not_exist(self):
+        invalid_id = str(uuid.uuid4())
+        response = get_fetch_and_get_response(
+            base_url=GET_RELEASED_ASSIGNMENTS,
+            request_param=str(invalid_id),
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'), EVENT_DOES_NOT_EXIST.format(invalid_id)
+        )
+
+    @freeze_time("2022-11-24 08:00:00")
+    def test_serve_get_all_active_assignment_when_event_is_not_active(self):
+        response = get_fetch_and_get_response(
+            base_url=GET_RELEASED_ASSIGNMENTS,
+            request_param=str(self.assessment_event.event_id),
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'), EVENT_IS_NOT_ACTIVE.format(self.assessment_event.event_id)
+        )
+
+    @freeze_time("2022-11-25 08:00:00")
+    def test_serve_get_all_active_assignment_when_user_is_not_assessee(self):
+        response = get_fetch_and_get_response(
+            base_url=GET_RELEASED_ASSIGNMENTS,
+            request_param=str(self.assessment_event.event_id),
+            authenticated_user=self.company
+        )
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'), USER_IS_NOT_ASSESSEE.format(self.company.email)
+        )
+
+    @freeze_time("2022-11-25 08:00:00")
+    def test_serve_get_all_active_assignment_when_user_is_non_participating_assessee(self):
+        response = get_fetch_and_get_response(
+            base_url=GET_RELEASED_ASSIGNMENTS,
+            request_param=str(self.assessment_event.event_id),
+            authenticated_user=self.assessee_2
+        )
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            NOT_PART_OF_EVENT.format(self.assessee_2.email, self.assessment_event.event_id)
+        )
+
+    @freeze_time("2022-11-25 08:00:00")
+    def test_serve_get_all_active_assignment_when_its_event_day_but_time_has_not_passed(self):
+        response = get_fetch_and_get_response(
+            base_url=GET_RELEASED_ASSIGNMENTS,
+            request_param=str(self.assessment_event.event_id),
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content, [])
+
+    @freeze_time("2022-11-24 08:00:00")
+    def test_serve_get_all_active_assignment_when_its_not_event_day(self):
+        response = get_fetch_and_get_response(
+            base_url=GET_RELEASED_ASSIGNMENTS,
+            request_param=str(self.assessment_event.event_id),
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'), EVENT_IS_NOT_ACTIVE.format(self.assessment_event.event_id)
+        )
+
+    @freeze_time("2022-11-25 12:00:00")
+    def test_serve_get_all_active_assignment_when_its_event_day_and_time_has_passed(self):
+        response = get_fetch_and_get_response(
+            base_url=GET_RELEASED_ASSIGNMENTS,
+            request_param=str(self.assessment_event.event_id),
+            authenticated_user=self.assessee
+        )
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content, [self.expected_tool_data])
+
