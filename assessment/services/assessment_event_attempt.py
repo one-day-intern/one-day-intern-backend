@@ -64,7 +64,8 @@ def get_or_create_assignment_attempt(event: AssessmentEvent, assignment: Assignm
 
 
 def validate_attempt_is_submittable(assessment_tool: AssessmentTool, event: AssessmentEvent):
-    return False
+    if not event.check_if_tool_is_submittable(assessment_tool):
+        raise InvalidRequestException('Assessment is not accepting submissions at this time')
 
 
 def validate_submission(assessment_tool, file_name):

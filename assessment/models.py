@@ -435,7 +435,7 @@ class AssessmentEvent(models.Model):
         return last_end_time + datetime.timedelta(minutes=extra_minutes_before_end)
 
     def check_if_tool_is_submittable(self, assessment_tool):
-        return False
+        return self.test_flow_used.check_if_is_submittable(assessment_tool, event_date=self.start_date_time.date())
 
 
 class AssessmentEventSerializer(serializers.ModelSerializer):
