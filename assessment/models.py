@@ -244,10 +244,22 @@ class TestFlow(models.Model):
         return last_end_datetime
 
     def get_test_flow_tool_of_assessment_tool(self, assessment_tool):
-        return None
+        test_flow_tool = TestFlowTool.objects.filter(test_flow=self).get(assessment_tool=assessment_tool)
+        return test_flow_tool
 
     def check_if_is_submittable(self, assessment_tool: AssessmentTool, event_date):
-        return False
+        test_flow_tool: TestFlowTool = self.get_test_flow_tool_of_assessment_tool(assessment_tool)
+
+        if isinstance(assessment_tool, (Assignment, InteractiveQuiz)):
+            current_time = datetime.datetime.now(tz=pytz.utc)
+            tool_end_time = assessment_tool.get_end_working_time_if_executed_on_event_date(
+                test_flow_tool.start_working_time, event_date
+            )
+            tool_deadline = tool_end_time + datetime.timedelta(seconds=settings.SUBMISSION_BUFFER_TIME_IN_SECONDS)
+            return current_time <= tool_deadline and test_flow_tool.release_time_has_passed_on_event_day(event_date)
+
+        elif isinstance(assessment_tool, ResponseTest):
+            return True
 
 
 class TestFlowTool(models.Model):
