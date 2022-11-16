@@ -434,6 +434,9 @@ class AssessmentEvent(models.Model):
             self.test_flow_used.get_test_flow_last_end_time_when_executed_on_event(self.start_date_time.date())
         return last_end_time + datetime.timedelta(minutes=extra_minutes_before_end)
 
+    def check_if_tool_is_submittable(self, assessment_tool):
+        return False
+
 
 class AssessmentEventSerializer(serializers.ModelSerializer):
     owning_company_id = serializers.ReadOnlyField(source=OWNING_COMPANY_COMPANY_ID)

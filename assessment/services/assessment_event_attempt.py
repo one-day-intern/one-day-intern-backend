@@ -4,7 +4,7 @@ from one_day_intern.exceptions import RestrictedAccessException, InvalidRequestE
 from one_day_intern.settings import GOOGLE_BUCKET_BASE_DIRECTORY, GOOGLE_STORAGE_BUCKET_NAME
 from users.models import Assessee, Assessor
 from ..exceptions.exceptions import EventDoesNotExist, AssessmentToolDoesNotExist
-from ..models import AssessmentEvent, AssignmentAttempt, Assignment
+from ..models import AssessmentEvent, AssignmentAttempt, Assignment, AssessmentTool
 from .TaskGenerator import TaskGenerator
 from . import utils, google_storage
 import mimetypes
@@ -61,6 +61,10 @@ def get_or_create_assignment_attempt(event: AssessmentEvent, assignment: Assignm
         return found_attempt
     else:
         return assessee_participation.create_assignment_attempt(assignment)
+
+
+def validate_attempt_is_submittable(assessment_tool: AssessmentTool, event: AssessmentEvent):
+    return False
 
 
 def validate_submission(assessment_tool, file_name):

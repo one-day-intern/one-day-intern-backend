@@ -3286,3 +3286,23 @@ class AssessmentToolDeadlineTest(TestCase):
                 self.response_test, self.assessment_event.start_date_time.date()
             )
         )
+
+    @patch.object(AssessmentEvent, 'check_if_tool_is_submittable')
+    def test_validate_if_attempt_is_submittable_when_tool_is_submittable(self, mocked_check):
+        mocked_check.return_value = True
+        try:
+            assessment_event_attempt.validate_attempt_is_submittable(self.assignment, self.assessment_event)
+        except Exception as exception:
+            self.fail(f'{exception} is raised')
+        finally:
+            mocked_check.assert_called_with(self.assignment)
+
+    @patch.object(AssessmentEvent, 'check_if_tool_is_submittable')
+    def test_validate_if_attempt_is_submittable_when_tool_is_not_submittable(self, mocked_check):
+        mocked_check.return_value = False
+        try:
+            assessment_event_attempt.validate_attempt_is_submittable(self.assignment, self.assessment_event)
+        except InvalidRequestException as exception:
+            self.assertEqual(str(exception), 'Assessment is not accepting submissions at this time')
+        finally:
+            mocked_check.assert_called_with(self.assignment)
