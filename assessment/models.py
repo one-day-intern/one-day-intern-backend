@@ -10,6 +10,8 @@ import datetime
 import pytz
 import uuid
 
+
+USERS_ASSESSOR = 'users.Assessor'
 USERS_COMPANY = 'users.Company'
 OWNING_COMPANY_COMPANY_ID = 'owning_company.company_id'
 OWNING_COMPANY_COMPANY_NAME = 'owning_company.company_name'
@@ -241,6 +243,24 @@ class TestFlow(models.Model):
 
         return last_end_datetime
 
+    def get_test_flow_tool_of_assessment_tool(self, assessment_tool):
+        test_flow_tool = TestFlowTool.objects.filter(test_flow=self).get(assessment_tool=assessment_tool)
+        return test_flow_tool
+
+    def check_if_is_submittable(self, assessment_tool: AssessmentTool, event_date):
+        test_flow_tool: TestFlowTool = self.get_test_flow_tool_of_assessment_tool(assessment_tool)
+
+        if isinstance(assessment_tool, (Assignment, InteractiveQuiz)):
+            current_time = datetime.datetime.now(tz=pytz.utc)
+            tool_end_time = assessment_tool.get_end_working_time_if_executed_on_event_date(
+                test_flow_tool.start_working_time, event_date
+            )
+            tool_deadline = tool_end_time + datetime.timedelta(seconds=settings.SUBMISSION_BUFFER_TIME_IN_SECONDS)
+            return current_time <= tool_deadline and test_flow_tool.release_time_has_passed_on_event_day(event_date)
+
+        elif isinstance(assessment_tool, ResponseTest):
+            return True
+
 
 class TestFlowTool(models.Model):
     assessment_tool = models.ForeignKey('assessment.AssessmentTool', on_delete=models.CASCADE)
@@ -414,6 +434,9 @@ class AssessmentEvent(models.Model):
             self.test_flow_used.get_test_flow_last_end_time_when_executed_on_event(self.start_date_time.date())
         return last_end_time + datetime.timedelta(minutes=extra_minutes_before_end)
 
+    def check_if_tool_is_submittable(self, assessment_tool):
+        return self.test_flow_used.check_if_is_submittable(assessment_tool, event_date=self.start_date_time.date())
+
 
 class AssessmentEventSerializer(serializers.ModelSerializer):
     owning_company_id = serializers.ReadOnlyField(source=OWNING_COMPANY_COMPANY_ID)
@@ -441,7 +464,7 @@ class TestFlowAttempt(models.Model):
 
 
 class ResponseTest(AssessmentTool):
-    sender = models.ForeignKey('users.Assessor', on_delete=models.CASCADE)
+    sender = models.ForeignKey(USERS_ASSESSOR, on_delete=models.CASCADE)
     subject = models.TextField(null=False)
     prompt = models.TextField(null=False)
 
@@ -467,7 +490,7 @@ class ResponseTestSerializer(serializers.ModelSerializer):
 class VideoConferenceRoom(models.Model):
     part_of = models.ForeignKey('assessment.AssessmentEventParticipation', on_delete=models.CASCADE)
     room_id = models.TextField(null=True, default=None)
-    conference_participants = models.ManyToManyField('users.Assessor')
+    conference_participants = models.ManyToManyField(USERS_ASSESSOR)
     room_opened = models.BooleanField(default=False)
 
     def is_room_created(self) -> bool:
@@ -528,7 +551,7 @@ class AssignmentAttempt(ToolAttempt):
 class AssessmentEventParticipation(models.Model):
     assessment_event = models.ForeignKey('assessment.AssessmentEvent', on_delete=models.CASCADE)
     assessee = models.ForeignKey('users.Assessee', on_delete=models.CASCADE)
-    assessor = models.ForeignKey('users.Assessor', on_delete=models.RESTRICT)
+    assessor = models.ForeignKey(USERS_ASSESSOR, on_delete=models.RESTRICT)
     attempt = models.OneToOneField('assessment.TestFlowAttempt', on_delete=models.CASCADE, null=True)
 
     def get_all_assignment_attempts(self):

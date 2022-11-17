@@ -79,6 +79,8 @@ IMPROPER_FILE_NAME = '{} is not a proper file name'
 USER_IS_NOT_ASSESSEE = 'User with email {} is not an assessee'
 CREATE_ASSIGNMENT_URL = '/assessment/create/assignment/'
 CREATE_INTERACTIVE_QUIZ_URL = '/assessment/create/interactive-quiz/'
+CANNOT_SUBMIT_AT_THIS_TIME = 'Assessment is not accepting submissions at this time'
+
 CREATE_TEST_FLOW_URL = reverse('test-flow-create')
 CREATE_ASSESSMENT_EVENT_URL = reverse('assessment-event-create')
 ADD_PARTICIPANT_URL = reverse('event-add-participation')
@@ -87,11 +89,12 @@ SUBMIT_ASSIGNMENT_URL = reverse('submit-assignments')
 GET_RELEASED_ASSIGNMENTS = reverse('event-active-assignments') + ASSESSMENT_EVENT_ID_PARAM_NAME
 GET_EVENT_DATA = reverse('get-event-data') + ASSESSMENT_EVENT_ID_PARAM_NAME
 GET_AND_DOWNLOAD_ATTEMPT_URL = reverse('get-submitted-assignment')
-OK_RESPONSE_STATUS_CODE = 200
 CREATE_RESPONSE_TEST_URL = '/assessment/create/response-test/'
+
 GET_TOOLS_URL = "/assessment/tools/"
 REQUEST_CONTENT_TYPE = 'application/json'
 APPLICATION_PDF = 'application/pdf'
+OK_RESPONSE_STATUS_CODE = 200
 
 
 class AssessmentTest(TestCase):
@@ -2968,6 +2971,22 @@ class AssignmentSubmissionTest(TestCase):
         response_content = json.loads(response.content)
         self.assertEqual(response_content.get('message'), 'No attempt found')
 
+    @freeze_time('2022-11-25 13:51:00')
+    @patch.object(google_storage, 'upload_file_to_google_bucket')
+    def test_serve_submit_assignment_when_assignment_has_been_released_but_deadline_has_passed(self, mock_upload):
+        response = submit_file_and_get_request(self.request_data, authenticated_user=self.assessee)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), CANNOT_SUBMIT_AT_THIS_TIME)
+
+    @freeze_time('2022-11-25 11:49:59')
+    @patch.object(google_storage, 'upload_file_to_google_bucket')
+    def test_serve_submit_assignment_when_assignment_has_not_been_released_and_deadline_has_not_passed(self, mock_upload):
+        response = submit_file_and_get_request(self.request_data, authenticated_user=self.assessee)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), CANNOT_SUBMIT_AT_THIS_TIME)
+
 
 class ActiveAssignmentTest(TestCase):
     def setUp(self) -> None:
@@ -3186,3 +3205,123 @@ class ActiveAssignmentTest(TestCase):
         response_content = json.loads(response.content)
         self.assertEqual(response_content, [self.expected_tool_data])
 
+
+class AssessmentToolDeadlineTest(TestCase):
+    def setUp(self) -> None:
+        self.company = Company.objects.create_user(
+            email='company2942@email.com',
+            password='Password1232943',
+            company_name='Company 2945',
+            description='A description 2945',
+            address='Gedung ABRR Jakarta Pusat, no 2946'
+        )
+
+        self.assessor = Assessor.objects.create(
+            email='assessor2927@gmail.com',
+            password='Password2798',
+            first_name='First 2799',
+            last_name='Last 2800',
+            phone_number='+182312332801',
+            associated_company=self.company,
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.assignment = Assignment.objects.create(
+            name='Esai Singkat: Menilik G20 untuk Perusahaan Tuitter',
+            description='Kerjakan sesuai pemahaman Anda',
+            owning_company=self.company,
+            expected_file_format='pdf',
+            duration_in_minutes=120
+        )
+
+        self.test_flow_used = TestFlow.objects.create(
+            name='Test Flow 2958',
+            owning_company=self.company
+        )
+
+        self.test_flow_used.add_tool(
+            assessment_tool=self.assignment,
+            release_time=datetime.time(12, 00),
+            start_working_time=datetime.time(12, 00)
+        )
+
+        self.assessment_event: AssessmentEvent = AssessmentEvent.objects.create(
+            name='Assessment Event 2969',
+            start_date_time=datetime.datetime(2022, 11, 25, tzinfo=pytz.utc),
+            owning_company=self.company,
+            test_flow_used=self.test_flow_used
+        )
+
+        self.response_test = ResponseTest.objects.create(
+            name='Response Test 2823',
+            description='A response test 2824',
+            owning_company=self.company,
+            sender=self.assessor,
+            subject='ASAP Contact Me',
+            prompt='Contact me ASAP'
+        )
+
+        self.test_flow_used.add_tool(
+            self.response_test,
+            release_time=datetime.time(13, 00),
+            start_working_time=datetime.time(13, 00)
+        )
+
+    @freeze_time('2022-11-25 14:00:00')
+    def test_check_if_it_is_submittable_when_tool_is_released_and_deadline_has_not_passed(self):
+        self.assertTrue(
+            self.test_flow_used.check_if_is_submittable(
+                self.assignment, self.assessment_event.start_date_time.date()
+            )
+        )
+
+    @freeze_time('2022-11-25 15:00:00')
+    def test_check_if_it_is_submittable_when_tool_is_released_and_deadline_has_passed(self):
+        self.assertFalse(
+            self.test_flow_used.check_if_is_submittable(
+                self.assignment, self.assessment_event.start_date_time.date()
+            )
+        )
+
+    @freeze_time('2022-11-25 11:00:00')
+    def test_check_if_it_is_submittable_when_tool_has_not_been_released_and_deadline_has_not_passed(self):
+        self.assertFalse(
+            self.test_flow_used.check_if_is_submittable(
+                self.assignment, self.assessment_event.start_date_time.date()
+            )
+        )
+
+    @freeze_time('2022-11-24 15:00:00')
+    def test_check_if_it_is_submittable_when_tool_has_not_been_released_and_deadline_has_passed(self):
+        self.assertFalse(
+            self.test_flow_used.check_if_is_submittable(
+                self.assignment, self.assessment_event.start_date_time.date()
+            )
+        )
+
+    def test_check_if_it_is_submittable_when_tool_is_a_response_test(self):
+        self.assertTrue(
+            self.test_flow_used.check_if_is_submittable(
+                self.response_test, self.assessment_event.start_date_time.date()
+            )
+        )
+
+    @patch.object(AssessmentEvent, 'check_if_tool_is_submittable')
+    def test_validate_if_attempt_is_submittable_when_tool_is_submittable(self, mocked_check):
+        mocked_check.return_value = True
+        try:
+            assessment_event_attempt.validate_attempt_is_submittable(self.assignment, self.assessment_event)
+        except Exception as exception:
+            self.fail(f'{exception} is raised')
+        finally:
+            mocked_check.assert_called_with(self.assignment)
+
+    @patch.object(AssessmentEvent, 'check_if_tool_is_submittable')
+    def test_validate_if_attempt_is_submittable_when_tool_is_not_submittable(self, mocked_check):
+        mocked_check.return_value = False
+        try:
+            assessment_event_attempt.validate_attempt_is_submittable(self.assignment, self.assessment_event)
+        except InvalidRequestException as exception:
+            self.assertEqual(str(exception), CANNOT_SUBMIT_AT_THIS_TIME)
+        finally:
+            mocked_check.assert_called_with(self.assignment)

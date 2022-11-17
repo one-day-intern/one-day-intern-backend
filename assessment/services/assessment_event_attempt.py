@@ -4,7 +4,7 @@ from one_day_intern.exceptions import RestrictedAccessException, InvalidRequestE
 from one_day_intern.settings import GOOGLE_BUCKET_BASE_DIRECTORY, GOOGLE_STORAGE_BUCKET_NAME
 from users.models import Assessee, Assessor
 from ..exceptions.exceptions import EventDoesNotExist, AssessmentToolDoesNotExist
-from ..models import AssessmentEvent, AssignmentAttempt, Assignment
+from ..models import AssessmentEvent, AssignmentAttempt, Assignment, AssessmentTool
 from .TaskGenerator import TaskGenerator
 from . import utils, google_storage
 import mimetypes
@@ -63,6 +63,11 @@ def get_or_create_assignment_attempt(event: AssessmentEvent, assignment: Assignm
         return assessee_participation.create_assignment_attempt(assignment)
 
 
+def validate_attempt_is_submittable(assessment_tool: AssessmentTool, event: AssessmentEvent):
+    if not event.check_if_tool_is_submittable(assessment_tool):
+        raise InvalidRequestException('Assessment is not accepting submissions at this time')
+
+
 def validate_submission(assessment_tool, file_name):
     if assessment_tool is None:
         raise InvalidRequestException('Assessment tool associated with event does not exist')
@@ -106,6 +111,7 @@ def submit_assignment(request_data, file, user):
         assessment_tool = \
             event.get_assessment_tool_from_assessment_id(assessment_id=request_data.get('assessment-tool-id'))
         validate_submission(assessment_tool, file.name)
+        validate_attempt_is_submittable(assessment_tool, event)
         save_assignment_attempt(event, assessment_tool, assessee, file)
 
     except (AssessmentToolDoesNotExist, EventDoesNotExist, ValidationError) as exception:
