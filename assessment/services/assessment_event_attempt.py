@@ -111,6 +111,7 @@ def submit_assignment(request_data, file, user):
         assessment_tool = \
             event.get_assessment_tool_from_assessment_id(assessment_id=request_data.get('assessment-tool-id'))
         validate_submission(assessment_tool, file.name)
+        validate_attempt_is_submittable(assessment_tool, event)
         save_assignment_attempt(event, assessment_tool, assessee, file)
 
     except (AssessmentToolDoesNotExist, EventDoesNotExist, ValidationError) as exception:
