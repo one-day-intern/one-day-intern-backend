@@ -79,6 +79,8 @@ IMPROPER_FILE_NAME = '{} is not a proper file name'
 USER_IS_NOT_ASSESSEE = 'User with email {} is not an assessee'
 CREATE_ASSIGNMENT_URL = '/assessment/create/assignment/'
 CREATE_INTERACTIVE_QUIZ_URL = '/assessment/create/interactive-quiz/'
+CANNOT_SUBMIT_AT_THIS_TIME = 'Assessment is not accepting submissions at this time'
+
 CREATE_TEST_FLOW_URL = reverse('test-flow-create')
 CREATE_ASSESSMENT_EVENT_URL = reverse('assessment-event-create')
 ADD_PARTICIPANT_URL = reverse('event-add-participation')
@@ -87,11 +89,12 @@ SUBMIT_ASSIGNMENT_URL = reverse('submit-assignments')
 GET_RELEASED_ASSIGNMENTS = reverse('event-active-assignments') + ASSESSMENT_EVENT_ID_PARAM_NAME
 GET_EVENT_DATA = reverse('get-event-data') + ASSESSMENT_EVENT_ID_PARAM_NAME
 GET_AND_DOWNLOAD_ATTEMPT_URL = reverse('get-submitted-assignment')
-OK_RESPONSE_STATUS_CODE = 200
 CREATE_RESPONSE_TEST_URL = '/assessment/create/response-test/'
+
 GET_TOOLS_URL = "/assessment/tools/"
 REQUEST_CONTENT_TYPE = 'application/json'
 APPLICATION_PDF = 'application/pdf'
+OK_RESPONSE_STATUS_CODE = 200
 
 
 class AssessmentTest(TestCase):
@@ -2968,6 +2971,22 @@ class AssignmentSubmissionTest(TestCase):
         response_content = json.loads(response.content)
         self.assertEqual(response_content.get('message'), 'No attempt found')
 
+    @freeze_time('2022-11-25 13:51:00')
+    @patch.object(google_storage, 'upload_file_to_google_bucket')
+    def test_serve_submit_assignment_when_assignment_has_been_released_but_deadline_has_passed(self, mock_upload):
+        response = submit_file_and_get_request(self.request_data, authenticated_user=self.assessee)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), CANNOT_SUBMIT_AT_THIS_TIME)
+
+    @freeze_time('2022-11-25 11:49:59')
+    @patch.object(google_storage, 'upload_file_to_google_bucket')
+    def test_serve_submit_assignment_when_assignment_has_not_been_released_and_deadline_has_not_passed(self, mock_upload):
+        response = submit_file_and_get_request(self.request_data, authenticated_user=self.assessee)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), CANNOT_SUBMIT_AT_THIS_TIME)
+
 
 class ActiveAssignmentTest(TestCase):
     def setUp(self) -> None:
@@ -3303,6 +3322,6 @@ class AssessmentToolDeadlineTest(TestCase):
         try:
             assessment_event_attempt.validate_attempt_is_submittable(self.assignment, self.assessment_event)
         except InvalidRequestException as exception:
-            self.assertEqual(str(exception), 'Assessment is not accepting submissions at this time')
+            self.assertEqual(str(exception), CANNOT_SUBMIT_AT_THIS_TIME)
         finally:
             mocked_check.assert_called_with(self.assignment)
