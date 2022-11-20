@@ -1,8 +1,10 @@
 from django.contrib.auth.models import AnonymousUser
+from django.core.exceptions import ObjectDoesNotExist
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import InvalidToken
 from datetime import datetime
 from typing import Optional, Match
+from ..models import Assessor
 import phonenumbers
 import re
 
@@ -80,3 +82,6 @@ def get_user_from_request(request):
     except InvalidToken:
         return AnonymousUser()
 
+
+def get_assessor_from_email(email):
+    raise Exception

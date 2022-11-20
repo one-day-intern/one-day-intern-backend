@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ObjectDoesNotExist
 from django.test import TestCase
 from google.oauth2 import id_token
 from unittest.mock import patch
@@ -30,6 +31,7 @@ EMAIL_MUST_NOT_BE_NULL = 'Email must not be null'
 PASSWORD_MUST_NOT_BE_NULL = 'Password must not be null'
 PASSWORD_INVALID_NO_UPPER = 'Password length must contain at least 1 uppercase character'
 EXCEPTION_NOT_RAISED = 'Exception not raised'
+ASSESSOR_WITH_EMAIL_NOT_EXIST = 'Assessor with email {} not found'
 
 REGISTER_COMPANY_URL = '/users/register-company/'
 REGISTER_ASSESSEE_URL = '/users/register-assessee/'
@@ -1527,3 +1529,50 @@ class UserInfoViewTestCase(TestCase):
         self.assertEqual(response_content.get('last_name'), self.assessee.last_name)
         self.assertEqual(response_content.get('phone_number'), self.assessee.phone_number)
         self.assertEqual(response_content.get('date_of_birth'), self.assessee.date_of_birth)
+
+
+class SeparateLoginTest(TestCase):
+    def setUp(self) -> None:
+        self.company = Company.objects.create_user(
+            email='Company1535@gmail.com',
+            password='Password1536',
+            company_name='Company 1537',
+            description='Description 1538',
+            address='Address 1539'
+        )
+
+        self.assessor = Assessor.objects.create_user(
+            email='Assessor1541@gmail.com',
+            password='Password1542',
+            first_name='Assessor 1545',
+            last_name='Last 1546',
+            phone_number='+6213219513',
+            employee_id='AJAX13908210',
+            associated_company=self.company,
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.assessor_request_data = {
+            'email': self.assessor.email,
+            'password': 'Password1542'
+        }
+
+        self.company_request_data = {
+            'email': self.company.email,
+            'password': 'Password1536'
+        }
+
+    def test_get_assessor_from_email_when_exist(self):
+        try:
+            user = utils.get_assessor_from_email(email=self.assessor.email)
+            self.assertEquals(user, self.assessor)
+        except Exception as exception:
+            self.fail(f'{exception} is raised')
+
+    def test_get_assessor_from_email_when_not_exist(self):
+        invalid_email = 'invalidemail1567@gmail.com'
+        try:
+            utils.get_assessor_from_email(email=invalid_email)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except ObjectDoesNotExist as exception:
+            self.assertEqual(str(exception), ASSESSOR_WITH_EMAIL_NOT_EXIST.format(invalid_email))
