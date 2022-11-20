@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import User
 from django.core.exceptions import ObjectDoesNotExist
 from django.test import TestCase
 from google.oauth2 import id_token
@@ -9,11 +10,13 @@ from one_day_intern.exceptions import (
     EmailNotFoundException,
     InvalidGoogleLoginException,
     InvalidGoogleIDTokenException,
-    InvalidGoogleAuthCodeException
+    InvalidGoogleAuthCodeException,
+    InvalidLoginCredentialsException
 )
 from rest_framework.test import APIClient
 from .models import OdiUser, Assessee, Assessor, Company, AuthenticationService, CompanyOneTimeLinkCode
 from .services.registration import validate_user_assessor_registration_data, generate_one_time_code
+from .services.login import verify_password
 from http import HTTPStatus
 import json
 import requests
@@ -34,6 +37,7 @@ EXCEPTION_NOT_RAISED = 'Exception not raised'
 ASSESSOR_WITH_EMAIL_NOT_EXIST = 'Assessor with email {} not found'
 COMPANY_WITH_EMAIL_NOT_EXIST = 'Company with email {} not found'
 ASSESSOR_COMPANY_WITH_EMAIL_NOT_FOUND = 'Assessor or Company with email {} not found'
+PASSWORD_IS_INVALID = 'Password for {} is invalid'
 
 REGISTER_COMPANY_URL = '/users/register-company/'
 REGISTER_ASSESSEE_URL = '/users/register-assessee/'
@@ -1629,3 +1633,22 @@ class SeparateLoginTest(TestCase):
         mock_get_assessor.side_effect = ObjectDoesNotExist
         mock_get_company.return_value = self.company
         self.assert_expected_user_is_returned_when_exist(self.company, mock_get_assessor, mock_get_company)
+
+    @patch.object(User, 'check_password')
+    def test_verify_password_when_password_matches(self, mock_check_pass):
+        assessor_password = 'Password1542'
+        mock_check_pass.return_value = True
+        try:
+            verify_password(self.assessor, assessor_password)
+        except Exception as exception:
+            self.fail(f'{exception} is raised')
+
+    @patch.object(User, 'check_password')
+    def test_verify_password_when_password_does_not_match(self, mock_check_pass):
+        assessor_invalid_password = 'Password1543'
+        mock_check_pass.return_value = False
+        try:
+            verify_password(self.assessor, assessor_invalid_password)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidLoginCredentialsException as exception:
+            self.assertEqual(str(exception), PASSWORD_IS_INVALID.format(self.assessor.email))
