@@ -16,7 +16,7 @@ from one_day_intern.exceptions import (
 from rest_framework.test import APIClient
 from .models import OdiUser, Assessee, Assessor, Company, AuthenticationService, CompanyOneTimeLinkCode
 from .services.registration import validate_user_assessor_registration_data, generate_one_time_code
-from .services.login import verify_password
+from .services.login import verify_password, get_assessor_or_company_from_request_data
 from http import HTTPStatus
 import json
 import requests
@@ -1652,3 +1652,26 @@ class SeparateLoginTest(TestCase):
             self.fail(EXCEPTION_NOT_RAISED)
         except InvalidLoginCredentialsException as exception:
             self.assertEqual(str(exception), PASSWORD_IS_INVALID.format(self.assessor.email))
+
+    @patch.object(utils, 'get_assessor_or_company_from_email')
+    def test_get_assessor_or_company_from_request_data_when_user_exist(self, mock_get_user):
+        mock_get_user.return_value = self.assessor
+        try:
+            user = get_assessor_or_company_from_request_data(request_data=self.assessor_request_data)
+            mock_get_user.assert_called_with(self.assessor.email)
+            self.assertEquals(user, self.assessor)
+        except Exception as exception:
+            self.fail(f'{exception} is raised')
+
+    @patch.object(utils, 'get_assessor_or_company_from_email')
+    def test_get_assessor_or_company_from_request_data_when_user_does_not_exist(self, mock_get_user):
+        request_data = self.assessor_request_data.copy()
+        request_data['email'] = 'invalidemail@1676.com'
+        mock_get_user.side_effect = ObjectDoesNotExist(
+            ASSESSOR_COMPANY_WITH_EMAIL_NOT_FOUND.format(request_data.get('email'))
+        )
+        try:
+            get_assessor_or_company_from_request_data(request_data=request_data)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidLoginCredentialsException as exception:
+            self.assertEqual(str(exception), ASSESSOR_COMPANY_WITH_EMAIL_NOT_FOUND.format(request_data.get('email')))
