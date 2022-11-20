@@ -32,6 +32,7 @@ PASSWORD_MUST_NOT_BE_NULL = 'Password must not be null'
 PASSWORD_INVALID_NO_UPPER = 'Password length must contain at least 1 uppercase character'
 EXCEPTION_NOT_RAISED = 'Exception not raised'
 ASSESSOR_WITH_EMAIL_NOT_EXIST = 'Assessor with email {} not found'
+COMPANY_WITH_EMAIL_NOT_EXIST = 'Company with email {} not found'
 
 REGISTER_COMPANY_URL = '/users/register-company/'
 REGISTER_ASSESSEE_URL = '/users/register-assessee/'
@@ -1576,3 +1577,18 @@ class SeparateLoginTest(TestCase):
             self.fail(EXCEPTION_NOT_RAISED)
         except ObjectDoesNotExist as exception:
             self.assertEqual(str(exception), ASSESSOR_WITH_EMAIL_NOT_EXIST.format(invalid_email))
+
+    def test_get_company_from_email_when_exist(self):
+        try:
+            user = utils.get_company_from_email(email=self.company.email)
+            self.assertEquals(user, self.company)
+        except Exception as exception:
+            self.fail(f'{exception} is raised')
+
+    def test_get_company_from_email_when_not_exist(self):
+        invalid_email = 'invalidemail1581@gmail.com'
+        try:
+            utils.get_company_from_email(email=invalid_email)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except ObjectDoesNotExist as exception:
+            self.assertEqual(str(exception), COMPANY_WITH_EMAIL_NOT_EXIST.format(invalid_email))
