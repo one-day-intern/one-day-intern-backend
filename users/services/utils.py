@@ -84,4 +84,7 @@ def get_user_from_request(request):
 
 
 def get_assessor_from_email(email):
-    raise Exception
+    try:
+        return Assessor.objects.get(email=email)
+    except ObjectDoesNotExist:
+        raise ObjectDoesNotExist(f'Assessor with email {email} not found')
