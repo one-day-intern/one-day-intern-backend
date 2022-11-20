@@ -33,6 +33,7 @@ PASSWORD_INVALID_NO_UPPER = 'Password length must contain at least 1 uppercase c
 EXCEPTION_NOT_RAISED = 'Exception not raised'
 ASSESSOR_WITH_EMAIL_NOT_EXIST = 'Assessor with email {} not found'
 COMPANY_WITH_EMAIL_NOT_EXIST = 'Company with email {} not found'
+ASSESSOR_COMPANY_WITH_EMAIL_NOT_FOUND = 'Assessor or Company with email {} not found'
 
 REGISTER_COMPANY_URL = '/users/register-company/'
 REGISTER_ASSESSEE_URL = '/users/register-assessee/'
@@ -1592,3 +1593,39 @@ class SeparateLoginTest(TestCase):
             self.fail(EXCEPTION_NOT_RAISED)
         except ObjectDoesNotExist as exception:
             self.assertEqual(str(exception), COMPANY_WITH_EMAIL_NOT_EXIST.format(invalid_email))
+
+    @patch.object(utils, 'get_company_from_email')
+    @patch.object(utils, 'get_assessor_from_email')
+    def test_utils_get_assessor_or_company_from_email_when_no_user_exist(self, mock_get_assessor, mock_get_company):
+        invalid_email = 'invalidemail1591@gmail.com'
+        mock_get_assessor.side_effect = ObjectDoesNotExist
+        mock_get_company.side_effect = ObjectDoesNotExist
+
+        try:
+            utils.get_assessor_or_company_from_email(email=invalid_email)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except ObjectDoesNotExist as exception:
+            self.assertEqual(str(exception), ASSESSOR_COMPANY_WITH_EMAIL_NOT_FOUND.format(invalid_email))
+
+    def assert_expected_user_is_returned_when_exist(self, expected_user, mock_get_assessor, mock_get_company):
+        try:
+            user = utils.get_assessor_or_company_from_email(email=expected_user.email)
+            mock_get_company.assert_called_with(expected_user.email)
+            mock_get_assessor.assert_called_with(expected_user.email)
+            self.assertEquals(user, expected_user)
+        except Exception as exception:
+            self.fail(f'{exception} is raised')
+
+    @patch.object(utils, 'get_company_from_email')
+    @patch.object(utils, 'get_assessor_from_email')
+    def test_utils_get_assessor_or_company_from_email_when_assessor_exist(self, mock_get_assessor, mock_get_company):
+        mock_get_assessor.return_value = self.assessor
+        mock_get_company.side_effect = ObjectDoesNotExist
+        self.assert_expected_user_is_returned_when_exist(self.assessor, mock_get_assessor, mock_get_company)
+
+    @patch.object(utils, 'get_company_from_email')
+    @patch.object(utils, 'get_assessor_from_email')
+    def test_utils_get_assessor_or_company_from_email_when_company_exist(self, mock_get_assessor, mock_get_company):
+        mock_get_assessor.side_effect = ObjectDoesNotExist
+        mock_get_company.return_value = self.company
+        self.assert_expected_user_is_returned_when_exist(self.company, mock_get_assessor, mock_get_company)
