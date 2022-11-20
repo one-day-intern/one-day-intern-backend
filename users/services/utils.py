@@ -91,4 +91,7 @@ def get_assessor_from_email(email):
 
 
 def get_company_from_email(email):
-    raise Exception
+    try:
+        return Company.objects.get(email=email)
+    except ObjectDoesNotExist:
+        raise ObjectDoesNotExist(f'Company with email {email} not found')
