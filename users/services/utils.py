@@ -4,6 +4,8 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import InvalidToken
 from datetime import datetime
 from typing import Optional, Match
+
+
 from ..models import Assessor, Company
 import phonenumbers
 import re
@@ -114,3 +116,7 @@ def get_assessor_or_company_from_email(email):
         return user
     else:
         raise ObjectDoesNotExist(f'Assessor or Company with email {email} not found')
+
+
+def generate_token_for_user(user):
+    return None

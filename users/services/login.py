@@ -14,3 +14,7 @@ def get_assessor_or_company_from_request_data(request_data):
         return utils.get_assessor_or_company_from_email(request_data.get('email'))
     except ObjectDoesNotExist as exception:
         raise InvalidLoginCredentialsException(exception)
+
+
+def login_assessor_company(request_data):
+    return None

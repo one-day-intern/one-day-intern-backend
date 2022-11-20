@@ -150,3 +150,16 @@ def generate_assessor_one_time_code(request):
 def serve_get_user_info(request):
     response_data = get_user_info(request.user)
     return Response(data=response_data)
+
+
+@require_POST
+@api_view(['POST'])
+def serve_login_assessor_company(request):
+    """
+    This view will return the refresh and access token for an assessor or company.
+    ----------------------------------------------------------
+    request-data must contain:
+    email: string
+    password: string
+    """
+    return Response(data=None)

@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import User
 from django.core.exceptions import ObjectDoesNotExist
 from django.test import TestCase
+from django.urls import reverse
 from google.oauth2 import id_token
 from unittest.mock import patch
 from .services import registration, utils, google_login
@@ -44,6 +45,7 @@ REGISTER_ASSESSEE_URL = '/users/register-assessee/'
 REGISTER_ASSESSOR_URL = '/users/register-assessor/'
 GENERATE_ONE_TIME_CODE_URL = '/users/generate-code/'
 GET_USER_INFO_URL = '/users/get-info/'
+LOGIN_ASSESSOR_AND_COMPANY_URL = reverse('login-assessor-company')
 
 
 class OdiUserTestCase(TestCase):
@@ -1675,3 +1677,57 @@ class SeparateLoginTest(TestCase):
             self.fail(EXCEPTION_NOT_RAISED)
         except InvalidLoginCredentialsException as exception:
             self.assertEqual(str(exception), ASSESSOR_COMPANY_WITH_EMAIL_NOT_FOUND.format(request_data.get('email')))
+
+    def test_login_assessor_or_company_when_user_does_not_exist(self):
+        request_data = self.assessor_request_data.copy()
+        request_data['email'] = 'invalidemail@1684.com'
+
+        client = APIClient()
+        response = client.post(
+            LOGIN_ASSESSOR_AND_COMPANY_URL,
+            data=json.dumps(request_data),
+            content_type=REQUEST_CONTENT_TYPE
+        )
+        self.assertEqual(response.status_code, HTTPStatus.UNAUTHORIZED)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'), ASSESSOR_COMPANY_WITH_EMAIL_NOT_FOUND.format(request_data.get('email'))
+        )
+
+    def test_login_assessor_or_company_when_password_does_not_match(self):
+        request_data = self.assessor_request_data.copy()
+        request_data['password'] = 'NonMatchingPassword1699'
+
+        client = APIClient()
+        response = client.post(
+            LOGIN_ASSESSOR_AND_COMPANY_URL,
+            data=json.dumps(request_data),
+            content_type=REQUEST_CONTENT_TYPE
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.UNAUTHORIZED)
+
+    def fetch_and_get_response_no_authentication(self, url, request_data):
+        client = APIClient()
+        response = client.post(
+            url,
+            data=json.dumps(request_data),
+            content_type=REQUEST_CONTENT_TYPE
+        )
+        return response
+
+    def assert_fetched_token_when_request_valid(self, response):
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertIsNotNone(response_content.get('refresh'))
+        self.assertIsNotNone(response_content.get('access'))
+
+    def test_login_assessor_or_company_when_company_exist(self):
+        request_data = self.company_request_data.copy()
+        response = self.fetch_and_get_response_no_authentication(LOGIN_ASSESSOR_AND_COMPANY_URL, request_data)
+        self.assert_fetched_token_when_request_valid(response)
+
+    def test_login_assessor_or_company_when_assessor_exist(self):
+        request_data = self.assessor_request_data.copy()
+        response = self.fetch_and_get_response_no_authentication(LOGIN_ASSESSOR_AND_COMPANY_URL, request_data)
+        self.assert_fetched_token_when_request_valid(response)
