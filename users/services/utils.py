@@ -98,4 +98,19 @@ def get_company_from_email(email):
 
 
 def get_assessor_or_company_from_email(email):
-    raise Exception
+    user = None
+
+    try:
+        user = get_company_from_email(email)
+    except ObjectDoesNotExist:
+        pass
+
+    try:
+        user = get_assessor_from_email(email)
+    except ObjectDoesNotExist:
+        pass
+
+    if user:
+        return user
+    else:
+        raise ObjectDoesNotExist(f'Assessor or Company with email {email} not found')
