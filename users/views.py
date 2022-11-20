@@ -17,6 +17,7 @@ from .services.google_login import (
     register_assessee_with_google_data
 )
 from .services.user_info import get_user_info
+from .services.login import login_assessor_company
 from one_day_intern.settings import (
     GOOGLE_AUTH_LOGIN_REDIRECT_URI,
     GOOGLE_AUTH_REGISTER_ASSESSEE_REDIRECT_URI,
@@ -162,4 +163,6 @@ def serve_login_assessor_company(request):
     email: string
     password: string
     """
-    return Response(data=None)
+    request_data = json.loads(request.body.decode('utf-8'))
+    token = login_assessor_company(request_data)
+    return Response(data=token, status=200)

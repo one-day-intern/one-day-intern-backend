@@ -17,4 +17,7 @@ def get_assessor_or_company_from_request_data(request_data):
 
 
 def login_assessor_company(request_data):
-    return None
+    user = get_assessor_or_company_from_request_data(request_data)
+    verify_password(user, request_data.get('password'))
+    token = utils.generate_token_for_user(user)
+    return token
