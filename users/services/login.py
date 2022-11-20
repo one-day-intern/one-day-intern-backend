@@ -1,5 +1,7 @@
 from django.contrib.auth.models import User
+from django.core.exceptions import ObjectDoesNotExist
 from one_day_intern.exceptions import InvalidLoginCredentialsException
+from . import utils
 
 
 def verify_password(user: User, password: str):
@@ -8,4 +10,7 @@ def verify_password(user: User, password: str):
 
 
 def get_assessor_or_company_from_request_data(request_data):
-    raise Exception
+    try:
+        return utils.get_assessor_or_company_from_email(request_data.get('email'))
+    except ObjectDoesNotExist as exception:
+        raise InvalidLoginCredentialsException(exception)
