@@ -397,7 +397,7 @@ class AssessmentEvent(models.Model):
         return task_generator
 
     def is_active(self) -> bool:
-        return self.start_date_time <= datetime.datetime.now(datetime.timezone.utc)
+        return self.start_date_time <= datetime.datetime.now(datetime.timezone.utc) <= self.get_event_end_date_time()
 
     def get_released_assignments(self):
         test_flow_tools = self.test_flow_used.testflowtool_set.all()
