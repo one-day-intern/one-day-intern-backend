@@ -1987,6 +1987,7 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
             self.assertEqual(str(exception),
                              ASSESSOR_NOT_PART_OF_EVENT.format(self.assessor_2, self.assessment_event.event_id))
 
+    @freeze_time('2022-03-30')
     def test_subscribe_when_user_is_not_an_assessee(self):
         response = fetch_and_get_response_subscription(
             access_token=self.company_token.access_token,
@@ -1998,6 +1999,7 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
         self.assertEqual(response_content.get(
             'message'), 'User with email company@company.com is not an assessee')
 
+    @freeze_time('2022-03-30')
     def test_subscribe_when_assessee_does_not_participate_in_event(self):
         response = fetch_and_get_response_subscription(
             access_token=self.assessee_2_token.access_token,
@@ -2011,6 +2013,7 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
             f'Assessee with email {self.assessee_2} is not part of assessment with id {self.assessment_event.event_id}'
         )
 
+    @freeze_time('2022-03-30')
     def test_subscribe_when_assessment_id_is_not_present(self):
         invalid_assessment_id = str(uuid.uuid4())
         response = fetch_and_get_response_subscription(
@@ -2025,6 +2028,7 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
             EVENT_DOES_NOT_EXIST.format(invalid_assessment_id)
         )
 
+    @freeze_time('2022-03-30')
     def test_subscribe_when_assessment_id_is_random_string(self):
         invalid_assessment_id = 'assessment-id'
         response = fetch_and_get_response_subscription(
@@ -2035,6 +2039,7 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
         self.assertEqual(response.status_code,
                          HTTPStatus.INTERNAL_SERVER_ERROR)
 
+    @freeze_time('2022-03-30')
     @patch.object(TaskGenerator.TaskGenerator, 'generate')
     def test_subscribe_when_request_is_valid(self, mocked_generate):
         response = fetch_and_get_response_subscription(
