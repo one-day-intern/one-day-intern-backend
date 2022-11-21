@@ -20,3 +20,7 @@ class TestFlowDoesNotExist(ObjectDoesNotExist):
 
 class EventDoesNotExist(ObjectDoesNotExist):
     pass
+
+
+class AssessmentToolDoesNotExist(ObjectDoesNotExist):
+    pass

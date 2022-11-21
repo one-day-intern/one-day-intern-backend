@@ -457,13 +457,13 @@ class CompanyRegistrationTest(TestCase):
 
 class AssesseeRegistrationTest(TestCase):
     def setUp(self) -> None:
-        self.base_request_data =  {
-            'email': 'assessee@gmail.com',
+        self.base_request_data = {
+            'email': 'assessee461@gmail.com',
             'password': 'testPassword1234',
             'confirmed_password': 'testPassword1234',
             'first_name': 'Anastasia',
             'last_name': 'Yuliana',
-            'phone_number': '+6281275725231',
+            'phone_number': '+628127572466',
             'date_of_birth': '1994-09-30T10:37:35.849Z'
         }
 
@@ -732,7 +732,7 @@ class AssessorRegistrationTest(TestCase):
             'confirmed_password': 'testPassword1234',
             'first_name': 'Abdul',
             'last_name': 'Jonathan',
-            'phone_number': '+6281275725231',
+            'phone_number': '+628127572735',
             'employee_id': 'AWZ123',
             'one_time_code': self.one_time_code,
         }
@@ -878,7 +878,7 @@ class AssessorViewsTestCase(TestCase):
             'confirmed_password': 'testPassword1234',
             'first_name': 'Abdul',
             'last_name': 'Jonathan',
-            'phone_number': '+6281275725231',
+            'phone_number': '+6281275725881',
             'employee_id': 'AWZ123',
             'one_time_code': self.one_time_code,
         }
@@ -982,12 +982,12 @@ class AssessorViewsTestCase(TestCase):
 class AssesseeViewsTestCase(TestCase):
     def setUp(self) -> None:
         self.registration_base_data = {
-                'email': 'assessee@gmail.com',
+                'email': 'assessee985@gmail.com',
                 'password': 'testPassword1234',
                 'confirmed_password': 'testPassword1234',
                 'first_name': 'Anastasia',
                 'last_name': 'Yuliana',
-                'phone_number': '+6281275725231',
+                'phone_number': '+6281275725990',
                 'date_of_birth': '1994-09-30T10:37:35.849Z'
             }
 
@@ -1369,7 +1369,7 @@ class GoogleLoginViewTest(TestCase):
             'azp': 'sample azp',
             'aud': 'sample aud',
             'sub': 'sample sub',
-            'email': 'assessee@gmail.com',
+            'email': 'assessee1372@gmail.com',
             'email_verified': True,
             'at_hash': 'asdasda',
             'name': 'sample name',
@@ -1477,18 +1477,18 @@ class UserInfoViewTestCase(TestCase):
             password='testPassword1234',
             first_name='Abdul',
             last_name='Jonathan',
-            phone_number='+6281275725231',
+            phone_number='+62812757251480',
             employee_id='AWZ123',
             associated_company=self.company,
             authentication_service=AuthenticationService.DEFAULT.value
         )
 
         self.assessee = Assessee.objects.create_user(
-            email='assessee@gmail.com',
+            email='assessee1487@gmail.com',
             password='testPassword1234',
             first_name='Anastasia',
             last_name='Yuliana',
-            phone_number='+6281275725231',
+            phone_number='+6281275721491',
             date_of_birth='1994-09-30'
         )
 

@@ -4,8 +4,12 @@ from urllib.parse import urlparse
 from dotenv import load_dotenv
 import dj_database_url
 import os
+from assessment.services.google_storage import setup_google_storage_credentials
+
 
 load_dotenv()
+setup_google_storage_credentials()
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -178,6 +182,9 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+QUIZ_BASE_DURATION = 30
+SUBMISSION_BUFFER_TIME_IN_SECONDS = 10
+
 # Settings for Google Auth Login and Registration
 AUTH_USER_MODEL = 'users.OdiUser'
 GOOGLE_AUTH_CLIENT_ID = os.getenv('CLIENT_ID')
@@ -199,3 +206,7 @@ EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL')
 SERVER_EMAIL = os.getenv('SERVER_EMAIL')
+
+# Google Storage
+GOOGLE_BUCKET_BASE_DIRECTORY = '/submissions'
+GOOGLE_STORAGE_BUCKET_NAME = 'one-day-intern-bucket'

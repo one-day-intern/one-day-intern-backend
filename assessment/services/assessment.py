@@ -18,6 +18,7 @@ def get_assessor_or_raise_exception(user: User):
     else:
         raise RestrictedAccessException(f'User {user_email} is not an assessor')
 
+
 def get_assessor_or_company_or_raise_exception(user: User):
     user_email = user.email
     found_company = Company.objects.filter(email=user_email)
@@ -33,6 +34,7 @@ def get_assessor_or_company_or_raise_exception(user: User):
             "type": "company"
         }
     return RestrictedAccessException(f"User {user_email} is not a valid company or assessor")
+
 
 def validate_assessment_tool(request_data):
     if not request_data.get('name'):

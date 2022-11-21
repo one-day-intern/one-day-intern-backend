@@ -3,18 +3,18 @@ from django.db.models import QuerySet
 
 from assessment.exceptions.exceptions import EventDoesNotExist
 from assessment.models import AssessmentEventParticipationSerializer, AssessmentEventSerializer, \
-    AssessmentEventParticipation
+    AssessmentEventParticipation, AssessmentEvent
 from assessment.services.assessment_event_attempt import validate_assessor_participation
 from assessment.services.utils import get_active_assessment_event_from_id
 from assessor.services import utils
 from one_day_intern.exceptions import InvalidRequestException
-from users.models import AssesseeSerializer
+from users.models import AssesseeSerializer, Assessor
 
 
 def get_assessment_event_participations(request_data: dict, user: User):
     try:
         event = get_active_assessment_event_from_id(request_data.get('assessment-event-id'))
-        assessor = utils.get_assessor_from_user(user)
+        assessor = utils.get_assessor_or_company_from_user(user)
         validate_assessor_participation(event, assessor)
         event_participations = event.assessmenteventparticipation_set.filter(assessor=user)
         return event_participations
@@ -24,15 +24,22 @@ def get_assessment_event_participations(request_data: dict, user: User):
 
 
 def get_assessor_assessment_events(user: User):
-    assessor = utils.get_assessor_from_user(user)
+    found_user = utils.get_assessor_or_company_from_user(user)
 
-    event_participations = AssessmentEventParticipation.objects.filter(assessor=assessor).distinct('assessment_event')
+    if type(found_user) == Assessor:
+        event_participations = AssessmentEventParticipation.objects.filter(assessor=found_user).distinct('assessment_event')
+        serialized_events = []
 
-    serialized_events = []
+        for event_participation in event_participations:
+            data = AssessmentEventSerializer(event_participation.assessment_event).data
+            serialized_events.append(data)
+    else:
+        events = AssessmentEvent.objects.filter(owning_company=found_user)
+        serialized_events = []
 
-    for event_participation in event_participations:
-        data = AssessmentEventSerializer(event_participation.assessment_event).data
-        serialized_events.append(data)
+        for event in events:
+            data = AssessmentEventSerializer(event).data
+            serialized_events.append(data)
 
     return serialized_events
 

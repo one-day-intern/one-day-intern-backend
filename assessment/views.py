@@ -18,10 +18,20 @@ from .services.assessment_event import create_assessment_event, add_assessment_e
 from .services.assessment_event_attempt import (
     subscribe_to_assessment_flow,
     get_all_active_assignment,
-    verify_assessee_participation
+    get_assessment_event_data,
+    submit_assignment,
+    get_submitted_assignment
+)
+from .models import (
+    AssignmentSerializer,
+    TestFlowSerializer,
+    AssessmentEventSerializer,
+    InteractiveQuizSerializer,
+    ResponseTestSerializer
 )
 from .models import AssignmentSerializer, TestFlowSerializer, AssessmentEventSerializer, InteractiveQuizSerializer, ResponseTestSerializer
 import json
+import mimetypes
 
 
 @require_GET
@@ -161,6 +171,8 @@ def serve_create_response_test(request):
     assignment = create_response_test(request_data, request.user)
     response_data = ResponseTestSerializer(assignment).data
     return Response(data=response_data)
+
+
 @require_GET
 def serve_subscribe_to_assessment_flow(request):
     """
@@ -203,14 +215,61 @@ def serve_get_all_active_assignment(request):
 @require_GET
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def serve_verify_participation(request):
+def serve_get_assessment_event_data(request):
     """
     This view will verify whether an assessee if part of an
-    assessment event.
+    assessment event. When the participation is valid, the
+    view will return the assessment event data to the assessee.
     ----------------------------------------------------------
     request-param must contain:
     assessment-event-id: string
     """
     request_data = request.GET
-    verify_assessee_participation(request_data, user=request.user)
-    return Response(data={'message': 'Assessee is a participant of the event'}, status=200)
+    event = get_assessment_event_data(request_data, user=request.user)
+    response_data = AssessmentEventSerializer(event).data
+    return Response(data=response_data, status=200)
+
+
+@require_POST
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def serve_submit_assignment(request):
+    """
+    This view will serve as the end-point for assessees to submit their assignment
+    attempt to an assignment tool that they currently undergo in an assessment event.
+    ----------------------------------------------------------
+    request-data must contain:
+    assessment-event-id: string
+    assessment-tool-id: string
+    file: file
+    """
+    request_data = request.POST.dict()
+    submitted_file = request.FILES.get('file')
+    submit_assignment(request_data, submitted_file, user=request.user)
+    return Response(data={'message': 'File uploaded successfully'}, status=200)
+
+
+@require_GET
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def serve_get_submitted_assignment(request):
+    """
+    This view will serve as the end-point for assessees to download their submitted assignment
+    ----------------------------------------------------------
+    request-data must contain:
+    assessment-event-id: string
+    assessment-tool-id: string
+    Format:
+    assessment/assessment-event/?assessment-event-id=<AssessmentEventId>&assignment-tool-id=<AssignmentId>
+    """
+    request_data = request.GET
+    downloaded_file = get_submitted_assignment(request_data, user=request.user)
+    if downloaded_file:
+        content_type = mimetypes.guess_type(downloaded_file.name)[0]
+        response = HttpResponse(downloaded_file, content_type=content_type)
+        response['Content-Length'] = downloaded_file.size
+        response['Content-Disposition'] = f'attachment; filename="{downloaded_file.name}"'
+        response['Access-Control-Expose-Headers'] = 'Content-Disposition'
+        return response
+    else:
+        return Response(data={'message': 'No attempt found'}, status=200)
