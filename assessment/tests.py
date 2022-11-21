@@ -2336,7 +2336,7 @@ class ResponseTestTest(TestCase):
             authentication_service=AuthenticationService.DEFAULT.value
         )
         self.request_data = {
-            'name': 'Communication Task 1',
+            'name': 'Communication Task 2',
             'description': 'This is the first assignment',
             'sender':'Director of Public Relation',
             'subject': 'This is a dummy email',
