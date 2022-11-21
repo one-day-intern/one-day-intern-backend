@@ -2451,7 +2451,7 @@ class AssignmentSubmissionTest(TestCase):
 
         self.assignment = Assignment.objects.create(
             name='Esai Singkat: The Power of Social Media',
-            description='Kerjakan sesuai pemahaman Anda',
+            description='Kerjakan sesuai pemahaman Anda 2454',
             owning_company=self.company,
             expected_file_format='pdf',
             duration_in_minutes=120
@@ -3028,7 +3028,7 @@ class ActiveAssignmentTest(TestCase):
 
         self.assignment = Assignment.objects.create(
             name='Esai Singkat: The Power of Mass Media',
-            description='Kerjakan sesuai pemahaman Anda',
+            description='Kerjakan sesuai pemahaman Anda 3031',
             owning_company=self.company,
             expected_file_format='pdf',
             duration_in_minutes=120
@@ -3228,7 +3228,7 @@ class AssessmentToolDeadlineTest(TestCase):
 
         self.assignment = Assignment.objects.create(
             name='Esai Singkat: Menilik G20 untuk Perusahaan Tuitter',
-            description='Kerjakan sesuai pemahaman Anda',
+            description='Kerjakan sesuai pemahaman Anda 3231',
             owning_company=self.company,
             expected_file_format='pdf',
             duration_in_minutes=120
