@@ -75,6 +75,11 @@ class Assessee(OdiUser):
         default=AuthenticationService.DEFAULT.value
     )
 
+class AssesseeSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Assessee
+        fields = ['email','first_name', 'last_name', 'phone_number', 'date_of_birth']
 
 class AssesseeSerializer(serializers.ModelSerializer):
     class Meta:

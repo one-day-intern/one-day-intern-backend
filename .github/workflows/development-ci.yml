@@ -23,6 +23,8 @@ jobs:
         run: pip install -r requirements.txt
       - name: Collect Static Files
         run: python manage.py collectstatic --no-input
+        env:
+          GOOGLE_APPLICATION_CREDENTIAL_VALUES: ${{ secrets.GOOGLE_APPLICATION_CREDENTIAL_VALUES }}
       - name: Run Test
         run: coverage run manage.py test --no-input
         env:
@@ -32,6 +34,7 @@ jobs:
           GOOGLE_AUTH_LOGIN_REDIRECT_URI: ${{ secrets.GOOGLE_AUTH_LOGIN_REDIRECT_URI }}
           GOOGLE_AUTH_REGISTER_ASSESSEE_REDIRECT_URI: ${{ secrets.GOOGLE_AUTH_REGISTER_ASSESSEE_REDIRECT_URI }}
           GOOGLE_AUTH_CLIENT_CALLBACK_URL: ${{ secrets.GOOGLE_AUTH_CLIENT_CALLBACK_URL }}
+          GOOGLE_APPLICATION_CREDENTIAL_VALUES: ${{ secrets.GOOGLE_APPLICATION_CREDENTIAL_VALUES }}
       - name: Display Coverage Data
         run: coverage report -m
       - name: Upload Coverage Data

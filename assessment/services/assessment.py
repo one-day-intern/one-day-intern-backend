@@ -2,11 +2,12 @@ from django.contrib.auth.models import User
 from one_day_intern.exceptions import (
     RestrictedAccessException,
     InvalidAssignmentRegistration,
-    InvalidInteractiveQuizRegistration
+    InvalidInteractiveQuizRegistration,
+    InvalidResponseTestRegistration
 )
-from users.models import Assessor
+from users.models import Assessor, Company
 from . import utils
-from ..models import Assignment, MultipleChoiceQuestion, InteractiveQuiz, TextQuestion
+from ..models import Assignment, MultipleChoiceQuestion, InteractiveQuiz, TextQuestion, ResponseTest
 
 
 def get_assessor_or_raise_exception(user: User):
@@ -16,6 +17,23 @@ def get_assessor_or_raise_exception(user: User):
         return found_assessors[0]
     else:
         raise RestrictedAccessException(f'User {user_email} is not an assessor')
+
+
+def get_assessor_or_company_or_raise_exception(user: User):
+    user_email = user.email
+    found_company = Company.objects.filter(email=user_email)
+    found_assessors = Assessor.objects.filter(email=user_email)
+    if len(found_assessors) > 0:
+        return {
+            "user": found_assessors[0],
+            "type": "assessor"
+        }
+    if len(found_company) > 0:
+        return {
+            "user": found_company[0],
+            "type": "company"
+        }
+    return RestrictedAccessException(f"User {user_email} is not a valid company or assessor")
 
 
 def validate_assessment_tool(request_data):
@@ -53,6 +71,40 @@ def create_assignment(request_data, user):
     assignment = save_assignment_to_database(request_data, assessor)
     return assignment
 
+def validate_response_test(request_data):
+    """
+    response test MUST have subject and prompt
+    """
+    if len(request_data.get('prompt').split()) == 0:
+        raise InvalidResponseTestRegistration('Prompt Should Not Be Empty')
+    if len(request_data.get('subject').split()) == 0:
+        raise InvalidResponseTestRegistration('Subject Should Not Be Empty')
+
+
+def save_response_test_to_database(request_data: dict, assessor: Assessor):
+    name = request_data.get('name')
+    description = request_data.get('description')
+    owning_company = assessor.associated_company
+    prompt = request_data.get('prompt')
+    subject = request_data.get('subject')
+    sender = assessor
+    assignment = ResponseTest.objects.create(
+        name=name,
+        description=description,
+        owning_company=owning_company,
+        prompt=prompt,
+        subject=subject,
+        sender=sender
+    )
+    return assignment
+
+
+def create_response_test(request_data, user):
+    assessor = get_assessor_or_raise_exception(user)
+    validate_assessment_tool(request_data)
+    validate_response_test(request_data)
+    response_test = save_response_test_to_database(request_data, assessor)
+    return response_test
 
 def validate_interactive_quiz(request_data):
     if request_data.get('total_points') is None:
