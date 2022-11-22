@@ -92,6 +92,7 @@ class Question(models.Model):
         ('multiple_choice', 'Multiple Choice Question')
     ]
 
+    question_id = models.UUIDField(primary_key=True, auto_created=True, default=uuid.uuid4)
     interactive_quiz = models.ForeignKey(InteractiveQuiz, related_name='questions', on_delete=models.CASCADE)
     prompt = models.TextField(null=False)
     points = models.IntegerField(default=0)
@@ -116,6 +117,7 @@ class MultipleChoiceQuestion(Question):
 
 
 class MultipleChoiceAnswerOption(models.Model):
+    answer_option_id = models.UUIDField(primary_key=True, auto_created=True, default=uuid.uuid4)
     question = models.ForeignKey('MultipleChoiceQuestion', related_name='questions', on_delete=models.CASCADE)
     content = models.TextField(null=False)
     correct = models.BooleanField(default=False)
