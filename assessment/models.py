@@ -598,8 +598,17 @@ class AssessmentEventParticipation(models.Model):
         )
         return assignment_attempt
 
+    def get_all_assessment_tool_attempts(self):
+        return self.attempt.toolattempt_set.all()
+
     def get_assessment_tool_attempt(self, assessment_tool: AssessmentTool) -> Optional[ToolAttempt]:
-      return None
+        tool_attempts = self.get_all_assessment_tool_attempts()
+        matching_tool_attempts = tool_attempts.filter(assessment_tool_attempted=assessment_tool)
+
+        if matching_tool_attempts:
+            return matching_tool_attempts[0]
+        else:
+            return None
 
 
 class AssessmentEventParticipationSerializer(serializers.ModelSerializer):
