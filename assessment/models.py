@@ -462,36 +462,12 @@ class TestFlowAttempt(models.Model):
     test_flow_attempted = models.ForeignKey('assessment.TestFlow', on_delete=models.RESTRICT)
 
 class ResponseTest(AssessmentTool):
-    sender = models.ForeignKey('users.Assessor', on_delete=models.CASCADE)
+    sender = models.TextField(null=False)
     subject = models.TextField(null=False)
     prompt = models.TextField(null=False)
 
 class ResponseTestSerializer(serializers.ModelSerializer):
     owning_company_name = serializers.ReadOnlyField(source=OWNING_COMPANY_COMPANY_NAME)
-    sender = serializers.ReadOnlyField(source='sender.email')
-    class Meta:
-        model = ResponseTest
-        fields = [
-            'assessment_id',
-            'name',
-            'description',
-            'subject',
-            'prompt',
-            'sender',
-            'owning_company_id',
-            'owning_company_name',
-        ]
-
-class ResponseTest(AssessmentTool):
-    sender = models.ForeignKey(USERS_ASSESSOR, on_delete=models.CASCADE)
-    subject = models.TextField(null=False)
-    prompt = models.TextField(null=False)
-
-
-class ResponseTestSerializer(serializers.ModelSerializer):
-    owning_company_name = serializers.ReadOnlyField(source=OWNING_COMPANY_COMPANY_NAME)
-    sender = serializers.ReadOnlyField(source='sender.email')
-
     class Meta:
         model = ResponseTest
         fields = [
