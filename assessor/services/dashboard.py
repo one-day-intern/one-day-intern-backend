@@ -1,12 +1,14 @@
-from django.contrib.auth.models import User
-from django.db.models import QuerySet
-
 from assessment.exceptions.exceptions import EventDoesNotExist
-from assessment.models import AssessmentEventParticipationSerializer, AssessmentEventSerializer, \
-    AssessmentEventParticipation, AssessmentEvent
+from assessment.models import (
+    AssessmentEventParticipationSerializer,
+    AssessmentEventSerializer,
+    AssessmentEventParticipation,
+    AssessmentEvent
+)
 from assessment.services.assessment_event_attempt import validate_assessor_participation
 from assessment.services.utils import get_active_assessment_event_from_id
 from assessor.services import utils
+from django.contrib.auth.models import User
 from one_day_intern.exceptions import InvalidRequestException
 from users.models import AssesseeSerializer, Assessor
 

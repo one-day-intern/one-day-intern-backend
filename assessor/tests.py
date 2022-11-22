@@ -8,6 +8,7 @@ from assessment.models import (
     PolymorphicAssessmentToolSerializer,
     AssessmentEventParticipation
 )
+from assessment.tests import EVENT_DOES_NOT_EXIST
 from django.test import TestCase
 from freezegun import freeze_time
 from http import HTTPStatus
@@ -20,8 +21,15 @@ import json
 import pytz
 import uuid
 
+ASSESSOR_NOT_FOUND = 'Assessor with email {} not found'
+ASSESSEE_NOT_FOUND = 'Assessee with email {} not found'
+ASSESSOR_NOT_PART_OF_EVENT = 'Assessor with email {} is not part of assessment with id {}'
+ASSESSEE_NOT_PART_OF_EVENT = 'Assessee with email {} is not part of assessment with id {}'
+ASSESSOR_NOT_RESPONSIBLE = '{} is not responsible for {} on event with id {}'
+
 GET_ACTIVE_ASSESSEES = reverse('assessee_list') + '?assessment-event-id='
 GET_ACTIVE_EVENT_PARTICIPATIONS = reverse('assessment_event_list')
+GET_PROGRESS_URL = reverse('get-assessee-progress')
 
 
 def fetch_all_active_assessees(event_id, authenticated_user):
@@ -42,6 +50,13 @@ def fetch_all_active_assessees(event_id, authenticated_user):
     client = APIClient()
     client.force_authenticate(user=authenticated_user)
     response = client.get(GET_ACTIVE_ASSESSEES + event_id)
+    return response
+
+
+def fetch_progress_data_of_assessee(event_id, assessee_email, authenticated_user):
+    client = APIClient()
+    client.force_authenticate(user=authenticated_user)
+    response = client.get(f'{GET_PROGRESS_URL}?assessment-event-id={event_id}&assessee-email={assessee_email}')
     return response
 
 
@@ -409,4 +424,111 @@ class ViewEventProgressTest(TestCase):
         expected_attempt_data = self.expected_attempt_data.copy()
         expected_attempt_data['attempt-id'] = temporary_attempt.tool_attempt_id
         self.assertDictEqual(attempt_data, expected_attempt_data)
+        temporary_attempt.delete()
+
+    def assert_get_assessee_progress_invalid_request(self, event_id, assessee_email, assessor, expected_status_code,
+                                                     expected_message):
+        response = fetch_progress_data_of_assessee(
+            event_id,
+            assessee_email,
+            authenticated_user=assessor
+        )
+        self.assertEqual(response.status_code, expected_status_code)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), expected_message)
+
+    def test_get_assessee_progress_on_assessment_event_when_event_does_not_exist(self):
+        invalid_event_id = str(uuid.uuid4())
+        expected_message = EVENT_DOES_NOT_EXIST.format(invalid_event_id)
+
+        self.assert_get_assessee_progress_invalid_request(
+            event_id=invalid_event_id,
+            assessee_email=self.assessee.email,
+            assessor=self.assessor,
+            expected_status_code=HTTPStatus.BAD_REQUEST,
+            expected_message=expected_message
+        )
+
+    def test_get_assessee_progress_on_assessment_event_when_user_is_not_assessor(self):
+        assessment_event_id = str(self.assessment_event.event_id)
+        expected_message = ASSESSOR_NOT_FOUND.format(self.assessee.email)
+
+        self.assert_get_assessee_progress_invalid_request(
+            event_id=assessment_event_id,
+            assessee_email=self.assessee.email,
+            assessor=self.assessee,
+            expected_status_code=HTTPStatus.FORBIDDEN,
+            expected_message=expected_message
+        )
+
+    def test_get_assessee_progress_on_assessment_event_when_assessor_is_not_part_of_event(self):
+        assessment_event_id = str(self.assessment_event.event_id)
+        expected_message = ASSESSOR_NOT_PART_OF_EVENT.format(self.assessor_2, assessment_event_id)
+
+        self.assert_get_assessee_progress_invalid_request(
+            event_id=assessment_event_id,
+            assessee_email=self.assessee.email,
+            assessor=self.assessor_2,
+            expected_status_code=HTTPStatus.FORBIDDEN,
+            expected_message=expected_message
+        )
+
+    def test_get_assessee_progress_on_assessment_event_when_assessee_does_not_exist(self):
+        invalid_email = 'assessor_not_exist419@email.com'
+        assessment_event_id = str(self.assessment_event.event_id)
+        expected_message = ASSESSEE_NOT_FOUND.format(invalid_email)
+
+        self.assert_get_assessee_progress_invalid_request(
+            event_id=assessment_event_id,
+            assessee_email=invalid_email,
+            assessor=self.assessor,
+            expected_status_code=HTTPStatus.BAD_REQUEST,
+            expected_message=expected_message
+        )
+
+    def test_get_assessee_progress_on_assessment_event_when_assessee_is_not_part_of_event(self):
+        assessment_event_id = str(self.assessment_event.event_id)
+        expected_message = ASSESSEE_NOT_PART_OF_EVENT.format(self.assessee_2, assessment_event_id)
+        self.assert_get_assessee_progress_invalid_request(
+            event_id=assessment_event_id,
+            assessee_email=self.assessee_2.email,
+            assessor=self.assessor,
+            expected_status_code=HTTPStatus.BAD_REQUEST,
+            expected_message=expected_message
+        )
+
+    def test_get_assessee_progress_on_assessment_event_when_assessor_is_not_responsible_for_assessee(self):
+        assessment_event_id = str(self.assessment_event.event_id)
+        expected_message = ASSESSOR_NOT_RESPONSIBLE.format(self.assessor, self.assessee_3, assessment_event_id)
+        self.assert_get_assessee_progress_invalid_request(
+            event_id=assessment_event_id,
+            assessee_email=self.assessee_3.email,
+            assessor=self.assessor,
+            expected_status_code=HTTPStatus.FORBIDDEN,
+            expected_message=expected_message
+        )
+
+    def test_get_assessee_progress_on_assessment_event_when_attempt_has_not_been_submitted(self):
+        assessment_event_id = str(self.assessment_event.event_id)
+        response = fetch_progress_data_of_assessee(assessment_event_id, self.assessee, authenticated_user=self.assessor)
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content,
+            [self.expected_attempt_data]
+        )
+
+    def test_get_assessee_progress_on_assessment_event_when_attempt_has_been_submitted(self):
+        temporary_attempt = AssignmentAttempt.objects.create(
+            test_flow_attempt=self.assessment_event_participation.attempt,
+            assessment_tool_attempted=self.assignment_1,
+        )
+        attempt_data = self.expected_attempt_data.copy()
+        attempt_data['attempt-id'] = str(temporary_attempt.tool_attempt_id)
+
+        assessment_event_id = str(self.assessment_event.event_id)
+        response = fetch_progress_data_of_assessee(assessment_event_id, self.assessee, authenticated_user=self.assessor)
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content, [attempt_data])
         temporary_attempt.delete()
