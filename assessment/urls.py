@@ -12,7 +12,8 @@ from .views import (
     serve_subscribe_to_assessment_flow,
     serve_get_assessment_event_data,
     serve_submit_assignment,
-    serve_get_submitted_assignment
+    serve_get_submitted_assignment,
+    serve_get_assessee_progress_on_event
 )
 
 urlpatterns = [
@@ -29,4 +30,5 @@ urlpatterns = [
     path('assessment-event/get-data/', serve_get_assessment_event_data, name='get-event-data'),
     path('assessment-event/submit-assignments/', serve_submit_assignment, name='submit-assignments'),
     path('assessment-event/get-submitted-assignment/', serve_get_submitted_assignment, name='get-submitted-assignment'),
+    path('assessment-event/progress/', serve_get_assessee_progress_on_event, name='get-assessee-progress')
 ]
