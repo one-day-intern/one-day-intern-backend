@@ -5,11 +5,13 @@ from assessment.models import (
     AssessmentEvent,
     AssessmentEventSerializer,
     AssignmentAttempt,
-    PolymorphicAssessmentToolSerializer
+    PolymorphicAssessmentToolSerializer,
+    AssessmentEventParticipation
 )
 from django.test import TestCase
 from freezegun import freeze_time
 from http import HTTPStatus
+from unittest.mock import patch
 from users.models import OdiUser, Assessee, AuthenticationService, Company, Assessor, AssesseeSerializer
 from rest_framework.reverse import reverse
 from rest_framework.test import APIClient
@@ -383,3 +385,28 @@ class ViewEventProgressTest(TestCase):
         self.assertTrue(isinstance(attempt, AssignmentAttempt))
         self.assertEqual(attempt.tool_attempt_id, assignment_attempt.tool_attempt_id)
         assignment_attempt.delete()
+
+    @patch.object(AssessmentEventParticipation, 'get_assessment_tool_attempt')
+    def test_get_event_progress_when_no_attempt_has_been_submitted(self, mock_get_attempt):
+        mock_get_attempt.return_value = None
+        progress_data = self.assessment_event_participation.get_event_progress()
+        mock_get_attempt.assert_called_with(self.assignment_1)
+        self.assertEqual(len(progress_data), 1)
+        attempt_data = progress_data[0]
+        self.assertDictEqual(attempt_data, self.expected_attempt_data)
+
+    @patch.object(AssessmentEventParticipation, 'get_assessment_tool_attempt')
+    def test_get_event_progress_when_an_attempt_has_been_submitted(self, mock_get_attempt):
+        temporary_attempt = AssignmentAttempt.objects.create(
+            test_flow_attempt=self.assessment_event_participation.attempt,
+            assessment_tool_attempted=self.assignment_1,
+        )
+        mock_get_attempt.return_value = temporary_attempt
+        progress_data = self.assessment_event_participation.get_event_progress()
+        mock_get_attempt.assert_called_with(self.assignment_1)
+        self.assertEqual(len(progress_data), 1)
+        attempt_data = progress_data[0]
+        expected_attempt_data = self.expected_attempt_data.copy()
+        expected_attempt_data['attempt-id'] = temporary_attempt.tool_attempt_id
+        self.assertDictEqual(attempt_data, expected_attempt_data)
+        temporary_attempt.delete()

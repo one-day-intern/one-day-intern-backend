@@ -610,6 +610,9 @@ class AssessmentEventParticipation(models.Model):
         else:
             return None
 
+    def get_event_progress(self):
+        return []
+
 
 class AssessmentEventParticipationSerializer(serializers.ModelSerializer):
     assessment_event_id = serializers.ReadOnlyField(source='assessment_event.assessment_event_id')
