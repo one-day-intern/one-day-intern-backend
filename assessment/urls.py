@@ -1,5 +1,6 @@
 from django.urls import path
 from .views import (
+    serve_get_assessment_tool,
     serve_create_assignment,
     serve_create_test_flow,
     serve_create_assessment_event,
@@ -15,6 +16,7 @@ from .views import (
 )
 
 urlpatterns = [
+    path('tools/', serve_get_assessment_tool),
     path('create/assignment/', serve_create_assignment),
     path('create/response-test/', serve_create_response_test, name='create-response-test'),
     path('create/interactive-quiz/', serve_create_interactive_quiz),
