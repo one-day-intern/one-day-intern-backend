@@ -3465,6 +3465,7 @@ class ViewEventProgressTest(TestCase):
 
         self.expected_attempt_data = {
             'start_working_time': self.assignment_start_date_time,
+            'type': 'assignment',
             'tool-data': self.assignment_1_data,
             'attempt-id': None
         }
