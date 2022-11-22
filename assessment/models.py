@@ -319,6 +319,16 @@ class TestFlowTool(models.Model):
         )
         return release_time.isoformat()
 
+    def get_iso_start_working_time_on_event_date(self, execution_date):
+        start_working_time = datetime.datetime(
+            year=execution_date.year,
+            month=execution_date.month,
+            day=execution_date.day,
+            hour=self.start_working_time.hour,
+            minute=self.start_working_time.minute
+        )
+        return start_working_time.isoformat()
+
 
 class TestFlowToolSerializer(serializers.ModelSerializer):
     assessment_tool = AssessmentToolSerializer(read_only=True)
@@ -487,6 +497,20 @@ class ResponseTestSerializer(serializers.ModelSerializer):
         ]
 
 
+class PolymorphicAssessmentToolSerializer:
+    def __init__(self, assessment_tool):
+        self.assessment_tool = assessment_tool
+        self.data = self.get_data()
+
+    def get_data(self):
+        if isinstance(self.assessment_tool, Assignment):
+            return AssignmentSerializer(self.assessment_tool).data
+        elif isinstance(self.assessment_tool, InteractiveQuiz):
+            return InteractiveQuizSerializer(self.assessment_tool).data
+        else:
+            return ResponseTestSerializer(self.assessment_tool).data
+
+
 class VideoConferenceRoom(models.Model):
     part_of = models.ForeignKey('assessment.AssessmentEventParticipation', on_delete=models.CASCADE)
     room_id = models.TextField(null=True, default=None)
@@ -573,6 +597,9 @@ class AssessmentEventParticipation(models.Model):
             assessment_tool_attempted=assignment
         )
         return assignment_attempt
+
+    def get_assessment_tool_attempt(self, assessment_tool: AssessmentTool) -> Optional[ToolAttempt]:
+      return None
 
 
 class AssessmentEventParticipationSerializer(serializers.ModelSerializer):
