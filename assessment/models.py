@@ -3,7 +3,7 @@ from one_day_intern import settings
 from rest_framework import serializers
 from polymorphic.models import PolymorphicModel
 from typing import List, Optional
-from users.models import Assessor, AssessorSerializer
+from users.models import Assessor, AssessorSerializer, Assessee
 from .services.TaskGenerator import TaskGenerator
 from .exceptions.exceptions import AssessmentToolDoesNotExist
 import datetime
@@ -397,6 +397,14 @@ class AssessmentEvent(models.Model):
         )
         return found_assessors.exists()
 
+    def check_assessee_and_assessor_pair(self, assessee, assessor):
+        found_pairs = AssessmentEventParticipation.objects.filter(
+            assessment_event=self,
+            assessee=assessee,
+            assessor=assessor
+        )
+        return found_pairs.exists()
+
     def get_task_generator(self):
         task_generator = TaskGenerator()
         test_flow = self.test_flow_used
@@ -452,6 +460,10 @@ class AssessmentEvent(models.Model):
 
     def get_test_flow(self):
         return self.test_flow_used
+
+    def get_assessee_progress_on_event(self, assessee: Assessee):
+        event_participation = self.get_assessment_event_participation_by_assessee(assessee)
+        return event_participation.get_event_progress()
 
 
 class AssessmentEventSerializer(serializers.ModelSerializer):

@@ -4,7 +4,8 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from .services.dashboard import (
     get_all_active_assessees,
-    get_assessor_assessment_events
+    get_assessor_assessment_events,
+    get_assessee_progress_on_assessment_event
 )
 
 
@@ -57,5 +58,7 @@ def serve_get_assessee_progress_on_event(request):
     assessment-event-id: string
     assessee-email: string
     """
-    return Response(data=None)
+    request_data = request.GET
+    progress_data = get_assessee_progress_on_assessment_event(request_data, user=request.user)
+    return Response(data=progress_data)
 
