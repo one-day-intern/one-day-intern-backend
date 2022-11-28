@@ -29,6 +29,9 @@ class AssessmentTool(PolymorphicModel):
             'description': self.description
         }
 
+    def get_type(self):
+        return self.__class__.__name__.lower()
+
 
 class AssessmentToolSerializer(serializers.ModelSerializer):
     owning_company_id = serializers.ReadOnlyField(source=OWNING_COMPANY_COMPANY_ID)
@@ -646,6 +649,7 @@ class AssessmentEventParticipation(models.Model):
             tool_progress_data = {
                 'start_working_time':
                     event_tool.get_iso_start_working_time_on_event_date(self.assessment_event.start_date_time),
+                'type': assessment_tool.get_type(),
                 'tool-data': PolymorphicAssessmentToolSerializer(assessment_tool).data,
                 'attempt-id': attempt_id
             }
