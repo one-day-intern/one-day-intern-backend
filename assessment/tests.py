@@ -2179,7 +2179,7 @@ class GetEventDataTest(TestCase):
             name='Response Test 2172',
             description='Description of Response Test',
             owning_company=self.company,
-            sender=self.assessor,
+            sender='Head of HR',
             subject='Welcome Onboard!',
             prompt='Hello, welcome to Google'
         )
@@ -2420,7 +2420,6 @@ class ResponseTestTest(TestCase):
         client.force_authenticate(user=self.assessor)
         response = client.post(CREATE_RESPONSE_TEST_URL, data=assignment_data, content_type=REQUEST_CONTENT_TYPE)
         response_content = json.loads(response.content)
-        print(self.expected_response_test_data)
         self.assertEqual(response.status_code, OK_RESPONSE_STATUS_CODE)
         self.assertTrue(len(response_content) > 0)
         self.assertIsNotNone(response_content.get('assessment_id'))
