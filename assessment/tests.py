@@ -46,12 +46,17 @@ from .models import (
     InteractiveQuizSerializer,
     InteractiveQuiz, MultipleChoiceQuestionSerializer, TextQuestionSerializer,
     VideoConferenceRoom,
-    AssignmentAttempt, AssessmentEventSerializer
+    AssignmentAttempt,
+    PolymorphicAssessmentToolSerializer
 )
 from .services import (
-    assessment, utils, test_flow,
-    assessment_event, assessment_event_attempt, TaskGenerator,
-    google_storage
+    assessment, utils,
+    test_flow,
+    assessment_event,
+    assessment_event_attempt,
+    TaskGenerator,
+    google_storage,
+    participation_validators
 )
 import datetime
 import json
@@ -80,6 +85,9 @@ USER_IS_NOT_ASSESSEE = 'User with email {} is not an assessee'
 CREATE_ASSIGNMENT_URL = '/assessment/create/assignment/'
 CREATE_INTERACTIVE_QUIZ_URL = '/assessment/create/interactive-quiz/'
 CANNOT_SUBMIT_AT_THIS_TIME = 'Assessment is not accepting submissions at this time'
+ASSESSOR_NOT_FOUND = 'Assessor with email {} not found'
+ASSESSEE_NOT_FOUND = 'Assessee with email {} not found'
+ASSESSOR_NOT_RESPONSIBLE = '{} is not responsible for {} on event with id {}'
 
 CREATE_TEST_FLOW_URL = reverse('test-flow-create')
 CREATE_ASSESSMENT_EVENT_URL = reverse('assessment-event-create')
@@ -90,6 +98,7 @@ GET_RELEASED_ASSIGNMENTS = reverse('event-active-assignments') + ASSESSMENT_EVEN
 GET_EVENT_DATA = reverse('get-event-data') + ASSESSMENT_EVENT_ID_PARAM_NAME
 GET_AND_DOWNLOAD_ATTEMPT_URL = reverse('get-submitted-assignment')
 CREATE_RESPONSE_TEST_URL = '/assessment/create/response-test/'
+GET_PROGRESS_URL = reverse('get-assessee-progress')
 
 GET_TOOLS_URL = "/assessment/tools/"
 REQUEST_CONTENT_TYPE = 'application/json'
@@ -1972,7 +1981,7 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
     def test_validate_assessor_participation_when_assessor_participates_in_test_flow(self, mocked_check_participation):
         mocked_check_participation.return_value = True
         try:
-            assessment_event_attempt.validate_assessor_participation(self.assessment_event, self.assessor)
+            participation_validators.validate_assessor_participation(self.assessment_event, self.assessor)
         except Exception as exception:
             self.fail(f'{exception} is raised')
 
@@ -1981,7 +1990,7 @@ class AssesseeSubscribeToAssessmentEvent(TestCase):
                                                                                              mocked_check_participation):
         mocked_check_participation.return_value = False
         try:
-            assessment_event_attempt.validate_assessor_participation(self.assessment_event, self.assessor_2)
+            participation_validators.validate_assessor_participation(self.assessment_event, self.assessor_2)
             self.fail(EXCEPTION_NOT_RAISED)
         except RestrictedAccessException as exception:
             self.assertEqual(str(exception),
@@ -3330,3 +3339,277 @@ class AssessmentToolDeadlineTest(TestCase):
             self.assertEqual(str(exception), CANNOT_SUBMIT_AT_THIS_TIME)
         finally:
             mocked_check.assert_called_with(self.assignment)
+
+
+def fetch_progress_data_of_assessee(event_id, assessee_email, authenticated_user):
+    client = APIClient()
+    client.force_authenticate(user=authenticated_user)
+    response = client.get(f'{GET_PROGRESS_URL}?assessment-event-id={event_id}&assessee-email={assessee_email}')
+    return response
+
+
+class ViewEventProgressTest(TestCase):
+    def setUp(self) -> None:
+        self.assessee = Assessee.objects.create_user(
+            email='assessee249@email.com',
+            password='Password250',
+            first_name='Assessee 251',
+            last_name='Assessee 252',
+            phone_number='+628123253',
+            date_of_birth=datetime.date(1998, 12, 25),
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.assessee_2 = Assessee.objects.create_user(
+            email='assessee275@email.com',
+            password='Password276',
+            first_name='Assessee 277',
+            last_name='Assessee 2578',
+            phone_number='+628123279',
+            date_of_birth=datetime.date(1998, 12, 26),
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.assessee_3 = Assessee.objects.create_user(
+            email='assessee287@email.com',
+            password='Password286',
+            first_name='Assessee 287',
+            last_name='Assessee 2588',
+            phone_number='+628123289',
+            date_of_birth=datetime.date(1998, 12, 26),
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.company = Company.objects.create_user(
+            email='company259@email.com',
+            password='Password260',
+            company_name='Company 261',
+            description='Description 262',
+            address='Address 263'
+        )
+
+        self.assessor = Assessor.objects.create_user(
+            email='assessor267@email.com',
+            password='Password268',
+            first_name='Assessor 269',
+            last_name='Assessor 270',
+            phone_number='+62823271',
+            associated_company=self.company,
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.assessor_2 = Assessor.objects.create_user(
+            email='assessor290@email.com',
+            password='Password291',
+            first_name='Assessor 292',
+            last_name='Assessor 293',
+            phone_number='+62823294',
+            associated_company=self.company,
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.assessor_3 = Assessor.objects.create_user(
+            email='assessor314@email.com',
+            password='Password314',
+            first_name='Assessor 314',
+            last_name='Assessor 317',
+            phone_number='+62823314',
+            associated_company=self.company,
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.assignment_1 = Assignment.objects.create(
+            name='Assignment 277',
+            description='Assignment Description 278',
+            owning_company=self.company,
+            expected_file_format='pdf',
+            duration_in_minutes=180
+        )
+        self.assignment_1_data = PolymorphicAssessmentToolSerializer(self.assignment_1).data
+
+        self.test_flow = TestFlow.objects.create(
+            name='Test Flow 285',
+            owning_company=self.company
+        )
+
+        self.test_flow.add_tool(
+            self.assignment_1,
+            release_time=datetime.time(10, 30),
+            start_working_time=datetime.time(10, 30)
+        )
+
+        self.assessment_event = AssessmentEvent.objects.create(
+            name='Assessment Event 296',
+            start_date_time=datetime.datetime(2022, 11, 22, 1, 30, tzinfo=pytz.utc),
+            owning_company=self.company,
+            test_flow_used=self.test_flow
+        )
+
+        self.assessment_event.add_participant(
+            assessee=self.assessee,
+            assessor=self.assessor
+        )
+
+        self.assessment_event.add_participant(
+            assessee=self.assessee_3,
+            assessor=self.assessor_3
+        )
+
+        self.assessment_event_participation = \
+            self.assessment_event.get_assessment_event_participation_by_assessee(self.assessee)
+
+        self.event_tool = self.test_flow.testflowtool_set.get(assessment_tool=self.assignment_1)
+
+        self.assignment_start_date_time = \
+            self.event_tool.get_iso_start_working_time_on_event_date(self.assessment_event.start_date_time)
+
+        self.expected_attempt_data = {
+            'start_working_time': self.assignment_start_date_time,
+            'type': 'assignment',
+            'tool-data': self.assignment_1_data,
+            'attempt-id': None
+        }
+
+    def test_get_assessment_tool_attempt_when_no_attempt_has_been_submitted(self):
+        attempt = self.assessment_event_participation.get_assessment_tool_attempt(self.assignment_1)
+        self.assertIsNone(attempt)
+
+    def test_get_assessment_tool_attempt_when_an_attempt_has_been_submitted(self):
+        assignment_attempt = self.assessment_event_participation.create_assignment_attempt(self.assignment_1)
+        attempt = self.assessment_event_participation.get_assessment_tool_attempt(self.assignment_1)
+        self.assertIsNotNone(attempt)
+        self.assertTrue(isinstance(attempt, AssignmentAttempt))
+        self.assertEqual(attempt.tool_attempt_id, assignment_attempt.tool_attempt_id)
+        assignment_attempt.delete()
+
+    @patch.object(AssessmentEventParticipation, 'get_assessment_tool_attempt')
+    def test_get_event_progress_when_no_attempt_has_been_submitted(self, mock_get_attempt):
+        mock_get_attempt.return_value = None
+        progress_data = self.assessment_event_participation.get_event_progress()
+        mock_get_attempt.assert_called_with(self.assignment_1)
+        self.assertEqual(len(progress_data), 1)
+        attempt_data = progress_data[0]
+        self.assertDictEqual(attempt_data, self.expected_attempt_data)
+
+    @patch.object(AssessmentEventParticipation, 'get_assessment_tool_attempt')
+    def test_get_event_progress_when_an_attempt_has_been_submitted(self, mock_get_attempt):
+        temporary_attempt = AssignmentAttempt.objects.create(
+            test_flow_attempt=self.assessment_event_participation.attempt,
+            assessment_tool_attempted=self.assignment_1,
+        )
+        mock_get_attempt.return_value = temporary_attempt
+        progress_data = self.assessment_event_participation.get_event_progress()
+        mock_get_attempt.assert_called_with(self.assignment_1)
+        self.assertEqual(len(progress_data), 1)
+        attempt_data = progress_data[0]
+        expected_attempt_data = self.expected_attempt_data.copy()
+        expected_attempt_data['attempt-id'] = temporary_attempt.tool_attempt_id
+        self.assertDictEqual(attempt_data, expected_attempt_data)
+        temporary_attempt.delete()
+
+    def assert_get_assessee_progress_invalid_request(self, event_id, assessee_email, assessor, expected_status_code,
+                                                     expected_message):
+        response = fetch_progress_data_of_assessee(
+            event_id,
+            assessee_email,
+            authenticated_user=assessor
+        )
+        self.assertEqual(response.status_code, expected_status_code)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), expected_message)
+
+    def test_get_assessee_progress_on_assessment_event_when_event_does_not_exist(self):
+        invalid_event_id = str(uuid.uuid4())
+        expected_message = EVENT_DOES_NOT_EXIST.format(invalid_event_id)
+
+        self.assert_get_assessee_progress_invalid_request(
+            event_id=invalid_event_id,
+            assessee_email=self.assessee.email,
+            assessor=self.assessor,
+            expected_status_code=HTTPStatus.BAD_REQUEST,
+            expected_message=expected_message
+        )
+
+    def test_get_assessee_progress_on_assessment_event_when_user_is_not_assessor(self):
+        assessment_event_id = str(self.assessment_event.event_id)
+        expected_message = ASSESSOR_NOT_FOUND.format(self.assessee.email)
+
+        self.assert_get_assessee_progress_invalid_request(
+            event_id=assessment_event_id,
+            assessee_email=self.assessee.email,
+            assessor=self.assessee,
+            expected_status_code=HTTPStatus.FORBIDDEN,
+            expected_message=expected_message
+        )
+
+    def test_get_assessee_progress_on_assessment_event_when_assessor_is_not_part_of_event(self):
+        assessment_event_id = str(self.assessment_event.event_id)
+        expected_message = ASSESSOR_NOT_PART_OF_EVENT.format(self.assessor_2, assessment_event_id)
+
+        self.assert_get_assessee_progress_invalid_request(
+            event_id=assessment_event_id,
+            assessee_email=self.assessee.email,
+            assessor=self.assessor_2,
+            expected_status_code=HTTPStatus.FORBIDDEN,
+            expected_message=expected_message
+        )
+
+    def test_get_assessee_progress_on_assessment_event_when_assessee_does_not_exist(self):
+        invalid_email = 'assessor_not_exist419@email.com'
+        assessment_event_id = str(self.assessment_event.event_id)
+        expected_message = ASSESSEE_NOT_FOUND.format(invalid_email)
+
+        self.assert_get_assessee_progress_invalid_request(
+            event_id=assessment_event_id,
+            assessee_email=invalid_email,
+            assessor=self.assessor,
+            expected_status_code=HTTPStatus.BAD_REQUEST,
+            expected_message=expected_message
+        )
+
+    def test_get_assessee_progress_on_assessment_event_when_assessee_is_not_part_of_event(self):
+        assessment_event_id = str(self.assessment_event.event_id)
+        expected_message = NOT_PART_OF_EVENT.format(self.assessee_2, assessment_event_id)
+        self.assert_get_assessee_progress_invalid_request(
+            event_id=assessment_event_id,
+            assessee_email=self.assessee_2.email,
+            assessor=self.assessor,
+            expected_status_code=HTTPStatus.BAD_REQUEST,
+            expected_message=expected_message
+        )
+
+    def test_get_assessee_progress_on_assessment_event_when_assessor_is_not_responsible_for_assessee(self):
+        assessment_event_id = str(self.assessment_event.event_id)
+        expected_message = ASSESSOR_NOT_RESPONSIBLE.format(self.assessor, self.assessee_3, assessment_event_id)
+        self.assert_get_assessee_progress_invalid_request(
+            event_id=assessment_event_id,
+            assessee_email=self.assessee_3.email,
+            assessor=self.assessor,
+            expected_status_code=HTTPStatus.FORBIDDEN,
+            expected_message=expected_message
+        )
+
+    def test_get_assessee_progress_on_assessment_event_when_attempt_has_not_been_submitted(self):
+        assessment_event_id = str(self.assessment_event.event_id)
+        response = fetch_progress_data_of_assessee(assessment_event_id, self.assessee, authenticated_user=self.assessor)
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content,
+            [self.expected_attempt_data]
+        )
+
+    def test_get_assessee_progress_on_assessment_event_when_attempt_has_been_submitted(self):
+        temporary_attempt = AssignmentAttempt.objects.create(
+            test_flow_attempt=self.assessment_event_participation.attempt,
+            assessment_tool_attempted=self.assignment_1,
+        )
+        attempt_data = self.expected_attempt_data.copy()
+        attempt_data['attempt-id'] = str(temporary_attempt.tool_attempt_id)
+
+        assessment_event_id = str(self.assessment_event.event_id)
+        response = fetch_progress_data_of_assessee(assessment_event_id, self.assessee, authenticated_user=self.assessor)
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content, [attempt_data])
+        temporary_attempt.delete()
