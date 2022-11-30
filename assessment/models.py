@@ -483,10 +483,6 @@ class ResponseTestSerializer(serializers.ModelSerializer):
             'owning_company_name',
         ]
 
-# class ResponseTestAttempt(models.Model):
-#     response = models.TextField(null=False)
-#     timestamp = datetime.datetime.now(tz=pytz.utc)
-
 class VideoConferenceRoom(models.Model):
     part_of = models.ForeignKey('assessment.AssessmentEventParticipation', on_delete=models.CASCADE)
     room_id = models.TextField(null=True, default=None)
