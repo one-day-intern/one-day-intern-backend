@@ -46,8 +46,6 @@ from .models import (
     InteractiveQuizSerializer,
     InteractiveQuiz, MultipleChoiceQuestionSerializer, TextQuestionSerializer,
     VideoConferenceRoom,
-    AssignmentAttempt,
-    AssessmentEventSerializer,
     InteractiveQuizAttempt,
     MultipleChoiceAnswerOptionAttempt,
     TextQuestionAttempt,
@@ -61,7 +59,8 @@ from .services import (
     assessment_event_attempt,
     TaskGenerator,
     google_storage,
-    participation_validators
+    participation_validators,
+    grading
 )
 import datetime
 import json
@@ -94,6 +93,9 @@ CANNOT_SUBMIT_AT_THIS_TIME = 'Assessment is not accepting submissions at this ti
 ASSESSOR_NOT_FOUND = 'Assessor with email {} not found'
 ASSESSEE_NOT_FOUND = 'Assessee with email {} not found'
 ASSESSOR_NOT_RESPONSIBLE = '{} is not responsible for {} on event with id {}'
+TOOL_ATTEMPT_ID_MUST_EXIST = 'Tool attempt id must exist'
+NOTE_MUST_BE_A_STRING = 'Note must be a string'
+GRADE_MUST_BE_A_NUMBER = 'Grade must be an integer or a floating point number'
 
 CREATE_TEST_FLOW_URL = reverse('test-flow-create')
 CREATE_ASSESSMENT_EVENT_URL = reverse('assessment-event-create')
@@ -3995,3 +3997,143 @@ class ViewEventProgressTest(TestCase):
         response_content = json.loads(response.content)
         self.assertEqual(response_content, [attempt_data])
         temporary_attempt.delete()
+
+
+class GradingTest(TestCase):
+    def setUp(self) -> None:
+        self.assessee_1 = Assessee.objects.create_user(
+            email='assessee3333@email.com',
+            password='Password3334',
+            first_name='Assessee 3335',
+            last_name='Assessee 3336',
+            phone_number='+628231233337',
+            date_of_birth=datetime.datetime(2000, 1, 3),
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.assessee_2 = Assessee.objects.create_user(
+            email='assessee4443@email.com',
+            password='Password4444',
+            first_name='Assessee 4445',
+            last_name='Assessee 4446',
+            phone_number='+628231234447',
+            date_of_birth=datetime.datetime(2000, 1, 4),
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.company = Company.objects.create_user(
+            email='company3343@email.com',
+            password='Password3344',
+            company_name='Company 3345',
+            description='Description 3346',
+            address='Address 3347'
+        )
+
+        self.assessor_responsible_for_1 = Assessor.objects.create_user(
+            email='assessor3351@email.com',
+            password='Password3352',
+            first_name='Assessor 3353',
+            last_name='Assessor 3354',
+            phone_number='+62823123355',
+            associated_company=self.company,
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.assessor_responsible_for_2 = Assessor.objects.create_user(
+            email='assessor4451@email.com',
+            password='Password4452',
+            first_name='Assessor 4453',
+            last_name='Assessor 4454',
+            phone_number='+62823123355',
+            associated_company=self.company,
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.non_responsible_assessor = Assessor.objects.create_user(
+            email='nonresponsibleassessor3368@email.com',
+            password='Password3369',
+            first_name='Assessor 3370',
+            last_name='Assessor 3371',
+            phone_number='+62823123372',
+            associated_company=self.company,
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.assignment = Assignment.objects.create(
+            name='Assessment Asg 3361',
+            description='Description 3362',
+            owning_company=self.company,
+            expected_file_format='pdf',
+            duration_in_minutes=30
+        )
+
+        self.test_flow = TestFlow.objects.create(
+            name='TestFlow 3369',
+            owning_company=self.company
+        )
+
+        self.test_flow.add_tool(
+            assessment_tool=self.assignment,
+            release_time=datetime.time(10, 30),
+            start_working_time=datetime.time(10, 30)
+        )
+
+        self.event = AssessmentEvent.objects.create(
+            name='Uji Latih Sekretaris TA 3380',
+            start_date_time=datetime.datetime(2022, 10, 10),
+            owning_company=self.company,
+            test_flow_used=self.test_flow
+        )
+
+        self.event.add_participant(
+            assessee=self.assessee_1,
+            assessor=self.assessor_responsible_for_1
+        )
+
+        self.event.add_participant(
+            assessee=self.assessee_2,
+            assessor=self.assessor_responsible_for_2
+        )
+
+        self.event_participation = AssessmentEventParticipation.objects.get(assessee=self.assessee_1,
+                                                                            assessment_event=self.event)
+        self.attempt = self.event_participation.create_assignment_attempt(self.assignment)
+
+        self.base_request_data = {
+            'tool-attempt-id': str(self.attempt.tool_attempt_id),
+            'grade': 100,
+            'note': 'A note to the assessee'
+        }
+
+    def test_validate_grade_assessment_tool_request_when_tool_id_does_not_exist(self):
+        request_data = self.base_request_data.copy()
+        request_data['tool-attempt-id'] = None
+        try:
+            grading.validate_grade_assessment_tool_request(request_data)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidRequestException as exception:
+            self.assertEqual(str(exception), TOOL_ATTEMPT_ID_MUST_EXIST)
+
+    def test_validate_grade_assessment_tool_request_when_grade_is_not_a_number(self):
+        request_data = self.base_request_data.copy()
+        request_data['grade'] = 'All Good'
+        try:
+            grading.validate_grade_assessment_tool_request(request_data)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidRequestException as exception:
+            self.assertEqual(str(exception), GRADE_MUST_BE_A_NUMBER)
+
+    def test_validate_grade_assessment_tool_request_when_note_exists_but_is_not_a_text(self):
+        request_data = self.base_request_data.copy()
+        request_data['note'] = 180
+        try:
+            grading.validate_grade_assessment_tool_request(request_data)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidRequestException as exception:
+            self.assertEqual(str(exception), NOTE_MUST_BE_A_STRING)
+
+    def test_validate_grade_assessment_tool_request_when_request_is_valid(self):
+        try:
+            grading.validate_grade_assessment_tool_request(self.base_request_data)
+        except Exception as exception:
+            self.fail(f'{exception} is raised')
