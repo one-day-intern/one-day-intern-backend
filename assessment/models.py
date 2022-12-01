@@ -61,6 +61,7 @@ class Assignment(AssessmentTool):
             start_time.second,
             tzinfo=pytz.utc
         )
+
         end_working_time = end_working_time + datetime.timedelta(minutes=self.duration_in_minutes)
         return end_working_time
 
@@ -84,6 +85,20 @@ class AssignmentSerializer(serializers.ModelSerializer):
 class InteractiveQuiz(AssessmentTool):
     duration_in_minutes = models.IntegerField(null=False)
     total_points = models.IntegerField(null=False)
+
+    def get_end_working_time_if_executed_on_event_date(self, start_time: datetime.time, event_date):
+        end_working_time = datetime.datetime(
+            event_date.year,
+            event_date.month,
+            event_date.day,
+            start_time.hour,
+            start_time.minute,
+            start_time.second,
+            tzinfo=pytz.utc
+        )
+
+        end_working_time = end_working_time + datetime.timedelta(minutes=self.duration_in_minutes)
+        return end_working_time
 
 
 class Question(models.Model):
@@ -121,6 +136,9 @@ class MultipleChoiceAnswerOption(models.Model):
     question = models.ForeignKey('MultipleChoiceQuestion', related_name='questions', on_delete=models.CASCADE)
     content = models.TextField(null=False)
     correct = models.BooleanField(default=False)
+
+    def get_content(self):
+        return self.content
 
 
 class TextQuestion(Question):
@@ -550,6 +568,60 @@ class AssignmentAttempt(ToolAttempt):
         return self.submitted_time
 
 
+class InteractiveQuizAttempt(ToolAttempt):
+    submitted_time = models.DateTimeField(default=None, null=True)
+
+    def get_all_question_attempts(self):
+        return self.questionattempt_set
+
+    def get_question_attempt(self, question_id):
+        question = Question.objects.get(question_id=question_id)
+        matching_question_attempts = self.questionattempt_set.filter(question=question)
+        if matching_question_attempts:
+            return matching_question_attempts[0]
+        else:
+            return None
+
+    def set_submitted_time(self):
+        self.submitted_time = datetime.datetime.now(tz=pytz.utc)
+        self.save()
+
+    def get_submitted_time(self):
+        return self.submitted_time
+
+
+class QuestionAttempt(models.Model):
+    question = models.ForeignKey('Question', on_delete=models.CASCADE)
+    interactive_quiz_attempt = models.ForeignKey('InteractiveQuizAttempt',
+                                                 on_delete=models.CASCADE
+                                                 )
+    is_answered = models.BooleanField(default=False)
+
+
+class TextQuestionAttempt(QuestionAttempt):
+    answer = models.TextField(null=True)
+
+    def set_answer(self, answer):
+        self.answer = answer
+        self.save()
+
+    def get_answer(self):
+        return self.answer
+
+
+class MultipleChoiceAnswerOptionAttempt(QuestionAttempt):
+    selected_option = models.ForeignKey('MultipleChoiceAnswerOption', related_name='selected_option', on_delete=models.CASCADE)
+
+    def set_selected_option(self, answer_option_id):
+        matching_answer_option = MultipleChoiceAnswerOption.objects.filter(answer_option_id=answer_option_id)
+        answer_option = matching_answer_option[0]
+        self.selected_option = answer_option
+        self.save()
+
+    def get_selected_option_content(self):
+        return self.selected_option.get_content()
+
+
 class AssessmentEventParticipation(models.Model):
     assessment_event = models.ForeignKey('assessment.AssessmentEvent', on_delete=models.CASCADE)
     assessee = models.ForeignKey('users.Assessee', on_delete=models.CASCADE)
@@ -575,6 +647,26 @@ class AssessmentEventParticipation(models.Model):
             assessment_tool_attempted=assignment
         )
         return assignment_attempt
+
+    def get_all_interactive_quiz_attempts(self):
+        return self.attempt.toolattempt_set.instance_of(InteractiveQuizAttempt)
+
+    def get_interactive_quiz_attempt(self, interactive_quiz: InteractiveQuiz) -> Optional[InteractiveQuizAttempt]:
+        interactive_quiz_attempts = self.get_all_interactive_quiz_attempts()
+        matching_interactive_quiz_attempts = interactive_quiz_attempts.filter(assessment_tool_attempted=interactive_quiz)
+
+        if matching_interactive_quiz_attempts:
+            return matching_interactive_quiz_attempts[0]
+
+        else:
+            return None
+
+    def create_interactive_quiz_attempt(self, interactive_quiz: InteractiveQuiz) -> InteractiveQuizAttempt:
+        interactive_quiz_attempt = InteractiveQuizAttempt.objects.create(
+            test_flow_attempt=self.attempt,
+            assessment_tool_attempted=interactive_quiz
+        )
+        return interactive_quiz_attempt
 
 
 class AssessmentEventParticipationSerializer(serializers.ModelSerializer):

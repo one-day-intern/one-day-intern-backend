@@ -20,7 +20,7 @@ from .services.assessment_event_attempt import (
     get_all_active_assignment,
     get_assessment_event_data,
     submit_assignment,
-    get_submitted_assignment
+    get_submitted_assignment, submit_interactive_quiz, submit_interactive_quiz_answers
 )
 from .models import (
     AssignmentSerializer,
@@ -247,7 +247,6 @@ def serve_submit_assignment(request):
     submit_assignment(request_data, submitted_file, user=request.user)
     return Response(data={'message': 'File uploaded successfully'}, status=200)
 
-
 @require_GET
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -272,3 +271,38 @@ def serve_get_submitted_assignment(request):
         return response
     else:
         return Response(data={'message': 'No attempt found'}, status=200)
+
+
+@require_POST
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def serve_submit_answer(request):
+    """
+    This view will serve as the end-point for assessees to submit their assignment
+    attempt to an interactive quiz tool that they currently undergo in an assessment event.
+    ----------------------------------------------------------
+    request-data must contain:
+    assessment-event-id: string
+    assessment-tool-id: string
+    file: file
+    """
+    request_data = json.loads(request.body.decode('utf-8'))
+    submit_interactive_quiz_answers(request_data, user=request.user)
+    return Response(data={'message': 'Answers saved successfully'}, status=200)
+
+@require_POST
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def serve_submit_interactive_quiz(request):
+    """
+    This view will serve as the end-point for assessees to submit their assignment
+    attempt to an interactive quiz tool that they currently undergo in an assessment event.
+    ----------------------------------------------------------
+    request-data must contain:
+    assessment-event-id: string
+    assessment-tool-id: string
+    file: file
+    """
+    request_data = json.loads(request.body.decode('utf-8'))
+    submit_interactive_quiz(request_data, user=request.user)
+    return Response(data={'message': 'All answers saved successfully'}, status=200)
