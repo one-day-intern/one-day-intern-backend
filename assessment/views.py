@@ -20,8 +20,11 @@ from .services.assessment_event_attempt import (
     get_all_active_assignment,
     get_assessment_event_data,
     submit_assignment,
-    get_submitted_assignment, submit_interactive_quiz, submit_interactive_quiz_answers
+    get_submitted_assignment,
+    submit_interactive_quiz,
+    submit_interactive_quiz_answers
 )
+from .services.progress_review import get_assessee_progress_on_assessment_event
 from .models import (
     AssignmentSerializer,
     TestFlowSerializer,
@@ -247,6 +250,7 @@ def serve_submit_assignment(request):
     submit_assignment(request_data, submitted_file, user=request.user)
     return Response(data={'message': 'File uploaded successfully'}, status=200)
 
+
 @require_GET
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -306,3 +310,19 @@ def serve_submit_interactive_quiz(request):
     request_data = json.loads(request.body.decode('utf-8'))
     submit_interactive_quiz(request_data, user=request.user)
     return Response(data={'message': 'All answers saved successfully'}, status=200)
+
+
+@require_GET
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def serve_get_assessee_progress_on_event(request):
+    """
+    This view will serve as the end point for assessors to get assessment event progress of an assessee
+    ----------------------------------------------------------
+    request-param must contain:
+    assessment-event-id: string
+    assessee-email: string
+    """
+    request_data = request.GET
+    progress_data = get_assessee_progress_on_assessment_event(request_data, user=request.user)
+    return Response(data=progress_data)

@@ -4,15 +4,19 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="59072675-333c-455e-996f-0fb16b259492" name="Changes" comment="[RED] create tests for submit interactive quiz attempt">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/assessment/migrations/0001_initial.py" beforeDir="false" />
+    <list default="true" id="59072675-333c-455e-996f-0fb16b259492" name="Changes" comment="[GREEN] implement interactive quiz submission">
+      <change afterPath="$PROJECT_DIR$/assessment/services/participation_validators.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/assessment/services/progress_review.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/assessment/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/assessment/models.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/assessment/services/assessment.py" beforeDir="false" afterPath="$PROJECT_DIR$/assessment/services/assessment.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/assessment/services/assessment_event_attempt.py" beforeDir="false" afterPath="$PROJECT_DIR$/assessment/services/assessment_event_attempt.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/assessment/tests.py" beforeDir="false" afterPath="$PROJECT_DIR$/assessment/tests.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/assessment/urls.py" beforeDir="false" afterPath="$PROJECT_DIR$/assessment/urls.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/assessment/views.py" beforeDir="false" afterPath="$PROJECT_DIR$/assessment/views.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/assessor/services/dashboard.py" beforeDir="false" afterPath="$PROJECT_DIR$/assessor/services/dashboard.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/assessor/tests.py" beforeDir="false" afterPath="$PROJECT_DIR$/assessor/tests.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/assessor/urls.py" beforeDir="false" afterPath="$PROJECT_DIR$/assessor/urls.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/assessor/views.py" beforeDir="false" afterPath="$PROJECT_DIR$/assessor/views.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/users/services/utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/users/services/utils.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -215,7 +219,21 @@
       <option name="project" value="LOCAL" />
       <updated>1669307355614</updated>
     </task>
-    <option name="localTasksCounter" value="6" />
+    <task id="LOCAL-00006" summary="[RED] add tests for submitting quiz and quiz answers">
+      <created>1669884907828</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1669884907829</updated>
+    </task>
+    <task id="LOCAL-00007" summary="[GREEN] implement interactive quiz submission">
+      <created>1669884945852</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1669884945852</updated>
+    </task>
+    <option name="localTasksCounter" value="8" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -238,6 +256,8 @@
     <MESSAGE value="[REFACTOR] remake migrations for refactored models" />
     <MESSAGE value="[CHORES] fix merge conflict from merging with staging" />
     <MESSAGE value="[RED] create tests for submit interactive quiz attempt" />
-    <option name="LAST_COMMIT_MESSAGE" value="[RED] create tests for submit interactive quiz attempt" />
+    <MESSAGE value="[RED] add tests for submitting quiz and quiz answers" />
+    <MESSAGE value="[GREEN] implement interactive quiz submission" />
+    <option name="LAST_COMMIT_MESSAGE" value="[GREEN] implement interactive quiz submission" />
   </component>
 </project>

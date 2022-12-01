@@ -3,6 +3,7 @@ from django.core.exceptions import ValidationError
 from one_day_intern.exceptions import RestrictedAccessException, InvalidRequestException
 from one_day_intern.settings import GOOGLE_BUCKET_BASE_DIRECTORY, GOOGLE_STORAGE_BUCKET_NAME
 from users.models import Assessee, Assessor
+from .participation_validators import validate_user_participation
 from ..exceptions.exceptions import EventDoesNotExist, AssessmentToolDoesNotExist
 from ..models import AssessmentEvent, AssignmentAttempt, Assignment, AssessmentTool, InteractiveQuiz, \
     InteractiveQuizAttempt, Question, MultipleChoiceAnswerOptionAttempt, MultipleChoiceAnswerOption, TextQuestionAttempt
@@ -11,20 +12,6 @@ from . import utils, google_storage
 import mimetypes
 
 ASSESEE_NOT_PART_OF_EVENT = 'Assessee with email {} is not part of assessment with id {}'
-
-
-def validate_user_participation(assessment_event: AssessmentEvent, assessee: Assessee):
-    if not assessment_event.check_assessee_participation(assessee):
-        raise RestrictedAccessException(
-            f'Assessee with email {assessee.email} is not part of assessment with id {assessment_event.event_id}'
-        )
-
-
-def validate_assessor_participation(assessment_event: AssessmentEvent, assessor: Assessor):
-    if not assessment_event.check_assessor_participation(assessor):
-        raise RestrictedAccessException(
-            f'Assessor with email {assessor.email} is not part of assessment with id {assessment_event.event_id}'
-        )
 
 
 def subscribe_to_assessment_flow(request_data, user) -> TaskGenerator:
