@@ -4158,3 +4158,36 @@ class GradingTest(TestCase):
             grading.validate_assessor_responsibility(self.event, self.assessor_responsible_for_1, self.assessee_1)
         except Exception as exception:
             self.fail(f'{exception} is raised')
+
+    def empty_grade_and_note_of_attempt(self):
+        self.attempt.grade = 0
+        self.attempt.note = None
+        self.attempt.save()
+
+    def test_set_grade_and_note_of_tool_attempt_when_grade_does_not_exist(self):
+        request_data = self.base_request_data.copy()
+        del request_data['grade']
+        grading.set_grade_and_note_of_tool_attempt(self.attempt, request_data)
+
+        self.assertEqual(self.attempt.grade, 0)
+        self.assertEqual(self.attempt.note, request_data.get('note'))
+
+        self.empty_grade_and_note_of_attempt()
+
+    def test_set_grade_and_note_of_tool_attempt_when_note_does_not_exist(self):
+        request_data = self.base_request_data.copy()
+        del request_data['note']
+        grading.set_grade_and_note_of_tool_attempt(self.attempt, request_data)
+
+        self.assertEqual(self.attempt.grade, request_data.get('grade'))
+        self.assertIsNone(self.attempt.note)
+
+        self.empty_grade_and_note_of_attempt()
+
+    def test_set_grade_and_note_of_tool_attempt_when_both_exist(self):
+        grading.set_grade_and_note_of_tool_attempt(self.attempt, self.base_request_data)
+
+        self.assertEqual(self.attempt.grade, self.base_request_data.get('grade'))
+        self.assertEqual(self.attempt.note, self.base_request_data.get('note'))
+
+        self.empty_grade_and_note_of_attempt()

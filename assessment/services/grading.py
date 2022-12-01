@@ -13,3 +13,7 @@ def validate_grade_assessment_tool_request(request_data):
 def validate_assessor_responsibility(event, assessor, assessee):
     if not event.check_assessee_and_assessor_pair(assessee, assessor):
         raise RestrictedAccessException(f'{assessor} is not responsible for {assessee} on event with id {event.event_id}')
+
+
+def set_grade_and_note_of_tool_attempt(tool_attempt, request_data):
+    pass
