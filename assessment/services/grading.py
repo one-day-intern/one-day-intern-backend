@@ -16,4 +16,8 @@ def validate_assessor_responsibility(event, assessor, assessee):
 
 
 def set_grade_and_note_of_tool_attempt(tool_attempt, request_data):
-    pass
+    if request_data.get('grade'):
+        tool_attempt.set_grade(request_data.get('grade'))
+
+    if request_data.get('note'):
+        tool_attempt.set_note(request_data.get('note'))
