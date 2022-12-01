@@ -5,7 +5,8 @@ from one_day_intern.settings import GOOGLE_BUCKET_BASE_DIRECTORY, GOOGLE_STORAGE
 from users.models import Assessee, Assessor
 from .participation_validators import validate_user_participation
 from ..exceptions.exceptions import EventDoesNotExist, AssessmentToolDoesNotExist
-from ..models import AssessmentEvent, AssignmentAttempt, Assignment, AssessmentTool
+from ..models import AssessmentEvent, AssignmentAttempt, Assignment, AssessmentTool, InteractiveQuiz, \
+    InteractiveQuizAttempt, Question, MultipleChoiceAnswerOptionAttempt, MultipleChoiceAnswerOption, TextQuestionAttempt
 from .TaskGenerator import TaskGenerator
 from . import utils, google_storage
 import mimetypes
@@ -135,9 +136,106 @@ def get_submitted_assignment(request_data, user):
         event = utils.get_active_assessment_event_from_id(request_data.get('assessment-event-id'))
         assessee = utils.get_assessee_from_user(user)
         validate_user_participation(event, assessee)
-        assessment_tool = event.get_assessment_tool_from_assessment_id(assessment_id=request_data.get('assessment-tool-id'))
+        assessment_tool = event.get_assessment_tool_from_assessment_id(
+            assessment_id=request_data.get('assessment-tool-id'))
         validate_tool_is_assignment(assessment_tool)
         downloaded_file = download_assignment_attempt(event, assessment_tool, assessee)
         return downloaded_file
     except (EventDoesNotExist, AssessmentToolDoesNotExist) as exception:
+        raise InvalidRequestException(str(exception))
+
+
+def get_or_create_interactive_quiz_attempt(event: AssessmentEvent, interactive_quiz: InteractiveQuiz,
+                                           assessee: Assessee):
+    assessee_participation = event.get_assessment_event_participation_by_assessee(assessee)
+    found_attempt = assessee_participation.get_interactive_quiz_attempt(interactive_quiz)
+
+    if found_attempt:
+        return found_attempt
+    else:
+        return assessee_participation.create_interactive_quiz_attempt(interactive_quiz)
+
+
+def validate_interactive_quiz_submission(assessment_tool):
+    if assessment_tool is None:
+        raise InvalidRequestException('Assessment tool associated with event does not exist')
+
+    if not isinstance(assessment_tool, InteractiveQuiz):
+        raise InvalidRequestException(f'Assessment tool with id {assessment_tool.assessment_id} '
+                                      f'is not an interactive quiz')
+
+
+def save_answer_attempts(interactive_quiz_attempt, attempt):
+    answer_attempts = attempt['answers']
+    for answer in answer_attempts:
+        question_attempt = interactive_quiz_attempt.get_question_attempt(answer['question-id'])
+        if question_attempt:
+            question = Question.objects.get(question_id=answer['question-id'])
+            question_type = question.question_type
+            if question_type == "multiple_choice":
+                answer_option_attempt = MultipleChoiceAnswerOptionAttempt.objects.get(answer_option_id=answer['answer-option-id'])
+                answer_option_attempt.set_answer_option(answer['answer-option-id'])
+            else:
+                text_question_attempt = TextQuestionAttempt.objects.get(question=question)
+                text_question_attempt.set_answer(answer['text-answer'])
+        else:
+            question = Question.objects.get(question_id=answer['question-id'])
+            question_type = question.question_type
+
+            if question_type == "multiple_choice":
+                answer_option = MultipleChoiceAnswerOption.objects.get(answer_option_id=answer['answer-option-id'])
+                MultipleChoiceAnswerOptionAttempt.objects.create(
+                    question=question,
+                    interactive_quiz_attempt=interactive_quiz_attempt,
+                    is_answered=True,
+                    selected_option=answer_option
+                )
+            else:
+                text_answer = answer['text-answer']
+                if text_answer != '':
+                    TextQuestionAttempt.objects.create(
+                        question=question,
+                        interactive_quiz_attempt=interactive_quiz_attempt,
+                        is_answered=True,
+                        answer=text_answer
+                    )
+
+
+def save_interactive_quiz_attempt(event: AssessmentEvent, interactive_quiz: InteractiveQuiz, assessee: Assessee,
+                                  attempt):
+    interactive_quiz_attempt: InteractiveQuizAttempt = get_or_create_interactive_quiz_attempt(event,
+                                                                                              interactive_quiz,
+                                                                                              assessee)
+    save_answer_attempts(interactive_quiz_attempt, attempt)
+
+
+def submit_interactive_quiz_answers(request_data, user):
+    try:
+        event = utils.get_active_assessment_event_from_id(request_data.get('assessment-event-id'))
+        assessee = utils.get_assessee_from_user(user)
+        validate_user_participation(event, assessee)
+        assessment_tool = \
+            event.get_assessment_tool_from_assessment_id(assessment_id=request_data.get('assessment-tool-id'))
+        validate_interactive_quiz_submission(assessment_tool)
+        validate_attempt_is_submittable(assessment_tool, event)
+        save_interactive_quiz_attempt(event, assessment_tool, assessee, request_data)
+
+    except (AssessmentToolDoesNotExist, EventDoesNotExist, ValidationError) as exception:
+        raise InvalidRequestException(str(exception))
+
+
+def submit_interactive_quiz(request_data, user):
+    try:
+        event = utils.get_active_assessment_event_from_id(request_data.get('assessment-event-id'))
+        assessee = utils.get_assessee_from_user(user)
+        validate_user_participation(event, assessee)
+        assessment_tool = \
+            event.get_assessment_tool_from_assessment_id(assessment_id=request_data.get('assessment-tool-id'))
+        interactive_quiz_attempt = get_or_create_interactive_quiz_attempt(event,
+                                                                          assessment_tool,
+                                                                          assessee)
+
+        interactive_quiz_attempt.set_submitted_time()
+
+    except (AssessmentToolDoesNotExist, EventDoesNotExist, ValidationError) as exception:
         raise InvalidRequestException(str(exception))
