@@ -603,6 +603,12 @@ class ToolAttempt(PolymorphicModel):
         self.save()
 
 
+class ToolAttemptSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ToolAttempt
+        fields = '__all__'
+
+
 class AssignmentAttempt(ToolAttempt):
     file_upload_directory = models.TextField(null=True)
     filename = models.TextField(default=None, null=True)
