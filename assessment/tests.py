@@ -50,7 +50,7 @@ from .models import (
     MultipleChoiceAnswerOptionAttempt,
     TextQuestionAttempt,
     PolymorphicAssessmentToolSerializer,
-    AssignmentAttempt,
+    AssignmentAttempt, ToolAttempt,
 )
 from .services import (
     assessment, utils,
@@ -97,6 +97,7 @@ TOOL_ATTEMPT_ID_MUST_EXIST = 'Tool attempt id must exist'
 NOTE_MUST_BE_A_STRING = 'Note must be a string'
 GRADE_MUST_BE_A_NUMBER = 'Grade must be an integer or a floating point number'
 ASSESSOR_NOT_RESPONSIBLE_FOR_ASSESSEE = '{} is not responsible for {} on event with id {}'
+TOOL_ATTEMPT_DOES_NOT_EXIST = 'Tool attempt with id {} does not exist'
 
 CREATE_TEST_FLOW_URL = reverse('test-flow-create')
 CREATE_ASSESSMENT_EVENT_URL = reverse('assessment-event-create')
@@ -110,6 +111,7 @@ GET_EVENT_DATA = reverse('get-event-data') + ASSESSMENT_EVENT_ID_PARAM_NAME
 GET_AND_DOWNLOAD_ATTEMPT_URL = reverse('get-submitted-assignment')
 CREATE_RESPONSE_TEST_URL = '/assessment/create/response-test/'
 GET_PROGRESS_URL = reverse('get-assessee-progress')
+SUBMIT_GRADE_AND_NOTE_URL = reverse('submit-grade-and-note')
 
 GET_TOOLS_URL = "/assessment/tools/"
 REQUEST_CONTENT_TYPE = 'application/json'
@@ -4189,5 +4191,98 @@ class GradingTest(TestCase):
 
         self.assertEqual(self.attempt.grade, self.base_request_data.get('grade'))
         self.assertEqual(self.attempt.note, self.base_request_data.get('note'))
+
+        self.empty_grade_and_note_of_attempt()
+
+    def test_grade_assessment_tool_when_id_is_none(self):
+        request_data = self.base_request_data.copy()
+        del request_data['tool-attempt-id']
+        response = fetch_and_get_response(SUBMIT_GRADE_AND_NOTE_URL, request_data, authenticated_user=self.assessor_responsible_for_1)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), TOOL_ATTEMPT_ID_MUST_EXIST)
+
+    def test_grade_assessment_tool_when_grade_is_not_a_number(self):
+        request_data = self.base_request_data.copy()
+        request_data['grade'] = 'A'
+        response = fetch_and_get_response(SUBMIT_GRADE_AND_NOTE_URL, request_data, authenticated_user=self.assessor_responsible_for_1)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), GRADE_MUST_BE_A_NUMBER)
+
+    def test_grade_assessment_tool_when_note_is_not_a_text(self):
+        request_data = self.base_request_data.copy()
+        request_data['note'] = 190
+        response = fetch_and_get_response(SUBMIT_GRADE_AND_NOTE_URL, request_data, authenticated_user=self.assessor_responsible_for_1)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), NOTE_MUST_BE_A_STRING)
+
+    def test_grade_assessment_tool_when_tool_with_attempt_id_does_not_exist(self):
+        request_data = self.base_request_data.copy()
+        request_data['tool-attempt-id'] = str(uuid.uuid4())
+        response = fetch_and_get_response(SUBMIT_GRADE_AND_NOTE_URL, request_data, authenticated_user=self.assessor_responsible_for_1)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            TOOL_ATTEMPT_DOES_NOT_EXIST.format(request_data.get('tool-attempt-id'))
+        )
+
+    def test_grade_assessment_tool_when_user_is_not_assessor(self):
+        request_data = self.base_request_data.copy()
+        response = fetch_and_get_response(SUBMIT_GRADE_AND_NOTE_URL, request_data, authenticated_user=self.assessee_1)
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), ASSESSOR_NOT_FOUND.format(self.assessee_1))
+
+    def test_grade_assessment_tool_when_assessor_does_not_participate_in_event(self):
+        request_data = self.base_request_data.copy()
+        response = fetch_and_get_response(
+            SUBMIT_GRADE_AND_NOTE_URL,
+            request_data,
+            authenticated_user=self.non_responsible_assessor
+        )
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            ASSESSOR_NOT_PART_OF_EVENT.format(self.non_responsible_assessor, str(self.event.event_id))
+        )
+
+    def test_grade_assessment_tool_when_assessor_is_not_responsible_for_assessee(self):
+        request_data = self.base_request_data.copy()
+        response = fetch_and_get_response(
+            SUBMIT_GRADE_AND_NOTE_URL,
+            request_data,
+            authenticated_user=self.assessor_responsible_for_2
+        )
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            ASSESSOR_NOT_RESPONSIBLE_FOR_ASSESSEE.format(
+                self.assessor_responsible_for_2,
+                self.assessee_1,
+                str(self.event.event_id)
+            )
+        )
+
+    def test_grade_assessment_tool_when_request_is_valid(self):
+        request_data = self.base_request_data.copy()
+        response = fetch_and_get_response(
+            SUBMIT_GRADE_AND_NOTE_URL,
+            request_data,
+            authenticated_user=self.assessor_responsible_for_1
+        )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('grade'), request_data.get('grade'))
+        self.assertEqual(response_content.get('note'), request_data.get('note'))
+
+        changed_attempt = ToolAttempt.objects.get(tool_attempt_id=self.attempt.tool_attempt_id)
+        self.assertEqual(changed_attempt.grade, request_data.get('grade'))
+        self.assertEqual(changed_attempt.note, request_data.get('note'))
 
         self.empty_grade_and_note_of_attempt()

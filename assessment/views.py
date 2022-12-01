@@ -326,3 +326,19 @@ def serve_get_assessee_progress_on_event(request):
     request_data = request.GET
     progress_data = get_assessee_progress_on_assessment_event(request_data, user=request.user)
     return Response(data=progress_data)
+
+
+@require_POST
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def serve_grade_assessment_tool_attempts(request):
+    """
+    This view will serve as the end-point for assessors to grade their assessee's attempts on an AssessmentEvent
+    The view will return the updated attempt data.
+    ----------------------------------------------------------
+    request-data must contain:
+    tool-attempt-id: string
+    grade: float
+    note: string
+    """
+    return Response(data=None, status=200)
