@@ -1,4 +1,4 @@
-from one_day_intern.exceptions import InvalidRequestException
+from one_day_intern.exceptions import InvalidRequestException, RestrictedAccessException
 
 
 def validate_grade_assessment_tool_request(request_data):
@@ -11,4 +11,5 @@ def validate_grade_assessment_tool_request(request_data):
 
 
 def validate_assessor_responsibility(event, assessor, assessee):
-    pass
+    if not event.check_assessee_and_assessor_pair(assessee, assessor):
+        raise RestrictedAccessException(f'{assessor} is not responsible for {assessee} on event with id {event.event_id}')
