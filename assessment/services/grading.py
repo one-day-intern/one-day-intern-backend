@@ -8,3 +8,7 @@ def validate_grade_assessment_tool_request(request_data):
         raise InvalidRequestException('Grade must be an integer or a floating point number')
     if request_data.get('note') is not None and not isinstance(request_data.get('note'), str):
         raise InvalidRequestException('Note must be a string')
+
+
+def validate_assessor_responsibility(event, assessor, assessee):
+    pass

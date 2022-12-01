@@ -96,6 +96,7 @@ ASSESSOR_NOT_RESPONSIBLE = '{} is not responsible for {} on event with id {}'
 TOOL_ATTEMPT_ID_MUST_EXIST = 'Tool attempt id must exist'
 NOTE_MUST_BE_A_STRING = 'Note must be a string'
 GRADE_MUST_BE_A_NUMBER = 'Grade must be an integer or a floating point number'
+ASSESSOR_NOT_RESPONSIBLE_FOR_ASSESSEE = '{} is not responsible for {} on event with id {}'
 
 CREATE_TEST_FLOW_URL = reverse('test-flow-create')
 CREATE_ASSESSMENT_EVENT_URL = reverse('assessment-event-create')
@@ -4135,5 +4136,25 @@ class GradingTest(TestCase):
     def test_validate_grade_assessment_tool_request_when_request_is_valid(self):
         try:
             grading.validate_grade_assessment_tool_request(self.base_request_data)
+        except Exception as exception:
+            self.fail(f'{exception} is raised')
+
+    def test_validate_responsibility_when_assessor_is_not_responsible_for_assessee(self):
+        try:
+            grading.validate_assessor_responsibility(self.event, self.non_responsible_assessor, self.assessee_1)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except RestrictedAccessException as exception:
+            self.assertEqual(
+                str(exception),
+                ASSESSOR_NOT_RESPONSIBLE_FOR_ASSESSEE.format(
+                    self.non_responsible_assessor,
+                    self.assessee_1,
+                    str(self.event.event_id)
+                )
+            )
+
+    def test_validate_responsibility_when_assessor_is_responsible_for_assessee(self):
+        try:
+            grading.validate_assessor_responsibility(self.event, self.assessor_responsible_for_1, self.assessee_1)
         except Exception as exception:
             self.fail(f'{exception} is raised')
