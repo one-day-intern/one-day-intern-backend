@@ -4,28 +4,15 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="e2156b0c-3e0e-4b00-b0af-bb331cb30b5a" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.coveragerc" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/Pipfile" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/assessment/migrations/0008_videoconferenceroom.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/video_conference/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/video_conference/admin.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/video_conference/apps.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/video_conference/migrations/0001_initial.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/video_conference/migrations/0002_delete_videoconferenceroom.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/video_conference/migrations/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/video_conference/models.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/video_conference/services/utils.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/video_conference/services/video_conference.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/video_conference/tests.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/video_conference/urls.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/video_conference/views.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+    <list default="true" id="59072675-333c-455e-996f-0fb16b259492" name="Changes" comment="[RED] create tests for submit interactive quiz attempt">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/assessment/migrations/0001_initial.py" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/assessment/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/assessment/models.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/assessment/services/assessment.py" beforeDir="false" afterPath="$PROJECT_DIR$/assessment/services/assessment.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/assessment/services/assessment_event_attempt.py" beforeDir="false" afterPath="$PROJECT_DIR$/assessment/services/assessment_event_attempt.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/assessment/tests.py" beforeDir="false" afterPath="$PROJECT_DIR$/assessment/tests.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/one_day_intern/settings.py" beforeDir="false" afterPath="$PROJECT_DIR$/one_day_intern/settings.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/one_day_intern/urls.py" beforeDir="false" afterPath="$PROJECT_DIR$/one_day_intern/urls.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sonar-project.properties" beforeDir="false" afterPath="$PROJECT_DIR$/sonar-project.properties" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/assessment/urls.py" beforeDir="false" afterPath="$PROJECT_DIR$/assessment/urls.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/assessment/views.py" beforeDir="false" afterPath="$PROJECT_DIR$/assessment/views.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -33,6 +20,11 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="Git.Settings">
+    <option name="RECENT_BRANCH_BY_REPOSITORY">
+      <map>
+        <entry key="$PROJECT_DIR$" value="PBI-01-create_assignment" />
+      </map>
+    </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
   <component name="MarkdownSettingsMigration">
@@ -62,7 +54,38 @@
       <recent name="C:\Users\ASUS\Documents\Kuliah\Semester-5\PPL\one-day-intern-backend-v3\one-day-intern-backend" />
     </key>
   </component>
-  <component name="RunManager" selected="Python.test">
+  <component name="RunManager" selected="Python.attempt test">
+    <configuration name="attempt test" type="PythonConfigurationType" factoryName="Python">
+      <module name="one-day-intern-backend" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="$USER_HOME$/.local/share/virtualenvs/one-day-intern-backend-wEL9A8BU/bin/python" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/assessment" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="net.ashald.envfile">
+        <option name="IS_ENABLED" value="false" />
+        <option name="IS_SUBST" value="false" />
+        <option name="IS_PATH_MACRO_SUPPORTED" value="false" />
+        <option name="IS_IGNORE_MISSING_FILES" value="false" />
+        <option name="IS_ENABLE_EXPERIMENTAL_INTEGRATIONS" value="false" />
+        <ENTRIES>
+          <ENTRY IS_ENABLED="true" PARSER="runconfig" />
+        </ENTRIES>
+      </EXTENSION>
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/manage.py" />
+      <option name="PARAMETERS" value="test" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
     <configuration name="manage" type="PythonConfigurationType" factoryName="Python">
       <module name="one-day-intern-backend" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -143,12 +166,13 @@
     <list>
       <item itemvalue="Python.manage" />
       <item itemvalue="Python.test" />
+      <item itemvalue="Python.attempt test" />
     </list>
   </component>
   <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
   <component name="TaskManager">
     <task active="true" id="Default" summary="Default task">
-      <changelist id="e2156b0c-3e0e-4b00-b0af-bb331cb30b5a" name="Changes" comment="" />
+      <changelist id="59072675-333c-455e-996f-0fb16b259492" name="Changes" comment="[CHORES] fix merge conflict from merging with staging" />
       <created>1663388012109</created>
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
@@ -156,6 +180,42 @@
       <workItem from="1663388013422" duration="11036000" />
       <workItem from="1663422660425" duration="848000" />
     </task>
+    <task id="LOCAL-00001" summary="[CHORES] fix merge conflicts from merging with staging">
+      <created>1669111158170</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1669111158170</updated>
+    </task>
+    <task id="LOCAL-00002" summary="[REFACTOR] add uuid id fields to MultipleChoiceAnswerOption and Question models">
+      <created>1669111597106</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1669111597106</updated>
+    </task>
+    <task id="LOCAL-00003" summary="[REFACTOR] remake migrations for refactored models">
+      <created>1669111632211</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1669111632211</updated>
+    </task>
+    <task id="LOCAL-00004" summary="[CHORES] fix merge conflict from merging with staging">
+      <created>1669113498907</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1669113498907</updated>
+    </task>
+    <task id="LOCAL-00005" summary="[RED] create tests for submit interactive quiz attempt">
+      <created>1669307355614</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1669307355614</updated>
+    </task>
+    <option name="localTasksCounter" value="6" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -171,5 +231,13 @@
         </entry>
       </map>
     </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="[CHORES] fix merge conflicts from merging with staging" />
+    <MESSAGE value="[REFACTOR] add uuid id fields to MultipleChoiceAnswerOption and Question models" />
+    <MESSAGE value="[REFACTOR] remake migrations for refactored models" />
+    <MESSAGE value="[CHORES] fix merge conflict from merging with staging" />
+    <MESSAGE value="[RED] create tests for submit interactive quiz attempt" />
+    <option name="LAST_COMMIT_MESSAGE" value="[RED] create tests for submit interactive quiz attempt" />
   </component>
 </project>
