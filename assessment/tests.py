@@ -99,6 +99,7 @@ GRADE_MUST_BE_A_NUMBER = 'Grade must be an integer or a floating point number'
 ASSESSOR_NOT_RESPONSIBLE_FOR_ASSESSEE = '{} is not responsible for {} on event with id {}'
 TOOL_ATTEMPT_DOES_NOT_EXIST = 'Tool attempt with id {} does not exist'
 ATTEMPT_IS_NOT_AN_ASSIGNMENT = 'Attempt with id {} is not an assignment'
+GET_ASSIGNMENT_ATTEMPT_DATA_FILE = reverse('get-assignment-attempt-file') + '?tool-attempt-id='
 
 CREATE_TEST_FLOW_URL = reverse('test-flow-create')
 CREATE_ASSESSMENT_EVENT_URL = reverse('assessment-event-create')
@@ -4380,3 +4381,93 @@ class GradingTest(TestCase):
         self.assertEqual(response_content.get('filename'), self.assignment_attempt.get_file_name())
         self.assertEqual(response_content.get('grade'), self.assignment_attempt.grade)
         self.assertEqual(response_content.get('note'), self.assignment_attempt.note)
+
+    @patch.object(google_storage, 'download_file_from_google_bucket')
+    def test_get_assignment_attempt_file_when_attempt_with_id_does_not_exist(self, mocked_download):
+        invalid_attempt_id = str(uuid.uuid4())
+        response = get_fetch_and_get_response(
+            GET_ASSIGNMENT_ATTEMPT_DATA_FILE,
+            request_param=invalid_attempt_id,
+            authenticated_user=self.assessor_responsible_for_1
+        )
+        mocked_download.assert_not_called()
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), TOOL_ATTEMPT_DOES_NOT_EXIST.format(invalid_attempt_id))
+
+    @patch.object(google_storage, 'download_file_from_google_bucket')
+    def test_get_assignment_attempt_file_when_user_is_not_assessor(self, mocked_download):
+        attempt_id = str(self.assignment_attempt.tool_attempt_id)
+        response = get_fetch_and_get_response(
+            GET_ASSIGNMENT_ATTEMPT_DATA_FILE,
+            request_param=attempt_id,
+            authenticated_user=self.assessee_1
+        )
+        mocked_download.assert_not_called()
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), ASSESSOR_NOT_FOUND.format(self.assessee_1))
+
+    @patch.object(google_storage, 'download_file_from_google_bucket')
+    def test_get_assignment_attempt_file_when_assessor_is_not_responsible_for_assessee(self, mocked_download):
+        attempt_id = str(self.assignment_attempt.tool_attempt_id)
+        response = get_fetch_and_get_response(
+            GET_ASSIGNMENT_ATTEMPT_DATA_FILE,
+            request_param=attempt_id,
+            authenticated_user=self.assessor_responsible_for_2
+        )
+        mocked_download.assert_not_called()
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            ASSESSOR_NOT_RESPONSIBLE_FOR_ASSESSEE.format(
+                self.assessor_responsible_for_2,
+                self.assessee_1,
+                str(self.event.event_id)
+            )
+        )
+
+    @patch.object(google_storage, 'download_file_from_google_bucket')
+    def test_get_assignment_attempt_file_when_no_file_has_been_submitted(self, mocked_download):
+        self.assignment_attempt.update_attempt_cloud_directory(None)
+        self.assignment_attempt.update_file_name(None)
+
+        attempt_id = str(self.assignment_attempt.tool_attempt_id)
+        response = get_fetch_and_get_response(
+            GET_ASSIGNMENT_ATTEMPT_DATA_FILE,
+            request_param=attempt_id,
+            authenticated_user=self.assessor_responsible_for_1
+        )
+        mocked_download.assert_not_called()
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), 'No attempt found')
+
+        self.assignment_attempt.update_attempt_cloud_directory('/filename.pdf')
+        self.assignment_attempt.update_file_name('filename.pdf')
+
+    @patch.object(google_storage, 'download_file_from_google_bucket')
+    def test_get_assignment_attempt_file_when_a_file_has_been_submitted(self, mocked_download):
+        dummy_file = SimpleUploadedFile(
+            self.assignment_attempt.get_file_name(),
+            b'Hello World',
+            content_type=APPLICATION_PDF
+        )
+        mocked_download.return_value = dummy_file
+
+        attempt_id = str(self.assignment_attempt.tool_attempt_id)
+        response = get_fetch_and_get_response(
+            GET_ASSIGNMENT_ATTEMPT_DATA_FILE,
+            request_param=attempt_id,
+            authenticated_user=self.assessor_responsible_for_1
+        )
+        mocked_download.assert_called_with(
+            self.assignment_attempt.get_attempt_cloud_directory(),
+            GOOGLE_STORAGE_BUCKET_NAME,
+            self.assignment_attempt.filename,
+            APPLICATION_PDF
+        )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertEqual(response.headers.get('Content-Length'), str(dummy_file.size))
+        self.assertEqual(response.headers.get('Content-Disposition'), f'attachment; filename="{dummy_file.name}"')

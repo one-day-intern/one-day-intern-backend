@@ -367,3 +367,18 @@ def serve_get_assignment_attempt_data(request):
     assignment_attempt = get_assignment_attempt_data(request_data, user=request.user)
     response_data = AssignmentAttemptSerializer(assignment_attempt).data
     return Response(data=response_data, status=200)
+
+
+@require_GET
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def serve_get_assignment_attempt_file(request):
+    """
+    This view will serve as the end-point for assessor to download the assessee submitted assignment
+    ----------------------------------------------------------
+    request-data must contain:
+    tool-attempt-id: string
+    Format:
+    assessment/review/assignment/file?tool-attempt-id=<ToolAttemptId>
+    """
+    return Response(data=None, status=200)
