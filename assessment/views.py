@@ -25,14 +25,15 @@ from .services.assessment_event_attempt import (
     submit_interactive_quiz_answers
 )
 from .services.progress_review import get_assessee_progress_on_assessment_event
-from .services.grading import grade_assessment_tool
+from .services.grading import grade_assessment_tool, get_assignment_attempt_data
 from .models import (
     AssignmentSerializer,
     TestFlowSerializer,
     AssessmentEventSerializer,
     InteractiveQuizSerializer,
     ResponseTestSerializer,
-    ToolAttemptSerializer
+    ToolAttemptSerializer,
+    AssignmentAttemptSerializer
 )
 import json
 import mimetypes
@@ -362,4 +363,7 @@ def serve_get_assignment_attempt_data(request):
     Format:
     assessment/review/assignment/data?tool-attempt-id=<ToolAttemptId>
     """
-    return Response(data=None, status=200)
+    request_data = request.GET
+    assignment_attempt = get_assignment_attempt_data(request_data, user=request.user)
+    response_data = AssignmentAttemptSerializer(assignment_attempt).data
+    return Response(data=response_data, status=200)

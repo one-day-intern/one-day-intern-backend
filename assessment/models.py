@@ -796,3 +796,14 @@ class TestFlowAttemptSerializer(serializers.ModelSerializer):
     class Meta:
         model = TestFlowAttempt
         fields = ['attempt_id', 'note', 'grade', 'event_participation', 'test_flow_attempted_id']
+
+
+class AssignmentAttemptSerializer(serializers.ModelSerializer):
+    submitted_time = serializers.SerializerMethodField(method_name='get_submitted_time_iso')
+
+    def get_submitted_time_iso(obj, self):
+        return self.submitted_time.isoformat()
+
+    class Meta:
+        model = AssignmentAttempt
+        fields = ['submitted_time', 'filename', 'grade', 'note']

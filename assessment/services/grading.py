@@ -1,6 +1,7 @@
 from django.core.exceptions import ObjectDoesNotExist
 from one_day_intern.exceptions import InvalidRequestException, RestrictedAccessException
 from users.services import utils as user_utils
+from ..models import AssignmentAttempt
 from .participation_validators import validate_assessor_participation
 from . import utils
 
@@ -17,6 +18,11 @@ def validate_grade_assessment_tool_request(request_data):
 def validate_assessor_responsibility(event, assessor, assessee):
     if not event.check_assessee_and_assessor_pair(assessee, assessor):
         raise RestrictedAccessException(f'{assessor} is not responsible for {assessee} on event with id {event.event_id}')
+
+
+def validate_tool_attempt_is_for_assignment(tool_attempt):
+    if not isinstance(tool_attempt, AssignmentAttempt):
+        raise InvalidRequestException(f'Attempt with id {tool_attempt.tool_attempt_id} is not an assignment')
 
 
 def set_grade_and_note_of_tool_attempt(tool_attempt, request_data):
@@ -44,6 +50,19 @@ def grade_assessment_tool(request_data, user):
         assessee = tool_attempt.get_user_of_attempt()
         validate_assessor_responsibility(event, assessor, assessee)
         set_grade_and_note_of_tool_attempt(tool_attempt, request_data)
+        return tool_attempt
+    except ObjectDoesNotExist as exception:
+        raise InvalidRequestException(str(exception))
+
+
+def get_assignment_attempt_data(request_data, user):
+    try:
+        tool_attempt = utils.get_tool_attempt_from_id(request_data.get('tool-attempt-id'))
+        validate_tool_attempt_is_for_assignment(tool_attempt)
+        assessor = get_assessor_or_raise_exception(user)
+        event = tool_attempt.get_event_of_attempt()
+        assessee = tool_attempt.get_user_of_attempt()
+        validate_assessor_responsibility(event, assessor, assessee)
         return tool_attempt
     except ObjectDoesNotExist as exception:
         raise InvalidRequestException(str(exception))
