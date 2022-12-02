@@ -13,6 +13,7 @@ from assessment.services.assessment_tool import (
 from .services.assessment import create_assignment, create_interactive_quiz, create_response_test
 from one_day_intern.exceptions import RestrictedAccessException
 from users.services import utils as user_utils
+from .services import utils
 from .services.test_flow import create_test_flow
 from .services.assessment_event import create_assessment_event, add_assessment_event_participation
 from .services.assessment_event_attempt import (
@@ -25,7 +26,7 @@ from .services.assessment_event_attempt import (
     submit_interactive_quiz_answers
 )
 from .services.progress_review import get_assessee_progress_on_assessment_event
-from .services.grading import grade_assessment_tool, get_assignment_attempt_data
+from .services.grading import grade_assessment_tool, get_assignment_attempt_data, get_assignment_attempt_file
 from .models import (
     AssignmentSerializer,
     TestFlowSerializer,
@@ -381,4 +382,10 @@ def serve_get_assignment_attempt_file(request):
     Format:
     assessment/review/assignment/file?tool-attempt-id=<ToolAttemptId>
     """
-    return Response(data=None, status=200)
+    request_data = request.GET
+    downloaded_file = get_assignment_attempt_file(request_data, user=request.user)
+
+    if downloaded_file:
+        return utils.generate_file_response(downloaded_file)
+    else:
+        return Response(data={'message': 'No attempt found'}, status=200)
