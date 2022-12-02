@@ -1,4 +1,13 @@
-from assessment.models import AssessmentTool, Assignment, TestFlow, AssessmentEvent, AssessmentEventSerializer
+from assessment.models import (
+    AssessmentTool,
+    Assignment,
+    TestFlow,
+    AssessmentEvent,
+    AssessmentEventSerializer,
+    AssignmentAttempt,
+    PolymorphicAssessmentToolSerializer,
+    AssessmentEventParticipation
+)
 from django.test import TestCase
 from freezegun import freeze_time
 from http import HTTPStatus
@@ -10,8 +19,15 @@ import json
 import pytz
 import uuid
 
+ASSESSOR_NOT_FOUND = 'Assessor with email {} not found'
+ASSESSEE_NOT_FOUND = 'Assessee with email {} not found'
+ASSESSOR_NOT_PART_OF_EVENT = 'Assessor with email {} is not part of assessment with id {}'
+ASSESSEE_NOT_PART_OF_EVENT = 'Assessee with email {} is not part of assessment with id {}'
+ASSESSOR_NOT_RESPONSIBLE = '{} is not responsible for {} on event with id {}'
+
 GET_ACTIVE_ASSESSEES = reverse('assessee_list') + '?assessment-event-id='
 GET_ACTIVE_EVENT_PARTICIPATIONS = reverse('assessment_event_list')
+GET_PROGRESS_URL = reverse('get-assessee-progress')
 
 
 def fetch_all_active_assessees(event_id, authenticated_user):

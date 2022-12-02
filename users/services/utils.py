@@ -125,3 +125,10 @@ def generate_token_for_user(user):
         'refresh': str(token),
         'access': str(token.access_token)
     }
+
+
+def get_assessor_from_user(user):
+    try:
+        return Assessor.objects.get(email=user.email)
+    except ObjectDoesNotExist:
+        raise ObjectDoesNotExist(f'Assessor with email {user.email} not found')

@@ -22,6 +22,7 @@ from .services.assessment_event_attempt import (
     submit_assignment,
     get_submitted_assignment
 )
+from .services.progress_review import get_assessee_progress_on_assessment_event
 from .models import (
     AssignmentSerializer,
     TestFlowSerializer,
@@ -273,3 +274,19 @@ def serve_get_submitted_assignment(request):
         return response
     else:
         return Response(data={'message': 'No attempt found'}, status=200)
+
+
+@require_GET
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def serve_get_assessee_progress_on_event(request):
+    """
+    This view will serve as the end point for assessors to get assessment event progress of an assessee
+    ----------------------------------------------------------
+    request-param must contain:
+    assessment-event-id: string
+    assessee-email: string
+    """
+    request_data = request.GET
+    progress_data = get_assessee_progress_on_assessment_event(request_data, user=request.user)
+    return Response(data=progress_data)
