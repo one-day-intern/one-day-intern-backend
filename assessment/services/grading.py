@@ -1,4 +1,5 @@
 from django.core.exceptions import ObjectDoesNotExist
+from one_day_intern.decorators import catch_exception_and_convert_to_invalid_request_decorator
 from one_day_intern.exceptions import InvalidRequestException, RestrictedAccessException
 from one_day_intern.settings import GOOGLE_STORAGE_BUCKET_NAME
 from users.services import utils as user_utils
@@ -42,32 +43,28 @@ def get_assessor_or_raise_exception(user):
         raise RestrictedAccessException(str(exception))
 
 
+@catch_exception_and_convert_to_invalid_request_decorator(exception_types=ObjectDoesNotExist)
 def grade_assessment_tool(request_data, user):
-    try:
-        validate_grade_assessment_tool_request(request_data)
-        tool_attempt = utils.get_tool_attempt_from_id(request_data.get('tool-attempt-id'))
-        assessor = get_assessor_or_raise_exception(user)
-        event = tool_attempt.get_event_of_attempt()
-        validate_assessor_participation(event, assessor)
-        assessee = tool_attempt.get_user_of_attempt()
-        validate_assessor_responsibility(event, assessor, assessee)
-        set_grade_and_note_of_tool_attempt(tool_attempt, request_data)
-        return tool_attempt
-    except ObjectDoesNotExist as exception:
-        raise InvalidRequestException(str(exception))
+    validate_grade_assessment_tool_request(request_data)
+    tool_attempt = utils.get_tool_attempt_from_id(request_data.get('tool-attempt-id'))
+    assessor = get_assessor_or_raise_exception(user)
+    event = tool_attempt.get_event_of_attempt()
+    validate_assessor_participation(event, assessor)
+    assessee = tool_attempt.get_user_of_attempt()
+    validate_assessor_responsibility(event, assessor, assessee)
+    set_grade_and_note_of_tool_attempt(tool_attempt, request_data)
+    return tool_attempt
 
 
+@catch_exception_and_convert_to_invalid_request_decorator(exception_types=ObjectDoesNotExist)
 def get_assignment_attempt_data(request_data, user):
-    try:
-        tool_attempt = utils.get_tool_attempt_from_id(request_data.get('tool-attempt-id'))
-        validate_tool_attempt_is_for_assignment(tool_attempt)
-        assessor = get_assessor_or_raise_exception(user)
-        event = tool_attempt.get_event_of_attempt()
-        assessee = tool_attempt.get_user_of_attempt()
-        validate_assessor_responsibility(event, assessor, assessee)
-        return tool_attempt
-    except ObjectDoesNotExist as exception:
-        raise InvalidRequestException(str(exception))
+    tool_attempt = utils.get_tool_attempt_from_id(request_data.get('tool-attempt-id'))
+    validate_tool_attempt_is_for_assignment(tool_attempt)
+    assessor = get_assessor_or_raise_exception(user)
+    event = tool_attempt.get_event_of_attempt()
+    assessee = tool_attempt.get_user_of_attempt()
+    validate_assessor_responsibility(event, assessor, assessee)
+    return tool_attempt
 
 
 def download_assignment_attempt(assignment_attempt: AssignmentAttempt):
@@ -85,14 +82,12 @@ def download_assignment_attempt(assignment_attempt: AssignmentAttempt):
         return None
 
 
+@catch_exception_and_convert_to_invalid_request_decorator(exception_types=ObjectDoesNotExist)
 def get_assignment_attempt_file(request_data, user):
-    try:
-        tool_attempt = utils.get_tool_attempt_from_id(request_data.get('tool-attempt-id'))
-        assessor = get_assessor_or_raise_exception(user)
-        event = tool_attempt.get_event_of_attempt()
-        assessee = tool_attempt.get_user_of_attempt()
-        validate_assessor_responsibility(event, assessor, assessee)
-        downloaded_file = download_assignment_attempt(tool_attempt)
-        return downloaded_file
-    except ObjectDoesNotExist as exception:
-        raise InvalidRequestException(str(exception))
+    tool_attempt = utils.get_tool_attempt_from_id(request_data.get('tool-attempt-id'))
+    assessor = get_assessor_or_raise_exception(user)
+    event = tool_attempt.get_event_of_attempt()
+    assessee = tool_attempt.get_user_of_attempt()
+    validate_assessor_responsibility(event, assessor, assessee)
+    downloaded_file = download_assignment_attempt(tool_attempt)
+    return downloaded_file
