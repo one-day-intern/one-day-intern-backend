@@ -16,7 +16,8 @@ from .views import (
     serve_submit_interactive_quiz,
     serve_submit_answer,
     serve_get_assessee_progress_on_event,
-    serve_grade_assessment_tool_attempts
+    serve_grade_assessment_tool_attempts,
+    serve_get_assignment_attempt_data
 )
 
 urlpatterns = [
@@ -37,4 +38,5 @@ urlpatterns = [
     path('assessment-event/submit-interactive_quiz/', serve_submit_interactive_quiz, name='submit-interactive-quiz'),
     path('assessment-event/progress/', serve_get_assessee_progress_on_event, name='get-assessee-progress'),
     path('grade/submit-grade-and-note/', serve_grade_assessment_tool_attempts, name='submit-grade-and-note'),
+    path('review/assignment/data', serve_get_assignment_attempt_data, name='get-assignment-attempt-data'),
 ]

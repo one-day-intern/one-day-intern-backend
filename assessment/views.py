@@ -296,6 +296,7 @@ def serve_submit_answer(request):
     submit_interactive_quiz_answers(request_data, user=request.user)
     return Response(data={'message': 'Answers saved successfully'}, status=200)
 
+
 @require_POST
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -347,3 +348,18 @@ def serve_grade_assessment_tool_attempts(request):
     updated_attempt = grade_assessment_tool(request_data, user=request.user)
     response_data = ToolAttemptSerializer(updated_attempt).data
     return Response(data=response_data, status=200)
+
+
+@require_GET
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def serve_get_assignment_attempt_data(request):
+    """
+    This view will serve as the end-point for assessor to view the assessee submitted assignment data
+    ----------------------------------------------------------
+    request-data must contain:
+    tool-attempt-id: string
+    Format:
+    assessment/review/assignment/data?tool-attempt-id=<ToolAttemptId>
+    """
+    return Response(data=None, status=200)
