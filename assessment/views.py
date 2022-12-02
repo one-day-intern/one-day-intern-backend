@@ -271,12 +271,7 @@ def serve_get_submitted_assignment(request):
     request_data = request.GET
     downloaded_file = get_submitted_assignment(request_data, user=request.user)
     if downloaded_file:
-        content_type = mimetypes.guess_type(downloaded_file.name)[0]
-        response = HttpResponse(downloaded_file, content_type=content_type)
-        response['Content-Length'] = downloaded_file.size
-        response['Content-Disposition'] = f'attachment; filename="{downloaded_file.name}"'
-        response['Access-Control-Expose-Headers'] = 'Content-Disposition'
-        return response
+        return utils.generate_file_response(downloaded_file)
     else:
         return Response(data={'message': 'No attempt found'}, status=200)
 
