@@ -6,6 +6,7 @@ from ..exceptions.exceptions import TestFlowDoesNotExist, InvalidAssessmentEvent
 from ..models import AssessmentEvent
 from . import utils
 import datetime
+import pytz
 
 
 def validate_assessment_event(request_data, creating_company):
@@ -106,4 +107,28 @@ def add_assessment_event_participation(request_data, user):
 
 
 def validate_update_assessment_event(request_data, event: AssessmentEvent, creating_company):
-    pass
+    if request_data.get('start_date'):
+        try:
+            start_date = utils.get_date_from_date_time_string(request_data.get('start_date'))
+        except ValueError as exception:
+            raise InvalidAssessmentEventRegistration(str(exception))
+
+        if start_date.date() < datetime.date.today():
+            raise InvalidAssessmentEventRegistration('The assessment event must not begin on a previous date.')
+
+    else:
+        if event.start_date_time < datetime.datetime.now(tz=pytz.utc):
+            raise InvalidAssessmentEventRegistration(
+                'The event has passed. It cannot be edited without changing the event date'
+            )
+
+    if request_data.get('name') and not odi_utils.text_value_is_valid(request_data.get('name'), min_length=3, max_length=50):
+        raise InvalidAssessmentEventRegistration(
+            'Assessment Event name must be minimum of length 3 and at most 50 characters'
+        )
+
+    if request_data.get('test_flow_id'):
+        try:
+            utils.get_active_test_flow_of_company_from_id(request_data.get('test_flow_id'), creating_company)
+        except TestFlowDoesNotExist as exception:
+            raise InvalidAssessmentEventRegistration(str(exception))
