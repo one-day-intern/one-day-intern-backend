@@ -500,7 +500,8 @@ class AssessmentEvent(models.Model):
         self.save()
 
     def has_been_attempted(self):
-        return False
+        event_participations: List[AssessmentEventParticipation] = self.assessmenteventparticipation_set.all()
+        return any([event_participation.has_attempted_test_flow() for event_participation in event_participations])
 
 
 class AssessmentEventSerializer(serializers.ModelSerializer):
