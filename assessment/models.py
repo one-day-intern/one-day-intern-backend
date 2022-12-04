@@ -503,6 +503,9 @@ class AssessmentEvent(models.Model):
         event_participations: List[AssessmentEventParticipation] = self.assessmenteventparticipation_set.all()
         return any([event_participation.has_attempted_test_flow() for event_participation in event_participations])
 
+    def start_time_has_passed(self):
+        return False
+
 
 class AssessmentEventSerializer(serializers.ModelSerializer):
     owning_company_id = serializers.ReadOnlyField(source=OWNING_COMPANY_COMPANY_ID)

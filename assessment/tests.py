@@ -1747,6 +1747,14 @@ class AssessmentEventTest(TestCase):
         )
         tool_attempt.delete()
 
+    @freeze_time('2022-12-03')
+    def test_start_time_has_passed_when_event_date_has_passed(self):
+        self.assertTrue(self.assessment_event.start_time_has_passed())
+
+    @freeze_time('2022-12-01')
+    def test_start_time_has_passed_when_event_date_has_not_passed(self):
+        self.assertFalse(self.assessment_event.start_time_has_passed())
+
 
 class AssessmentEventParticipationTest(TestCase):
     def setUp(self) -> None:
