@@ -524,6 +524,9 @@ class TestFlowAttempt(models.Model):
     event_participation = models.ForeignKey('assessment.AssessmentEventParticipation', on_delete=models.CASCADE)
     test_flow_attempted = models.ForeignKey('assessment.TestFlow', on_delete=models.RESTRICT)
 
+    def has_tool_attempts(self):
+        return self.toolattempt_set.exists()
+
 
 class ResponseTest(AssessmentTool):
     sender = models.ForeignKey(USERS_ASSESSOR, on_delete=models.CASCADE)
@@ -782,7 +785,7 @@ class AssessmentEventParticipation(models.Model):
         return progress_data
 
     def has_attempted_test_flow(self):
-        return False
+        return self.attempt.has_tool_attempts()
 
 
 class AssessmentEventParticipationSerializer(serializers.ModelSerializer):
