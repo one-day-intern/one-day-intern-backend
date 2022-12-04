@@ -17,7 +17,8 @@ from .services import utils
 from .services.test_flow import create_test_flow
 from .services.assessment_event import (
     create_assessment_event,
-    add_assessment_event_participation
+    add_assessment_event_participation,
+    update_assessment_event
 )
 from .services.assessment_event_attempt import (
     subscribe_to_assessment_flow,
@@ -402,4 +403,7 @@ def serve_update_assessment_event(request):
     start_date: date in ISO format
     test_flow_id: string
     """
-    return Response(data=None, status=200)
+    request_data = json.loads(request.body.decode('utf-8'))
+    event = update_assessment_event(request_data, user=request.user)
+    response_data = AssessmentEventSerializer(event).data
+    return Response(data=response_data, status=200)

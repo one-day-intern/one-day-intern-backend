@@ -1,5 +1,6 @@
 from django.core.exceptions import ObjectDoesNotExist
 from one_day_intern import utils as odi_utils
+from one_day_intern.decorators import catch_exception_and_convert_to_invalid_request_decorator
 from one_day_intern.exceptions import RestrictedAccessException
 from users.models import Company
 from ..exceptions.exceptions import TestFlowDoesNotExist, InvalidAssessmentEventRegistration, EventDoesNotExist
@@ -143,3 +144,13 @@ def update_assessment_event_from_request_data(event: AssessmentEvent, request_da
     if request_data.get('test_flow_id'):
         test_flow = utils.get_active_test_flow_of_company_from_id(request_data.get('test_flow_id'), company)
         event.set_test_flow(test_flow)
+
+
+@catch_exception_and_convert_to_invalid_request_decorator(exception_types=ObjectDoesNotExist)
+def update_assessment_event(request_data, user):
+    event = utils.get_assessment_event_from_id(request_data.get('event_id'))
+    company = utils.get_company_or_assessor_associated_company_from_user(user)
+    validate_assessment_event_ownership(event, company)
+    validate_update_assessment_event(request_data, event, company)
+    update_assessment_event_from_request_data(event, request_data, company)
+    return event
