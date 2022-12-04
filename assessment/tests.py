@@ -1284,6 +1284,7 @@ class AssessmentEventTest(TestCase):
         response_content = json.loads(response.content)
         self.assertEqual(response_content.get('message'), expected_message)
 
+    @freeze_time('2022-12-01')
     def test_create_assessment_event_when_name_does_not_exist(self):
         request_data = self.base_request_data.copy()
         del request_data['name']
@@ -1298,6 +1299,7 @@ class AssessmentEventTest(TestCase):
             expected_message=ASSESSMENT_EVENT_INVALID_NAME
         )
 
+    @freeze_time('2022-12-01')
     def test_create_assessment_event_when_name_is_too_short(self):
         request_data = self.base_request_data.copy()
         request_data['name'] = 'AB'
@@ -1312,6 +1314,7 @@ class AssessmentEventTest(TestCase):
             expected_message=ASSESSMENT_EVENT_INVALID_NAME
         )
 
+    @freeze_time('2022-12-01')
     def test_create_assessment_event_when_name_is_too_long(self):
         request_data = self.base_request_data.copy()
         request_data['name'] = 'abcdefghijklmnop1234jabcdefghijklmnop123456abcdefghijklmnop1234jabcdefghijklmnop123456'
@@ -1326,6 +1329,7 @@ class AssessmentEventTest(TestCase):
             expected_message=ASSESSMENT_EVENT_INVALID_NAME
         )
 
+    @freeze_time('2022-12-01')
     def test_create_assessment_when_start_date_does_not_exist(self):
         request_data = self.base_request_data.copy()
         del request_data['start_date']
@@ -1340,6 +1344,7 @@ class AssessmentEventTest(TestCase):
             expected_message='Assessment Event should have a start date'
         )
 
+    @freeze_time('2022-12-01')
     def test_create_assessment_when_test_flow_id_does_not_exist(self):
         request_data = self.base_request_data.copy()
         del request_data['test_flow_id']
@@ -1354,6 +1359,7 @@ class AssessmentEventTest(TestCase):
             expected_message='Assessment Event should use a test flow'
         )
 
+    @freeze_time('2022-12-01')
     def test_create_assessment_event_when_start_date_is_invalid_iso(self):
         request_data = self.base_request_data.copy()
         request_data['start_date'] = '0000-00-00'
@@ -1383,6 +1389,7 @@ class AssessmentEventTest(TestCase):
             expected_message='The assessment event must not begin on a previous date.'
         )
 
+    @freeze_time('2022-12-01')
     def test_create_assessment_event_when_test_flow_is_not_active(self):
         request_data = self.base_request_data.copy()
         request_data['test_flow_id'] = str(self.test_flow_2.test_flow_id)
@@ -1400,6 +1407,7 @@ class AssessmentEventTest(TestCase):
             )
         )
 
+    @freeze_time('2022-12-01')
     def test_create_assessment_event_when_test_flow_does_not_belong_to_company(self):
         request_data = self.base_request_data.copy()
         response = fetch_and_get_response(
@@ -1416,6 +1424,7 @@ class AssessmentEventTest(TestCase):
             )
         )
 
+    @freeze_time('2022-12-01')
     def test_create_assessment_event_when_user_is_assessee(self):
         request_data = self.base_request_data.copy()
         response = fetch_and_get_response(
@@ -1429,6 +1438,7 @@ class AssessmentEventTest(TestCase):
             expected_message=f'User with email {self.assessee.email} is not a company or an assessor'
         )
 
+    @freeze_time('2022-12-01')
     def test_create_assessment_event_when_request_is_valid(self):
         request_data = self.base_request_data.copy()
         expected_start_date_in_response = request_data['start_date'] + 'T00:00:00'
