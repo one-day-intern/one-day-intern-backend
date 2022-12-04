@@ -157,4 +157,5 @@ def update_assessment_event(request_data, user):
 
 
 def validate_delete_assessment_event_request(event: AssessmentEvent):
-    raise InvalidRequestException
+    if not event.is_deletable():
+        raise InvalidRequestException(f'Assessment event with {event.event_id} is not deletable')
