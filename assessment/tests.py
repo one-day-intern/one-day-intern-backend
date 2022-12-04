@@ -102,6 +102,7 @@ ATTEMPT_IS_NOT_AN_ASSIGNMENT = 'Attempt with id {} is not an assignment'
 EVENT_DATE_HAS_PASSED = 'The event has passed. It cannot be edited without changing the event date'
 MUST_NOT_BEGIN_ON_PREVIOUS_DATE = 'The assessment event must not begin on a previous date.'
 EVENT_NOT_DELETABLE = 'Assessment event with {} is not deletable'
+NOT_A_COMPANY_OR_ASSESSOR = 'User with email {} is not a company or an assessor'
 
 CREATE_TEST_FLOW_URL = reverse('test-flow-create')
 CREATE_ASSESSMENT_EVENT_URL = reverse('assessment-event-create')
@@ -118,6 +119,7 @@ GET_PROGRESS_URL = reverse('get-assessee-progress')
 SUBMIT_GRADE_AND_NOTE_URL = reverse('submit-grade-and-note')
 GET_ASSIGNMENT_ATTEMPT_DATA_URL = reverse('get-assignment-attempt-data') + '?tool-attempt-id='
 GET_ASSIGNMENT_ATTEMPT_DATA_FILE = reverse('get-assignment-attempt-file') + '?tool-attempt-id='
+UPDATE_ASSESSMENT_EVENT_URL = reverse('assessment-event-update')
 
 GET_TOOLS_URL = "/assessment/tools/"
 REQUEST_CONTENT_TYPE = 'application/json'
@@ -1598,6 +1600,100 @@ class AssessmentEventTest(TestCase):
         mocked_set_name.assert_not_called()
         mocked_start_date.assert_not_called()
         mocked_test_flow.assert_called_with(self.test_flow_3)
+
+    @freeze_time('2022-12-01 18:00:00')
+    def test_update_assessment_event_when_event_with_id_does_not_exist(self):
+        request_data = self.base_update_request_data.copy()
+        request_data['event_id'] = str(uuid.uuid4())
+
+        response = fetch_and_get_response(UPDATE_ASSESSMENT_EVENT_URL, request_data, authenticated_user=self.assessor)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), EVENT_DOES_NOT_EXIST.format(request_data['event_id']))
+
+    @freeze_time('2022-12-01 18:00:00')
+    def test_update_assessment_event_when_user_is_not_assessor(self):
+        request_data = self.base_update_request_data.copy()
+        response = fetch_and_get_response(UPDATE_ASSESSMENT_EVENT_URL, request_data, authenticated_user=self.assessee)
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), NOT_A_COMPANY_OR_ASSESSOR.format(self.assessee))
+
+    @freeze_time('2022-12-01 18:00:00')
+    def test_update_assessment_event_when_event_is_not_owned_by_assessors_company(self):
+        request_data = self.base_update_request_data.copy()
+        response = fetch_and_get_response(UPDATE_ASSESSMENT_EVENT_URL, request_data, authenticated_user=self.company_2)
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            ASSESSMENT_EVENT_OWNERSHIP_INVALID.format(str(self.assessment_event.event_id), self.company_2.company_id)
+        )
+
+    @freeze_time('2022-12-01 18:00:00')
+    def test_update_assessment_event_when_start_date_exists_but_invalid(self):
+        request_data = self.base_update_request_data.copy()
+        request_data['start_date'] = '2022-13-13T08:00:00'
+        response = fetch_and_get_response(UPDATE_ASSESSMENT_EVENT_URL, request_data, authenticated_user=self.company_1)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            INVALID_DATE_FORMAT.format(request_data['start_date'])
+        )
+
+    @freeze_time('2022-12-04 18:00:00')
+    def test_update_assessment_event_when_start_date_exists_but_is_in_a_previous_date(self):
+        request_data = self.base_update_request_data.copy()
+        response = fetch_and_get_response(UPDATE_ASSESSMENT_EVENT_URL, request_data, authenticated_user=self.company_1)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            MUST_NOT_BEGIN_ON_PREVIOUS_DATE
+        )
+
+    @freeze_time('2022-12-03 18:00:00')
+    def test_update_assessment_event_when_start_date_does_not_exist_but_assessment_date_has_passed(self):
+        request_data = self.base_update_request_data.copy()
+        del request_data['start_date']
+        response = fetch_and_get_response(UPDATE_ASSESSMENT_EVENT_URL, request_data, authenticated_user=self.company_1)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), EVENT_DATE_HAS_PASSED)
+
+    @freeze_time('2022-12-01')
+    def test_update_assessment_event_when_name_exists_but_name_is_too_long(self):
+        request_data = self.base_update_request_data.copy()
+        request_data['name'] = 'AbcdefghijklmNopQrSTUvWxYz12345678910111213141516 Name'
+        response = fetch_and_get_response(UPDATE_ASSESSMENT_EVENT_URL, request_data, authenticated_user=self.company_1)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), ASSESSMENT_EVENT_INVALID_NAME)
+
+    @freeze_time('2022-12-01')
+    def test_update_assessment_event_when_test_flow_id_exists_but_test_flow_not_found(self):
+        request_data = self.base_update_request_data.copy()
+        request_data['test_flow_id'] = str(uuid.uuid4())
+        response = fetch_and_get_response(UPDATE_ASSESSMENT_EVENT_URL, request_data, authenticated_user=self.company_1)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            ACTIVE_TEST_FLOW_NOT_FOUND.format(request_data['test_flow_id'], str(self.company_1.company_name))
+        )
+
+    @freeze_time('2022-12-01')
+    def test_update_assessment_event_when_request_is_valid(self):
+        request_data = self.base_update_request_data.copy()
+        response = fetch_and_get_response(UPDATE_ASSESSMENT_EVENT_URL, request_data, authenticated_user=self.company_1)
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('event_id'), request_data.get('event_id'))
+        self.assertEqual(response_content.get('name'), request_data.get('name'))
+        self.assertEqual(response_content.get('start_date_time'), request_data.get('start_date'))
+        self.assertEqual(response_content.get('owning_company_id'), str(self.company_1.company_id))
+        self.assertEqual(response_content.get('test_flow_id'), str(self.test_flow_3.test_flow_id))
 
 
 class AssessmentEventParticipationTest(TestCase):
