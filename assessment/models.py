@@ -511,7 +511,7 @@ class AssessmentEvent(models.Model):
         An assessment event is deletable if the deadline has not passed
         and no attempts for the assessment event has been made
         """
-        return False
+        return not self.start_time_has_passed() and not self.has_been_attempted()
 
 
 class AssessmentEventSerializer(serializers.ModelSerializer):
