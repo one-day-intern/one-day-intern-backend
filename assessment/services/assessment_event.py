@@ -1,4 +1,3 @@
-from datetime import date
 from django.core.exceptions import ObjectDoesNotExist
 from one_day_intern import utils as odi_utils
 from one_day_intern.exceptions import RestrictedAccessException
@@ -6,6 +5,7 @@ from users.models import Company
 from ..exceptions.exceptions import TestFlowDoesNotExist, InvalidAssessmentEventRegistration, EventDoesNotExist
 from ..models import AssessmentEvent
 from . import utils
+import datetime
 
 
 def validate_assessment_event(request_data, creating_company):
@@ -25,7 +25,7 @@ def validate_assessment_event(request_data, creating_company):
     except ValueError as exception:
         raise InvalidAssessmentEventRegistration(str(exception))
 
-    if start_date.date() < date.today():
+    if start_date.date() < datetime.date.today():
         raise InvalidAssessmentEventRegistration('The assessment event must not begin on a previous date.')
 
     try:
@@ -103,3 +103,7 @@ def add_assessment_event_participation(request_data, user):
     converted_list_of_participants = \
         convert_list_of_participants_emails_to_user_objects(request_data.get('list_of_participants'), company)
     add_list_of_participants_to_event(event, converted_list_of_participants)
+
+
+def validate_update_assessment_event(request_data, event: AssessmentEvent, creating_company):
+    pass
