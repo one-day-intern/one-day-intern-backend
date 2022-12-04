@@ -504,7 +504,7 @@ class AssessmentEvent(models.Model):
         return any([event_participation.has_attempted_test_flow() for event_participation in event_participations])
 
     def start_time_has_passed(self):
-        return False
+        return self.start_date_time <= datetime.datetime.now(tz=pytz.utc)
 
 
 class AssessmentEventSerializer(serializers.ModelSerializer):
