@@ -487,6 +487,32 @@ class AssessmentEvent(models.Model):
         event_participation = self.get_assessment_event_participation_by_assessee(assessee)
         return event_participation.get_event_progress()
 
+    def set_name(self, name):
+        self.name = name
+        self.save()
+
+    def set_start_date(self, start_date_time):
+        self.start_date_time = start_date_time
+        self.save()
+
+    def set_test_flow(self, test_flow):
+        self.test_flow_used = test_flow
+        self.save()
+
+    def has_been_attempted(self):
+        event_participations: List[AssessmentEventParticipation] = self.assessmenteventparticipation_set.all()
+        return any([event_participation.has_attempted_test_flow() for event_participation in event_participations])
+
+    def start_time_has_passed(self):
+        return self.start_date_time <= datetime.datetime.now(tz=pytz.utc)
+
+    def is_deletable(self):
+        """
+        An assessment event is deletable if the deadline has not passed
+        and no attempts for the assessment event has been made
+        """
+        return not self.start_time_has_passed() and not self.has_been_attempted()
+
 
 class AssessmentEventSerializer(serializers.ModelSerializer):
     owning_company_id = serializers.ReadOnlyField(source=OWNING_COMPANY_COMPANY_ID)
@@ -511,6 +537,9 @@ class TestFlowAttempt(models.Model):
     grade = models.FloatField(default=0)
     event_participation = models.ForeignKey('assessment.AssessmentEventParticipation', on_delete=models.CASCADE)
     test_flow_attempted = models.ForeignKey('assessment.TestFlow', on_delete=models.RESTRICT)
+
+    def has_tool_attempts(self):
+        return self.toolattempt_set.exists()
 
 
 class ResponseTest(AssessmentTool):
@@ -768,6 +797,9 @@ class AssessmentEventParticipation(models.Model):
             progress_data.append(tool_progress_data)
 
         return progress_data
+
+    def has_attempted_test_flow(self):
+        return self.attempt.has_tool_attempts()
 
 
 class AssessmentEventParticipationSerializer(serializers.ModelSerializer):

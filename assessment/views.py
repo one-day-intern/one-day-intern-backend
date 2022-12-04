@@ -15,7 +15,12 @@ from one_day_intern.exceptions import RestrictedAccessException
 from users.services import utils as user_utils
 from .services import utils
 from .services.test_flow import create_test_flow
-from .services.assessment_event import create_assessment_event, add_assessment_event_participation
+from .services.assessment_event import (
+    create_assessment_event,
+    add_assessment_event_participation,
+    update_assessment_event,
+    delete_assessment_event
+)
 from .services.assessment_event_attempt import (
     subscribe_to_assessment_flow,
     get_all_active_assignment,
@@ -37,7 +42,6 @@ from .models import (
     AssignmentAttemptSerializer
 )
 import json
-import mimetypes
 
 
 @require_GET
@@ -384,3 +388,38 @@ def serve_get_assignment_attempt_file(request):
         return utils.generate_file_response(downloaded_file)
     else:
         return Response(data={'message': 'No attempt found'}, status=200)
+
+
+@require_POST
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def serve_update_assessment_event(request):
+    """
+    This view will serve as the end-point for assessor to update assessment events
+    ----------------------------------------------------------
+    request-data must contain:
+    event_id: string
+    request-data can contain:
+    name: string
+    start_date: date in ISO format
+    test_flow_id: string
+    """
+    request_data = json.loads(request.body.decode('utf-8'))
+    event = update_assessment_event(request_data, user=request.user)
+    response_data = AssessmentEventSerializer(event).data
+    return Response(data=response_data, status=200)
+
+
+@require_POST
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def serve_delete_assessment_event(request):
+    """
+    This view will serve as the end-point for assessor to delete assessment events
+    ----------------------------------------------------------
+    request-data must contain:
+    event_id: string
+    """
+    request_data = json.loads(request.body.decode('utf-8'))
+    delete_assessment_event(request_data, user=request.user)
+    return Response(data={'message': 'Assessment event has been deleted'}, status=200)

@@ -99,7 +99,10 @@ GRADE_MUST_BE_A_NUMBER = 'Grade must be an integer or a floating point number'
 ASSESSOR_NOT_RESPONSIBLE_FOR_ASSESSEE = '{} is not responsible for {} on event with id {}'
 TOOL_ATTEMPT_DOES_NOT_EXIST = 'Tool attempt with id {} does not exist'
 ATTEMPT_IS_NOT_AN_ASSIGNMENT = 'Attempt with id {} is not an assignment'
-GET_ASSIGNMENT_ATTEMPT_DATA_FILE = reverse('get-assignment-attempt-file') + '?tool-attempt-id='
+EVENT_DATE_HAS_PASSED = 'The event has passed. It cannot be edited without changing the event date'
+MUST_NOT_BEGIN_ON_PREVIOUS_DATE = 'The assessment event must not begin on a previous date.'
+EVENT_NOT_DELETABLE = 'Assessment event with {} is not deletable'
+NOT_A_COMPANY_OR_ASSESSOR = 'User with email {} is not a company or an assessor'
 
 CREATE_TEST_FLOW_URL = reverse('test-flow-create')
 CREATE_ASSESSMENT_EVENT_URL = reverse('assessment-event-create')
@@ -115,7 +118,9 @@ CREATE_RESPONSE_TEST_URL = '/assessment/create/response-test/'
 GET_PROGRESS_URL = reverse('get-assessee-progress')
 SUBMIT_GRADE_AND_NOTE_URL = reverse('submit-grade-and-note')
 GET_ASSIGNMENT_ATTEMPT_DATA_URL = reverse('get-assignment-attempt-data') + '?tool-attempt-id='
-
+GET_ASSIGNMENT_ATTEMPT_DATA_FILE = reverse('get-assignment-attempt-file') + '?tool-attempt-id='
+UPDATE_ASSESSMENT_EVENT_URL = reverse('assessment-event-update')
+DELETE_ASSESSMENT_EVENT_URL = reverse('assessment-event-delete')
 
 GET_TOOLS_URL = "/assessment/tools/"
 REQUEST_CONTENT_TYPE = 'application/json'
@@ -1125,6 +1130,17 @@ class AssessmentEventTest(TestCase):
             start_working_time=datetime.time(11, 00)
         )
 
+        self.test_flow_3 = TestFlow.objects.create(
+            name='Test Flow 3',
+            owning_company=self.company_1
+        )
+
+        self.test_flow_3.add_tool(
+            self.assessment_tool,
+            release_time=datetime.time(12, 0),
+            start_working_time=datetime.time(12, 0)
+        )
+
         self.start_date = datetime.datetime(year=2022, month=12, day=2)
 
         self.base_request_data = {
@@ -1133,14 +1149,51 @@ class AssessmentEventTest(TestCase):
             'test_flow_id': str(self.test_flow_1.test_flow_id)
         }
 
+        self.assessment_event: AssessmentEvent = AssessmentEvent.objects.create(
+            name='Assessment Manager Tingkat 2 TA 2022',
+            start_date_time=datetime.datetime(2022, 12, 2, 8, 30, tzinfo=pytz.UTC),
+            owning_company=self.company_1,
+            test_flow_used=self.test_flow_1
+        )
+
+        self.assessment_event.add_participant(
+            assessee=self.assessee,
+            assessor=self.assessor
+        )
+
+        self.assessee_participation: AssessmentEventParticipation = AssessmentEventParticipation.objects.get(
+            assessee=self.assessee,
+            assessment_event=self.assessment_event
+        )
+
+        self.base_update_request_data = {
+            'event_id': str(self.assessment_event.event_id),
+            'name': 'Office Boy 7',
+            'start_date': '2022-12-03T18:00:00',
+            'test_flow_id': str(self.test_flow_3.test_flow_id)
+        }
+
+        self.updated_start_date = datetime.datetime(2022, 12, 3, 18, 0, 0)
+
+        self.deletable_assessment_event: AssessmentEvent = AssessmentEvent.objects.create(
+            name='Deletable Assessment Event',
+            start_date_time=datetime.datetime(2022, 12, 3, 8, 10),
+            owning_company=self.company_1,
+            test_flow_used=self.test_flow_1
+        )
+
+        self.base_delete_request_data = {
+            'event_id': str(self.deletable_assessment_event.event_id)
+        }
+
     def test_get_test_flow_based_on_company_by_company(self):
         test_flows = get_test_flow_by_company(self.company_1)
-        self.assertEqual(len(test_flows), 2)
+        self.assertEqual(len(test_flows), 3)
         self.assertIn(self.test_flow_1, test_flows)
 
     def test_get_test_flow_based_on_company_by_assessor(self):
         test_flows = get_test_flow_by_company(self.assessor)
-        self.assertEqual(len(test_flows), 2)
+        self.assertEqual(len(test_flows), 3)
         self.assertIn(self.test_flow_2, test_flows)
 
     @freeze_time('2022-12-01')
@@ -1223,7 +1276,7 @@ class AssessmentEventTest(TestCase):
             self.fail(EXCEPTION_NOT_RAISED)
         except InvalidAssessmentEventRegistration as exception:
             self.assertEqual(
-                str(exception), 'The assessment event must not begin on a previous date.')
+                str(exception), MUST_NOT_BEGIN_ON_PREVIOUS_DATE)
 
     @freeze_time('2022-12-01')
     def test_validate_assessment_event_when_test_flow_is_not_owned_by_company(self):
@@ -1386,7 +1439,7 @@ class AssessmentEventTest(TestCase):
         self.assessment_event_assert_correctness_when_request_is_invalid(
             response=response,
             expected_status_code=HTTPStatus.BAD_REQUEST,
-            expected_message='The assessment event must not begin on a previous date.'
+            expected_message=MUST_NOT_BEGIN_ON_PREVIOUS_DATE
         )
 
     @freeze_time('2022-12-01')
@@ -1454,6 +1507,375 @@ class AssessmentEventTest(TestCase):
         self.assertEqual(response_content.get('start_date_time'), expected_start_date_in_response)
         self.assertEqual(response_content.get('owning_company_id'), str(self.company_1.company_id))
         self.assertEqual(response_content.get('test_flow_id'), request_data['test_flow_id'])
+
+    @freeze_time('2022-12-03 10:00:00')
+    def test_validate_update_assessment_event_when_start_date_is_not_a_proper_iso_format(self):
+        request_data = self.base_update_request_data.copy()
+        request_data['start_date'] = '2022-13-12T08:00:00'
+        try:
+            assessment_event.validate_update_assessment_event(request_data, self.assessment_event, self.company_1)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidAssessmentEventRegistration as exception:
+            self.assertEqual(str(exception), INVALID_DATE_FORMAT.format(request_data['start_date']))
+
+    @freeze_time('2022-12-04 08:30')
+    def test_validate_update_assessment_event_when_start_date_is_in_a_previous_date(self):
+        request_data = self.base_update_request_data.copy()
+        try:
+            assessment_event.validate_update_assessment_event(request_data, self.assessment_event, self.company_1)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidAssessmentEventRegistration as exception:
+            self.assertEqual(str(exception), MUST_NOT_BEGIN_ON_PREVIOUS_DATE)
+
+    @freeze_time('2022-12-02 09:00:00')
+    def test_validate_update_assessment_event_when_start_date_is_empty_but_event_date_has_passed(self):
+        request_data = self.base_update_request_data.copy()
+        del request_data['start_date']
+        try:
+            assessment_event.validate_update_assessment_event(request_data, self.assessment_event, self.company_1)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidAssessmentEventRegistration as exception:
+            self.assertEqual(str(exception), EVENT_DATE_HAS_PASSED)
+
+    @freeze_time('2022-12-01 12:00:00')
+    def test_validate_update_assessment_event_when_name_exists_but_exceeding_maximum_length(self):
+        request_data = self.base_update_request_data.copy()
+        request_data['name'] = 'a very loooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooong name'
+        try:
+            assessment_event.validate_update_assessment_event(request_data, self.assessment_event, self.company_1)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidAssessmentEventRegistration as exception:
+            self.assertEqual(str(exception), ASSESSMENT_EVENT_INVALID_NAME)
+
+    @freeze_time('2022-12-03 10:00:00')
+    def test_validate_update_assessment_event_when_test_flow_id_is_in_request_but_no_matching_test_flow_found(self):
+        request_data = self.base_update_request_data.copy()
+        request_data['test_flow_id'] = str(uuid.uuid4())
+        try:
+            assessment_event.validate_update_assessment_event(request_data, self.assessment_event, self.company_1)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidAssessmentEventRegistration as exception:
+            self.assertEqual(
+                str(exception),
+                ACTIVE_TEST_FLOW_NOT_FOUND.format(
+                    request_data['test_flow_id'],
+                    self.company_1.company_name
+                )
+            )
+
+    @freeze_time('2022-12-03 10:00:00')
+    def test_validate_update_assessment_event_when_request_data_is_valid(self):
+        try:
+            assessment_event.validate_update_assessment_event(
+                self.base_update_request_data,
+                self.assessment_event,
+                self.company_1
+            )
+        except Exception as exception:
+            self.fail(f'{exception} is raised')
+
+    @patch.object(AssessmentEvent, 'set_test_flow')
+    @patch.object(AssessmentEvent, 'set_start_date')
+    @patch.object(AssessmentEvent, 'set_name')
+    def test_update_assessment_event_from_request_data_when_only_name_exists(self, mocked_set_name, mocked_start_date,
+                                                                             mocked_test_flow):
+        request_data = self.base_update_request_data.copy()
+        del request_data['start_date']
+        del request_data['test_flow_id']
+        assessment_event.update_assessment_event_from_request_data(self.assessment_event, request_data, self.company_1)
+        mocked_set_name.assert_called_with(request_data.get('name'))
+        mocked_start_date.assert_not_called()
+        mocked_test_flow.assert_not_called()
+
+    @patch.object(AssessmentEvent, 'set_test_flow')
+    @patch.object(AssessmentEvent, 'set_start_date')
+    @patch.object(AssessmentEvent, 'set_name')
+    def test_update_assessment_event_from_request_data_when_start_date_exists(self, mocked_set_name, mocked_start_date,
+                                                                              mocked_test_flow):
+        request_data = self.base_update_request_data.copy()
+        del request_data['name']
+        del request_data['test_flow_id']
+        assessment_event.update_assessment_event_from_request_data(self.assessment_event, request_data, self.company_1)
+        mocked_set_name.assert_not_called()
+        mocked_start_date.assert_called_with(self.updated_start_date)
+        mocked_test_flow.assert_not_called()
+
+    @patch.object(AssessmentEvent, 'set_test_flow')
+    @patch.object(AssessmentEvent, 'set_start_date')
+    @patch.object(AssessmentEvent, 'set_name')
+    def test_update_assessment_event_from_request_data_when_test_flow_id_exist(self, mocked_set_name, mocked_start_date,
+                                                                               mocked_test_flow):
+        request_data = self.base_update_request_data.copy()
+        del request_data['name']
+        del request_data['start_date']
+        assessment_event.update_assessment_event_from_request_data(self.assessment_event, request_data, self.company_1)
+        mocked_set_name.assert_not_called()
+        mocked_start_date.assert_not_called()
+        mocked_test_flow.assert_called_with(self.test_flow_3)
+
+    @freeze_time('2022-12-01 18:00:00')
+    def test_update_assessment_event_when_event_with_id_does_not_exist(self):
+        request_data = self.base_update_request_data.copy()
+        request_data['event_id'] = str(uuid.uuid4())
+
+        response = fetch_and_get_response(UPDATE_ASSESSMENT_EVENT_URL, request_data, authenticated_user=self.assessor)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), EVENT_DOES_NOT_EXIST.format(request_data['event_id']))
+
+    @freeze_time('2022-12-01 18:00:00')
+    def test_update_assessment_event_when_user_is_not_assessor(self):
+        request_data = self.base_update_request_data.copy()
+        response = fetch_and_get_response(UPDATE_ASSESSMENT_EVENT_URL, request_data, authenticated_user=self.assessee)
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), NOT_A_COMPANY_OR_ASSESSOR.format(self.assessee))
+
+    @freeze_time('2022-12-01 18:00:00')
+    def test_update_assessment_event_when_event_is_not_owned_by_assessors_company(self):
+        request_data = self.base_update_request_data.copy()
+        response = fetch_and_get_response(UPDATE_ASSESSMENT_EVENT_URL, request_data, authenticated_user=self.company_2)
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            ASSESSMENT_EVENT_OWNERSHIP_INVALID.format(str(self.assessment_event.event_id), self.company_2.company_id)
+        )
+
+    @freeze_time('2022-12-01 18:00:00')
+    def test_update_assessment_event_when_start_date_exists_but_invalid(self):
+        request_data = self.base_update_request_data.copy()
+        request_data['start_date'] = '2022-13-13T08:00:00'
+        response = fetch_and_get_response(UPDATE_ASSESSMENT_EVENT_URL, request_data, authenticated_user=self.company_1)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            INVALID_DATE_FORMAT.format(request_data['start_date'])
+        )
+
+    @freeze_time('2022-12-04 18:00:00')
+    def test_update_assessment_event_when_start_date_exists_but_is_in_a_previous_date(self):
+        request_data = self.base_update_request_data.copy()
+        response = fetch_and_get_response(UPDATE_ASSESSMENT_EVENT_URL, request_data, authenticated_user=self.company_1)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            MUST_NOT_BEGIN_ON_PREVIOUS_DATE
+        )
+
+    @freeze_time('2022-12-03 18:00:00')
+    def test_update_assessment_event_when_start_date_does_not_exist_but_assessment_date_has_passed(self):
+        request_data = self.base_update_request_data.copy()
+        del request_data['start_date']
+        response = fetch_and_get_response(UPDATE_ASSESSMENT_EVENT_URL, request_data, authenticated_user=self.company_1)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), EVENT_DATE_HAS_PASSED)
+
+    @freeze_time('2022-12-01')
+    def test_update_assessment_event_when_name_exists_but_name_is_too_long(self):
+        request_data = self.base_update_request_data.copy()
+        request_data['name'] = 'AbcdefghijklmNopQrSTUvWxYz12345678910111213141516 Name'
+        response = fetch_and_get_response(UPDATE_ASSESSMENT_EVENT_URL, request_data, authenticated_user=self.company_1)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), ASSESSMENT_EVENT_INVALID_NAME)
+
+    @freeze_time('2022-12-01')
+    def test_update_assessment_event_when_test_flow_id_exists_but_test_flow_not_found(self):
+        request_data = self.base_update_request_data.copy()
+        request_data['test_flow_id'] = str(uuid.uuid4())
+        response = fetch_and_get_response(UPDATE_ASSESSMENT_EVENT_URL, request_data, authenticated_user=self.company_1)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            ACTIVE_TEST_FLOW_NOT_FOUND.format(request_data['test_flow_id'], str(self.company_1.company_name))
+        )
+
+    @freeze_time('2022-12-01')
+    def test_update_assessment_event_when_request_is_valid(self):
+        request_data = self.base_update_request_data.copy()
+        response = fetch_and_get_response(UPDATE_ASSESSMENT_EVENT_URL, request_data, authenticated_user=self.company_1)
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('event_id'), request_data.get('event_id'))
+        self.assertEqual(response_content.get('name'), request_data.get('name'))
+        self.assertEqual(response_content.get('start_date_time'), request_data.get('start_date'))
+        self.assertEqual(response_content.get('owning_company_id'), str(self.company_1.company_id))
+        self.assertEqual(response_content.get('test_flow_id'), str(self.test_flow_3.test_flow_id))
+
+    def test_has_attempted_test_flow_when_assessee_has_not_created_any_attempt_for_test_flow(self):
+        tool_attempts = ToolAttempt.objects.filter(
+            test_flow_attempt=self.assessee_participation.attempt,
+            assessment_tool_attempted=self.assessment_tool
+        )
+        if tool_attempts:
+            tool_attempts[0].delete()
+
+        self.assertFalse(self.assessee_participation.has_attempted_test_flow())
+
+    def test_has_attempted_test_flow_when_assessee_has_created_an_attempt_for_the_test_flow(self):
+        tool_attempts = ToolAttempt.objects.filter(
+            test_flow_attempt=self.assessee_participation.attempt,
+            assessment_tool_attempted=self.assessment_tool
+        )
+        if not tool_attempts:
+            self.assessee_participation.create_assignment_attempt(self.assessment_tool)
+
+        self.assertTrue(self.assessee_participation.has_attempted_test_flow())
+
+        tool_attempt = ToolAttempt.objects.get(
+            test_flow_attempt=self.assessee_participation.attempt,
+            assessment_tool_attempted=self.assessment_tool
+        )
+        tool_attempt.delete()
+
+    def test_event_has_been_attempted_when_event_has_not_been_attempted(self):
+        tool_attempts = ToolAttempt.objects.filter(
+            test_flow_attempt=self.assessee_participation.attempt,
+            assessment_tool_attempted=self.assessment_tool
+        )
+        if tool_attempts:
+            tool_attempts[0].delete()
+
+        self.assertFalse(self.assessment_event.has_been_attempted())
+
+    def test_event_has_been_attempted_when_event_has_been_attempted(self):
+        tool_attempts = ToolAttempt.objects.filter(
+            test_flow_attempt=self.assessee_participation.attempt,
+            assessment_tool_attempted=self.assessment_tool
+        )
+        if not tool_attempts:
+            self.assessee_participation.create_assignment_attempt(self.assessment_tool)
+
+        self.assertTrue(self.assessment_event.has_been_attempted())
+
+        tool_attempt = ToolAttempt.objects.get(
+            test_flow_attempt=self.assessee_participation.attempt,
+            assessment_tool_attempted=self.assessment_tool
+        )
+        tool_attempt.delete()
+
+    @freeze_time('2022-12-03')
+    def test_start_time_has_passed_when_event_date_has_passed(self):
+        self.assertTrue(self.assessment_event.start_time_has_passed())
+
+    @freeze_time('2022-12-01')
+    def test_start_time_has_passed_when_event_date_has_not_passed(self):
+        self.assertFalse(self.assessment_event.start_time_has_passed())
+
+    @patch.object(AssessmentEvent, 'has_been_attempted')
+    @patch.object(AssessmentEvent, 'start_time_has_passed')
+    def test_is_deletable_when_start_time_has_passed(self, mocked_start_time, mocked_attempted):
+        mocked_start_time.return_value = True
+        mocked_attempted.return_value = False
+        self.assertFalse(self.assessment_event.is_deletable())
+
+    @patch.object(AssessmentEvent, 'has_been_attempted')
+    @patch.object(AssessmentEvent, 'start_time_has_passed')
+    def test_is_deletable_when_event_has_been_attempted(self, mocked_start_time, mocked_attempted):
+        mocked_start_time.return_value = False
+        mocked_attempted.return_value = True
+        self.assertFalse(self.assessment_event.is_deletable())
+
+    @patch.object(AssessmentEvent, 'has_been_attempted')
+    @patch.object(AssessmentEvent, 'start_time_has_passed')
+    def test_is_deletable_when_start_time_has_not_passed_and_has_not_been_attempted(self, mocked_start_time,
+                                                                                    mocked_attempted):
+        mocked_start_time.return_value = False
+        mocked_attempted.return_value = False
+        self.assertTrue(self.assessment_event.is_deletable())
+
+    @patch.object(AssessmentEvent, 'is_deletable')
+    def test_validate_delete_assessment_event_when_event_is_deletable(self, mocked_deletable):
+        mocked_deletable.return_value = True
+        try:
+            assessment_event.validate_delete_assessment_event_request(self.assessment_event)
+        except Exception as exception:
+            self.fail(f'{exception} is raised')
+
+    @patch.object(AssessmentEvent, 'is_deletable')
+    def test_validate_delete_assessment_event_when_event_is_not_deletable(self, mocked_deletable):
+        mocked_deletable.return_value = False
+        try:
+            assessment_event.validate_delete_assessment_event_request(self.assessment_event)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidRequestException as exception:
+            self.assertEqual(str(exception), EVENT_NOT_DELETABLE.format(self.assessment_event.event_id))
+
+    @freeze_time('2022-12-01')
+    def test_delete_assessment_event_when_event_does_not_exist(self):
+        invalid_event_id = str(uuid.uuid4())
+        request_data = self.base_delete_request_data.copy()
+        request_data['event_id'] = invalid_event_id
+        response = fetch_and_get_response(DELETE_ASSESSMENT_EVENT_URL, request_data, authenticated_user=self.assessor)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), EVENT_DOES_NOT_EXIST.format(invalid_event_id))
+
+    @freeze_time('2022-12-01')
+    def test_delete_assessment_event_when_user_is_an_assessee(self):
+        request_data = self.base_delete_request_data.copy()
+        response = fetch_and_get_response(DELETE_ASSESSMENT_EVENT_URL, request_data, authenticated_user=self.assessee)
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), NOT_A_COMPANY_OR_ASSESSOR.format(self.assessee))
+
+    @freeze_time('2022-12-01')
+    def test_delete_assessment_event_when_event_not_belong_to_company(self):
+        request_data = self.base_delete_request_data.copy()
+        response = fetch_and_get_response(DELETE_ASSESSMENT_EVENT_URL, request_data, authenticated_user=self.company_2)
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            ASSESSMENT_EVENT_OWNERSHIP_INVALID.format(
+                self.base_delete_request_data.get('event_id'),
+                self.company_2.company_id
+            )
+        )
+
+    @freeze_time('2022-12-01')
+    def test_delete_assessment_event_when_event_is_has_been_attempted(self):
+        tool_attempts = ToolAttempt.objects.filter(
+            test_flow_attempt=self.assessee_participation.attempt,
+            assessment_tool_attempted=self.assessment_tool
+        )
+        if not tool_attempts:
+            self.assessee_participation.create_assignment_attempt(self.assessment_tool)
+
+        request_data = self.base_delete_request_data.copy()
+        request_data['event_id'] = str(self.assessment_event.event_id)
+        response = fetch_and_get_response(DELETE_ASSESSMENT_EVENT_URL, request_data, authenticated_user=self.assessor)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), EVENT_NOT_DELETABLE.format(self.assessment_event.event_id))
+
+        tool_attempt = ToolAttempt.objects.get(
+            test_flow_attempt=self.assessee_participation.attempt,
+            assessment_tool_attempted=self.assessment_tool
+        )
+        tool_attempt.delete()
+
+    @freeze_time('2022-12-04')
+    def test_delete_assessment_event_when_event_has_passed(self):
+        request_data = self.base_delete_request_data.copy()
+        response = fetch_and_get_response(DELETE_ASSESSMENT_EVENT_URL, request_data, authenticated_user=self.assessor)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'),
+                         EVENT_NOT_DELETABLE.format(self.deletable_assessment_event.event_id))
+
+    @freeze_time('2022-12-01')
+    def test_delete_assessment_event_when_event_is_deletable(self):
+        request_data = self.base_delete_request_data.copy()
+        response = fetch_and_get_response(DELETE_ASSESSMENT_EVENT_URL, request_data, authenticated_user=self.assessor)
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), 'Assessment event has been deleted')
 
 
 class AssessmentEventParticipationTest(TestCase):

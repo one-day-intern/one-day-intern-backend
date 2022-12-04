@@ -1,11 +1,13 @@
-from datetime import date
 from django.core.exceptions import ObjectDoesNotExist
 from one_day_intern import utils as odi_utils
-from one_day_intern.exceptions import RestrictedAccessException
+from one_day_intern.decorators import catch_exception_and_convert_to_invalid_request_decorator
+from one_day_intern.exceptions import RestrictedAccessException, InvalidRequestException
 from users.models import Company
 from ..exceptions.exceptions import TestFlowDoesNotExist, InvalidAssessmentEventRegistration, EventDoesNotExist
 from ..models import AssessmentEvent
 from . import utils
+import datetime
+import pytz
 
 
 def validate_assessment_event(request_data, creating_company):
@@ -25,7 +27,7 @@ def validate_assessment_event(request_data, creating_company):
     except ValueError as exception:
         raise InvalidAssessmentEventRegistration(str(exception))
 
-    if start_date.date() < date.today():
+    if start_date.date() < datetime.date.today():
         raise InvalidAssessmentEventRegistration('The assessment event must not begin on a previous date.')
 
     try:
@@ -103,3 +105,66 @@ def add_assessment_event_participation(request_data, user):
     converted_list_of_participants = \
         convert_list_of_participants_emails_to_user_objects(request_data.get('list_of_participants'), company)
     add_list_of_participants_to_event(event, converted_list_of_participants)
+
+
+def validate_update_assessment_event(request_data, event: AssessmentEvent, creating_company):
+    if request_data.get('start_date'):
+        try:
+            start_date = utils.get_date_from_date_time_string(request_data.get('start_date'))
+        except ValueError as exception:
+            raise InvalidAssessmentEventRegistration(str(exception))
+
+        if start_date.date() < datetime.date.today():
+            raise InvalidAssessmentEventRegistration('The assessment event must not begin on a previous date.')
+
+    else:
+        if event.start_date_time < datetime.datetime.now(tz=pytz.utc):
+            raise InvalidAssessmentEventRegistration(
+                'The event has passed. It cannot be edited without changing the event date'
+            )
+
+    if request_data.get('name') and not odi_utils.text_value_is_valid(request_data.get('name'), min_length=3, max_length=50):
+        raise InvalidAssessmentEventRegistration(
+            'Assessment Event name must be minimum of length 3 and at most 50 characters'
+        )
+
+    if request_data.get('test_flow_id'):
+        try:
+            utils.get_active_test_flow_of_company_from_id(request_data.get('test_flow_id'), creating_company)
+        except TestFlowDoesNotExist as exception:
+            raise InvalidAssessmentEventRegistration(str(exception))
+
+
+def update_assessment_event_from_request_data(event: AssessmentEvent, request_data: dict, company: Company):
+    if request_data.get('name'):
+        event.set_name(request_data.get('name'))
+    if request_data.get('start_date'):
+        start_date_time = utils.get_date_from_date_time_string(request_data.get('start_date'))
+        event.set_start_date(start_date_time)
+    if request_data.get('test_flow_id'):
+        test_flow = utils.get_active_test_flow_of_company_from_id(request_data.get('test_flow_id'), company)
+        event.set_test_flow(test_flow)
+
+
+@catch_exception_and_convert_to_invalid_request_decorator(exception_types=ObjectDoesNotExist)
+def update_assessment_event(request_data, user):
+    event = utils.get_assessment_event_from_id(request_data.get('event_id'))
+    company = utils.get_company_or_assessor_associated_company_from_user(user)
+    validate_assessment_event_ownership(event, company)
+    validate_update_assessment_event(request_data, event, company)
+    update_assessment_event_from_request_data(event, request_data, company)
+    return event
+
+
+def validate_delete_assessment_event_request(event: AssessmentEvent):
+    if not event.is_deletable():
+        raise InvalidRequestException(f'Assessment event with {event.event_id} is not deletable')
+
+
+@catch_exception_and_convert_to_invalid_request_decorator(exception_types=ObjectDoesNotExist)
+def delete_assessment_event(request_data, user):
+    event = utils.get_assessment_event_from_id(request_data.get('event_id'))
+    company = utils.get_company_or_assessor_associated_company_from_user(user)
+    validate_assessment_event_ownership(event, company)
+    validate_delete_assessment_event_request(event)
+    event.delete()
