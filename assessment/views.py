@@ -407,3 +407,16 @@ def serve_update_assessment_event(request):
     event = update_assessment_event(request_data, user=request.user)
     response_data = AssessmentEventSerializer(event).data
     return Response(data=response_data, status=200)
+
+
+@require_POST
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def serve_delete_assessment_event(request):
+    """
+    This view will serve as the end-point for assessor to delete assessment events
+    ----------------------------------------------------------
+    request-data must contain:
+    event_id: string
+    """
+    return Response(data=None, status=200)
