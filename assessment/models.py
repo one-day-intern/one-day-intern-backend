@@ -487,6 +487,18 @@ class AssessmentEvent(models.Model):
         event_participation = self.get_assessment_event_participation_by_assessee(assessee)
         return event_participation.get_event_progress()
 
+    def set_name(self, name):
+        self.name = name
+        self.save()
+
+    def set_start_date(self, start_date_time):
+        self.start_date_time = start_date_time
+        self.save()
+
+    def set_test_flow(self, test_flow):
+        self.test_flow_used = test_flow
+        self.save()
+
 
 class AssessmentEventSerializer(serializers.ModelSerializer):
     owning_company_id = serializers.ReadOnlyField(source=OWNING_COMPANY_COMPANY_ID)

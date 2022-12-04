@@ -1560,6 +1560,45 @@ class AssessmentEventTest(TestCase):
         except Exception as exception:
             self.fail(f'{exception} is raised')
 
+    @patch.object(AssessmentEvent, 'set_test_flow')
+    @patch.object(AssessmentEvent, 'set_start_date')
+    @patch.object(AssessmentEvent, 'set_name')
+    def test_update_assessment_event_from_request_data_when_only_name_exists(self, mocked_set_name, mocked_start_date,
+                                                                             mocked_test_flow):
+        request_data = self.base_update_request_data.copy()
+        del request_data['start_date']
+        del request_data['test_flow_id']
+        assessment_event.update_assessment_event_from_request_data(self.assessment_event, request_data, self.company_1)
+        mocked_set_name.assert_called_with(request_data.get('name'))
+        mocked_start_date.assert_not_called()
+        mocked_test_flow.assert_not_called()
+
+    @patch.object(AssessmentEvent, 'set_test_flow')
+    @patch.object(AssessmentEvent, 'set_start_date')
+    @patch.object(AssessmentEvent, 'set_name')
+    def test_update_assessment_event_from_request_data_when_start_date_exists(self, mocked_set_name, mocked_start_date,
+                                                                              mocked_test_flow):
+        request_data = self.base_update_request_data.copy()
+        del request_data['name']
+        del request_data['test_flow_id']
+        assessment_event.update_assessment_event_from_request_data(self.assessment_event, request_data, self.company_1)
+        mocked_set_name.assert_not_called()
+        mocked_start_date.assert_called_with(self.updated_start_date)
+        mocked_test_flow.assert_not_called()
+
+    @patch.object(AssessmentEvent, 'set_test_flow')
+    @patch.object(AssessmentEvent, 'set_start_date')
+    @patch.object(AssessmentEvent, 'set_name')
+    def test_update_assessment_event_from_request_data_when_test_flow_id_exist(self, mocked_set_name, mocked_start_date,
+                                                                               mocked_test_flow):
+        request_data = self.base_update_request_data.copy()
+        del request_data['name']
+        del request_data['start_date']
+        assessment_event.update_assessment_event_from_request_data(self.assessment_event, request_data, self.company_1)
+        mocked_set_name.assert_not_called()
+        mocked_start_date.assert_not_called()
+        mocked_test_flow.assert_called_with(self.test_flow_3)
+
 
 class AssessmentEventParticipationTest(TestCase):
     def setUp(self) -> None:

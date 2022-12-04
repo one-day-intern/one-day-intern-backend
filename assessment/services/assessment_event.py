@@ -132,3 +132,7 @@ def validate_update_assessment_event(request_data, event: AssessmentEvent, creat
             utils.get_active_test_flow_of_company_from_id(request_data.get('test_flow_id'), creating_company)
         except TestFlowDoesNotExist as exception:
             raise InvalidAssessmentEventRegistration(str(exception))
+
+
+def update_assessment_event_from_request_data(event: AssessmentEvent, request_data: dict, company: Company):
+    pass
