@@ -499,6 +499,9 @@ class AssessmentEvent(models.Model):
         self.test_flow_used = test_flow
         self.save()
 
+    def has_been_attempted(self):
+        return False
+
 
 class AssessmentEventSerializer(serializers.ModelSerializer):
     owning_company_id = serializers.ReadOnlyField(source=OWNING_COMPANY_COMPANY_ID)

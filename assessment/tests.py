@@ -1721,6 +1721,32 @@ class AssessmentEventTest(TestCase):
         )
         tool_attempt.delete()
 
+    def test_event_has_been_attempted_when_event_has_not_been_attempted(self):
+        tool_attempts = ToolAttempt.objects.filter(
+            test_flow_attempt=self.assessee_participation.attempt,
+            assessment_tool_attempted=self.assessment_tool
+        )
+        if tool_attempts:
+            tool_attempts[0].delete()
+
+        self.assertFalse(self.assessment_event.has_been_attempted())
+
+    def test_event_has_been_attempted_when_event_has_been_attempted(self):
+        tool_attempts = ToolAttempt.objects.filter(
+            test_flow_attempt=self.assessee_participation.attempt,
+            assessment_tool_attempted=self.assessment_tool
+        )
+        if not tool_attempts:
+            self.assessee_participation.create_assignment_attempt(self.assessment_tool)
+
+        self.assertTrue(self.assessment_event.has_been_attempted())
+
+        tool_attempt = ToolAttempt.objects.get(
+            test_flow_attempt=self.assessee_participation.attempt,
+            assessment_tool_attempted=self.assessment_tool
+        )
+        tool_attempt.delete()
+
 
 class AssessmentEventParticipationTest(TestCase):
     def setUp(self) -> None:
