@@ -1,7 +1,7 @@
 from django.core.exceptions import ObjectDoesNotExist
 from one_day_intern import utils as odi_utils
 from one_day_intern.decorators import catch_exception_and_convert_to_invalid_request_decorator
-from one_day_intern.exceptions import RestrictedAccessException
+from one_day_intern.exceptions import RestrictedAccessException, InvalidRequestException
 from users.models import Company
 from ..exceptions.exceptions import TestFlowDoesNotExist, InvalidAssessmentEventRegistration, EventDoesNotExist
 from ..models import AssessmentEvent
@@ -154,3 +154,7 @@ def update_assessment_event(request_data, user):
     validate_update_assessment_event(request_data, event, company)
     update_assessment_event_from_request_data(event, request_data, company)
     return event
+
+
+def validate_delete_assessment_event_request(event: AssessmentEvent):
+    raise InvalidRequestException

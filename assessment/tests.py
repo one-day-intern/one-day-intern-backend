@@ -1777,6 +1777,23 @@ class AssessmentEventTest(TestCase):
         mocked_attempted.return_value = False
         self.assertTrue(self.assessment_event.is_deletable())
 
+    @patch.object(AssessmentEvent, 'is_deletable')
+    def test_validate_delete_assessment_event_when_event_is_deletable(self, mocked_deletable):
+        mocked_deletable.return_value = True
+        try:
+            assessment_event.validate_delete_assessment_event_request(self.assessment_event)
+        except Exception as exception:
+            self.fail(f'{exception} is raised')
+
+    @patch.object(AssessmentEvent, 'is_deletable')
+    def test_validate_delete_assessment_event_when_event_is_not_deletable(self, mocked_deletable):
+        mocked_deletable.return_value = False
+        try:
+            assessment_event.validate_delete_assessment_event_request(self.assessment_event)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidRequestException as exception:
+            self.assertEqual(str(exception), EVENT_NOT_DELETABLE.format(self.assessment_event.event_id))
+
 
 class AssessmentEventParticipationTest(TestCase):
     def setUp(self) -> None:
