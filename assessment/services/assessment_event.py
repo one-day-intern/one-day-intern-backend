@@ -159,3 +159,12 @@ def update_assessment_event(request_data, user):
 def validate_delete_assessment_event_request(event: AssessmentEvent):
     if not event.is_deletable():
         raise InvalidRequestException(f'Assessment event with {event.event_id} is not deletable')
+
+
+@catch_exception_and_convert_to_invalid_request_decorator(exception_types=ObjectDoesNotExist)
+def delete_assessment_event(request_data, user):
+    event = utils.get_assessment_event_from_id(request_data.get('event_id'))
+    company = utils.get_company_or_assessor_associated_company_from_user(user)
+    validate_assessment_event_ownership(event, company)
+    validate_delete_assessment_event_request(event)
+    event.delete()

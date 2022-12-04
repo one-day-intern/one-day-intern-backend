@@ -18,7 +18,8 @@ from .services.test_flow import create_test_flow
 from .services.assessment_event import (
     create_assessment_event,
     add_assessment_event_participation,
-    update_assessment_event
+    update_assessment_event,
+    delete_assessment_event
 )
 from .services.assessment_event_attempt import (
     subscribe_to_assessment_flow,
@@ -419,4 +420,6 @@ def serve_delete_assessment_event(request):
     request-data must contain:
     event_id: string
     """
-    return Response(data=None, status=200)
+    request_data = json.loads(request.body.decode('utf-8'))
+    delete_assessment_event(request_data, user=request.user)
+    return Response(data={'message': 'Assessment event has been deleted'}, status=200)
