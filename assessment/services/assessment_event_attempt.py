@@ -1,5 +1,6 @@
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
+from one_day_intern.decorators import catch_exception_and_convert_to_invalid_request_decorator
 from one_day_intern.exceptions import RestrictedAccessException, InvalidRequestException
 from one_day_intern.settings import GOOGLE_BUCKET_BASE_DIRECTORY, GOOGLE_STORAGE_BUCKET_NAME
 from users.models import Assessee, Assessor
@@ -21,24 +22,20 @@ def subscribe_to_assessment_flow(request_data, user) -> TaskGenerator:
     return event.get_task_generator()
 
 
+@catch_exception_and_convert_to_invalid_request_decorator(exception_types=EventDoesNotExist)
 def get_all_active_assignment(request_data: dict, user: User):
-    try:
-        event = utils.get_active_assessment_event_from_id(request_data.get('assessment-event-id'))
-        assessee = utils.get_assessee_from_user(user)
-        validate_user_participation(event, assessee)
-        return event.get_released_assignments()
-    except EventDoesNotExist as exception:
-        raise InvalidRequestException(str(exception))
+    event = utils.get_active_assessment_event_from_id(request_data.get('assessment-event-id'))
+    assessee = utils.get_assessee_from_user(user)
+    validate_user_participation(event, assessee)
+    return event.get_released_assignments()
 
 
+@catch_exception_and_convert_to_invalid_request_decorator(exception_types=EventDoesNotExist)
 def get_assessment_event_data(request_data, user: User):
-    try:
-        event = utils.get_active_assessment_event_from_id(request_data.get('assessment-event-id'))
-        assessee = utils.get_assessee_from_user(user)
-        validate_user_participation(event, assessee)
-        return event
-    except EventDoesNotExist as exception:
-        raise InvalidRequestException(str(exception))
+    event = utils.get_active_assessment_event_from_id(request_data.get('assessment-event-id'))
+    assessee = utils.get_assessee_from_user(user)
+    validate_user_participation(event, assessee)
+    return event
 
 
 def get_or_create_assignment_attempt(event: AssessmentEvent, assignment: Assignment, assessee: Assessee):
@@ -91,19 +88,16 @@ def save_assignment_attempt(event: AssessmentEvent, assignment: Assignment, asse
     assignment_attempt.update_file_name(file_to_be_uploaded.name)
 
 
+@catch_exception_and_convert_to_invalid_request_decorator(exception_types=(AssessmentToolDoesNotExist, EventDoesNotExist, ValidationError))
 def submit_assignment(request_data, file, user):
-    try:
-        event = utils.get_active_assessment_event_from_id(request_data.get('assessment-event-id'))
-        assessee = utils.get_assessee_from_user(user)
-        validate_user_participation(event, assessee)
-        assessment_tool = \
-            event.get_assessment_tool_from_assessment_id(assessment_id=request_data.get('assessment-tool-id'))
-        validate_submission(assessment_tool, file.name)
-        validate_attempt_is_submittable(assessment_tool, event)
-        save_assignment_attempt(event, assessment_tool, assessee, file)
-
-    except (AssessmentToolDoesNotExist, EventDoesNotExist, ValidationError) as exception:
-        raise InvalidRequestException(str(exception))
+    event = utils.get_active_assessment_event_from_id(request_data.get('assessment-event-id'))
+    assessee = utils.get_assessee_from_user(user)
+    validate_user_participation(event, assessee)
+    assessment_tool = \
+        event.get_assessment_tool_from_assessment_id(assessment_id=request_data.get('assessment-tool-id'))
+    validate_submission(assessment_tool, file.name)
+    validate_attempt_is_submittable(assessment_tool, event)
+    save_assignment_attempt(event, assessment_tool, assessee, file)
 
 
 def validate_tool_is_assignment(assessment_tool):
@@ -131,18 +125,16 @@ def download_assignment_attempt(event: AssessmentEvent, assignment: Assignment, 
         return None
 
 
+@catch_exception_and_convert_to_invalid_request_decorator(exception_types=(EventDoesNotExist, AssessmentToolDoesNotExist))
 def get_submitted_assignment(request_data, user):
-    try:
-        event = utils.get_active_assessment_event_from_id(request_data.get('assessment-event-id'))
-        assessee = utils.get_assessee_from_user(user)
-        validate_user_participation(event, assessee)
-        assessment_tool = event.get_assessment_tool_from_assessment_id(
-            assessment_id=request_data.get('assessment-tool-id'))
-        validate_tool_is_assignment(assessment_tool)
-        downloaded_file = download_assignment_attempt(event, assessment_tool, assessee)
-        return downloaded_file
-    except (EventDoesNotExist, AssessmentToolDoesNotExist) as exception:
-        raise InvalidRequestException(str(exception))
+    event = utils.get_active_assessment_event_from_id(request_data.get('assessment-event-id'))
+    assessee = utils.get_assessee_from_user(user)
+    validate_user_participation(event, assessee)
+    assessment_tool = event.get_assessment_tool_from_assessment_id(
+        assessment_id=request_data.get('assessment-tool-id'))
+    validate_tool_is_assignment(assessment_tool)
+    downloaded_file = download_assignment_attempt(event, assessment_tool, assessee)
+    return downloaded_file
 
 
 def get_or_create_interactive_quiz_attempt(event: AssessmentEvent, interactive_quiz: InteractiveQuiz,

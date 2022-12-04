@@ -584,8 +584,29 @@ class VideoConferenceRoomSerializer(serializers.ModelSerializer):
 class ToolAttempt(PolymorphicModel):
     tool_attempt_id = models.UUIDField(default=uuid.uuid4, primary_key=True)
     grade = models.FloatField(default=0)
+    note = models.TextField(null=True)
     test_flow_attempt = models.ForeignKey('assessment.TestFlowAttempt', on_delete=models.CASCADE)
     assessment_tool_attempted = models.ForeignKey('assessment.AssessmentTool', on_delete=models.CASCADE, default=None)
+
+    def get_user_of_attempt(self):
+        return self.test_flow_attempt.event_participation.assessee
+
+    def get_event_of_attempt(self):
+        return self.test_flow_attempt.event_participation.assessment_event
+
+    def set_grade(self, grade):
+        self.grade = grade
+        self.save()
+
+    def set_note(self, note):
+        self.note = note
+        self.save()
+
+
+class ToolAttemptSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ToolAttempt
+        fields = '__all__'
 
 
 class AssignmentAttempt(ToolAttempt):
@@ -775,3 +796,14 @@ class TestFlowAttemptSerializer(serializers.ModelSerializer):
     class Meta:
         model = TestFlowAttempt
         fields = ['attempt_id', 'note', 'grade', 'event_participation', 'test_flow_attempted_id']
+
+
+class AssignmentAttemptSerializer(serializers.ModelSerializer):
+    submitted_time = serializers.SerializerMethodField(method_name='get_submitted_time_iso')
+
+    def get_submitted_time_iso(obj, self):
+        return self.submitted_time.isoformat()
+
+    class Meta:
+        model = AssignmentAttempt
+        fields = ['submitted_time', 'filename', 'grade', 'note']

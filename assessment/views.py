@@ -13,6 +13,7 @@ from assessment.services.assessment_tool import (
 from .services.assessment import create_assignment, create_interactive_quiz, create_response_test
 from one_day_intern.exceptions import RestrictedAccessException
 from users.services import utils as user_utils
+from .services import utils
 from .services.test_flow import create_test_flow
 from .services.assessment_event import create_assessment_event, add_assessment_event_participation
 from .services.assessment_event_attempt import (
@@ -25,12 +26,15 @@ from .services.assessment_event_attempt import (
     submit_interactive_quiz_answers
 )
 from .services.progress_review import get_assessee_progress_on_assessment_event
+from .services.grading import grade_assessment_tool, get_assignment_attempt_data, get_assignment_attempt_file
 from .models import (
     AssignmentSerializer,
     TestFlowSerializer,
     AssessmentEventSerializer,
     InteractiveQuizSerializer,
-    ResponseTestSerializer
+    ResponseTestSerializer,
+    ToolAttemptSerializer,
+    AssignmentAttemptSerializer
 )
 import json
 import mimetypes
@@ -267,12 +271,7 @@ def serve_get_submitted_assignment(request):
     request_data = request.GET
     downloaded_file = get_submitted_assignment(request_data, user=request.user)
     if downloaded_file:
-        content_type = mimetypes.guess_type(downloaded_file.name)[0]
-        response = HttpResponse(downloaded_file, content_type=content_type)
-        response['Content-Length'] = downloaded_file.size
-        response['Content-Disposition'] = f'attachment; filename="{downloaded_file.name}"'
-        response['Access-Control-Expose-Headers'] = 'Content-Disposition'
-        return response
+        return utils.generate_file_response(downloaded_file)
     else:
         return Response(data={'message': 'No attempt found'}, status=200)
 
@@ -293,6 +292,7 @@ def serve_submit_answer(request):
     request_data = json.loads(request.body.decode('utf-8'))
     submit_interactive_quiz_answers(request_data, user=request.user)
     return Response(data={'message': 'Answers saved successfully'}, status=200)
+
 
 @require_POST
 @api_view(['POST'])
@@ -326,3 +326,61 @@ def serve_get_assessee_progress_on_event(request):
     request_data = request.GET
     progress_data = get_assessee_progress_on_assessment_event(request_data, user=request.user)
     return Response(data=progress_data)
+
+
+@require_POST
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def serve_grade_assessment_tool_attempts(request):
+    """
+    This view will serve as the end-point for assessors to grade their assessee's attempts on an AssessmentEvent
+    The view will return the updated attempt data.
+    ----------------------------------------------------------
+    request-data must contain:
+    tool-attempt-id: string
+    grade: float
+    note: string
+    """
+    request_data = json.loads(request.body.decode('utf-8'))
+    updated_attempt = grade_assessment_tool(request_data, user=request.user)
+    response_data = ToolAttemptSerializer(updated_attempt).data
+    return Response(data=response_data, status=200)
+
+
+@require_GET
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def serve_get_assignment_attempt_data(request):
+    """
+    This view will serve as the end-point for assessor to view the assessee submitted assignment data
+    ----------------------------------------------------------
+    request-data must contain:
+    tool-attempt-id: string
+    Format:
+    assessment/review/assignment/data?tool-attempt-id=<ToolAttemptId>
+    """
+    request_data = request.GET
+    assignment_attempt = get_assignment_attempt_data(request_data, user=request.user)
+    response_data = AssignmentAttemptSerializer(assignment_attempt).data
+    return Response(data=response_data, status=200)
+
+
+@require_GET
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def serve_get_assignment_attempt_file(request):
+    """
+    This view will serve as the end-point for assessor to download the assessee submitted assignment
+    ----------------------------------------------------------
+    request-data must contain:
+    tool-attempt-id: string
+    Format:
+    assessment/review/assignment/file?tool-attempt-id=<ToolAttemptId>
+    """
+    request_data = request.GET
+    downloaded_file = get_assignment_attempt_file(request_data, user=request.user)
+
+    if downloaded_file:
+        return utils.generate_file_response(downloaded_file)
+    else:
+        return Response(data={'message': 'No attempt found'}, status=200)

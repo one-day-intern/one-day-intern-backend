@@ -46,13 +46,11 @@ from .models import (
     InteractiveQuizSerializer,
     InteractiveQuiz, MultipleChoiceQuestionSerializer, TextQuestionSerializer,
     VideoConferenceRoom,
-    AssignmentAttempt,
-    AssessmentEventSerializer,
     InteractiveQuizAttempt,
     MultipleChoiceAnswerOptionAttempt,
     TextQuestionAttempt,
     PolymorphicAssessmentToolSerializer,
-    AssignmentAttempt,
+    AssignmentAttempt, ToolAttempt,
 )
 from .services import (
     assessment, utils,
@@ -61,7 +59,8 @@ from .services import (
     assessment_event_attempt,
     TaskGenerator,
     google_storage,
-    participation_validators
+    participation_validators,
+    grading
 )
 import datetime
 import json
@@ -94,6 +93,13 @@ CANNOT_SUBMIT_AT_THIS_TIME = 'Assessment is not accepting submissions at this ti
 ASSESSOR_NOT_FOUND = 'Assessor with email {} not found'
 ASSESSEE_NOT_FOUND = 'Assessee with email {} not found'
 ASSESSOR_NOT_RESPONSIBLE = '{} is not responsible for {} on event with id {}'
+TOOL_ATTEMPT_ID_MUST_EXIST = 'Tool attempt id must exist'
+NOTE_MUST_BE_A_STRING = 'Note must be a string'
+GRADE_MUST_BE_A_NUMBER = 'Grade must be an integer or a floating point number'
+ASSESSOR_NOT_RESPONSIBLE_FOR_ASSESSEE = '{} is not responsible for {} on event with id {}'
+TOOL_ATTEMPT_DOES_NOT_EXIST = 'Tool attempt with id {} does not exist'
+ATTEMPT_IS_NOT_AN_ASSIGNMENT = 'Attempt with id {} is not an assignment'
+GET_ASSIGNMENT_ATTEMPT_DATA_FILE = reverse('get-assignment-attempt-file') + '?tool-attempt-id='
 
 CREATE_TEST_FLOW_URL = reverse('test-flow-create')
 CREATE_ASSESSMENT_EVENT_URL = reverse('assessment-event-create')
@@ -107,6 +113,9 @@ GET_EVENT_DATA = reverse('get-event-data') + ASSESSMENT_EVENT_ID_PARAM_NAME
 GET_AND_DOWNLOAD_ATTEMPT_URL = reverse('get-submitted-assignment')
 CREATE_RESPONSE_TEST_URL = '/assessment/create/response-test/'
 GET_PROGRESS_URL = reverse('get-assessee-progress')
+SUBMIT_GRADE_AND_NOTE_URL = reverse('submit-grade-and-note')
+GET_ASSIGNMENT_ATTEMPT_DATA_URL = reverse('get-assignment-attempt-data') + '?tool-attempt-id='
+
 
 GET_TOOLS_URL = "/assessment/tools/"
 REQUEST_CONTENT_TYPE = 'application/json'
@@ -3995,3 +4004,470 @@ class ViewEventProgressTest(TestCase):
         response_content = json.loads(response.content)
         self.assertEqual(response_content, [attempt_data])
         temporary_attempt.delete()
+
+
+def get_response_for_assignment_attempt_data(attempt_id, authenticated_user):
+    client = APIClient()
+    client.force_authenticate(user=authenticated_user)
+    response = client.get(GET_ASSIGNMENT_ATTEMPT_DATA_URL + attempt_id)
+    return response
+
+
+class GradingTest(TestCase):
+    def setUp(self) -> None:
+        self.assessee_1 = Assessee.objects.create_user(
+            email='assessee3333@email.com',
+            password='Password3334',
+            first_name='Assessee 3335',
+            last_name='Assessee 3336',
+            phone_number='+628231233337',
+            date_of_birth=datetime.datetime(2000, 1, 3),
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.assessee_2 = Assessee.objects.create_user(
+            email='assessee4443@email.com',
+            password='Password4444',
+            first_name='Assessee 4445',
+            last_name='Assessee 4446',
+            phone_number='+628231234447',
+            date_of_birth=datetime.datetime(2000, 1, 4),
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.company = Company.objects.create_user(
+            email='company3343@email.com',
+            password='Password3344',
+            company_name='Company 3345',
+            description='Description 3346',
+            address='Address 3347'
+        )
+
+        self.assessor_responsible_for_1 = Assessor.objects.create_user(
+            email='assessor3351@email.com',
+            password='Password3352',
+            first_name='Assessor 3353',
+            last_name='Assessor 3354',
+            phone_number='+62823123355',
+            associated_company=self.company,
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.assessor_responsible_for_2 = Assessor.objects.create_user(
+            email='assessor4451@email.com',
+            password='Password4452',
+            first_name='Assessor 4453',
+            last_name='Assessor 4454',
+            phone_number='+62823123355',
+            associated_company=self.company,
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.non_responsible_assessor = Assessor.objects.create_user(
+            email='nonresponsibleassessor3368@email.com',
+            password='Password3369',
+            first_name='Assessor 3370',
+            last_name='Assessor 3371',
+            phone_number='+62823123372',
+            associated_company=self.company,
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.assignment = Assignment.objects.create(
+            name='Assessment Asg 3361',
+            description='Description 3362',
+            owning_company=self.company,
+            expected_file_format='pdf',
+            duration_in_minutes=30
+        )
+
+        self.quiz = InteractiveQuiz.objects.create(
+            name='Quiz 3413',
+            description='A Description for Quiz 3414',
+            owning_company=self.company,
+            duration_in_minutes=35,
+            total_points=100
+        )
+
+        self.test_flow = TestFlow.objects.create(
+            name='TestFlow 3369',
+            owning_company=self.company
+        )
+
+        self.test_flow.add_tool(
+            assessment_tool=self.assignment,
+            release_time=datetime.time(10, 30),
+            start_working_time=datetime.time(10, 30)
+        )
+
+        self.test_flow.add_tool(
+            assessment_tool=self.quiz,
+            release_time=datetime.time(15, 0),
+            start_working_time=datetime.time(15, 10)
+        )
+
+        self.event = AssessmentEvent.objects.create(
+            name='Uji Latih Sekretaris TA 3380',
+            start_date_time=datetime.datetime(2022, 10, 10),
+            owning_company=self.company,
+            test_flow_used=self.test_flow
+        )
+
+        self.event.add_participant(
+            assessee=self.assessee_1,
+            assessor=self.assessor_responsible_for_1
+        )
+
+        self.event.add_participant(
+            assessee=self.assessee_2,
+            assessor=self.assessor_responsible_for_2
+        )
+
+        self.event_participation = AssessmentEventParticipation.objects.get(assessee=self.assessee_1,
+                                                                            assessment_event=self.event)
+        self.assignment_attempt = self.event_participation.create_assignment_attempt(self.assignment)
+        self.assignment_attempt.update_file_name('filename.pdf')
+        self.assignment_attempt.update_attempt_cloud_directory('/filename.pdf')
+
+        self.base_request_data = {
+            'tool-attempt-id': str(self.assignment_attempt.tool_attempt_id),
+            'grade': 100,
+            'note': 'A note to the assessee'
+        }
+
+        self.quiz_attempt = InteractiveQuizAttempt.objects.create(
+            test_flow_attempt=self.event_participation.attempt,
+            assessment_tool_attempted=self.quiz,
+            submitted_time=datetime.datetime(2022, 10, 10, 12, 31, 58)
+        )
+
+    def test_validate_grade_assessment_tool_request_when_tool_id_does_not_exist(self):
+        request_data = self.base_request_data.copy()
+        request_data['tool-attempt-id'] = None
+        try:
+            grading.validate_grade_assessment_tool_request(request_data)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidRequestException as exception:
+            self.assertEqual(str(exception), TOOL_ATTEMPT_ID_MUST_EXIST)
+
+    def test_validate_grade_assessment_tool_request_when_grade_is_not_a_number(self):
+        request_data = self.base_request_data.copy()
+        request_data['grade'] = 'All Good'
+        try:
+            grading.validate_grade_assessment_tool_request(request_data)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidRequestException as exception:
+            self.assertEqual(str(exception), GRADE_MUST_BE_A_NUMBER)
+
+    def test_validate_grade_assessment_tool_request_when_note_exists_but_is_not_a_text(self):
+        request_data = self.base_request_data.copy()
+        request_data['note'] = 180
+        try:
+            grading.validate_grade_assessment_tool_request(request_data)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidRequestException as exception:
+            self.assertEqual(str(exception), NOTE_MUST_BE_A_STRING)
+
+    def test_validate_grade_assessment_tool_request_when_request_is_valid(self):
+        try:
+            grading.validate_grade_assessment_tool_request(self.base_request_data)
+        except Exception as exception:
+            self.fail(f'{exception} is raised')
+
+    def test_validate_responsibility_when_assessor_is_not_responsible_for_assessee(self):
+        try:
+            grading.validate_assessor_responsibility(self.event, self.non_responsible_assessor, self.assessee_1)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except RestrictedAccessException as exception:
+            self.assertEqual(
+                str(exception),
+                ASSESSOR_NOT_RESPONSIBLE_FOR_ASSESSEE.format(
+                    self.non_responsible_assessor,
+                    self.assessee_1,
+                    str(self.event.event_id)
+                )
+            )
+
+    def test_validate_responsibility_when_assessor_is_responsible_for_assessee(self):
+        try:
+            grading.validate_assessor_responsibility(self.event, self.assessor_responsible_for_1, self.assessee_1)
+        except Exception as exception:
+            self.fail(f'{exception} is raised')
+
+    def empty_grade_and_note_of_attempt(self):
+        self.assignment_attempt.grade = 0
+        self.assignment_attempt.note = None
+        self.assignment_attempt.save()
+
+    def test_set_grade_and_note_of_tool_attempt_when_grade_does_not_exist(self):
+        request_data = self.base_request_data.copy()
+        del request_data['grade']
+        grading.set_grade_and_note_of_tool_attempt(self.assignment_attempt, request_data)
+
+        self.assertEqual(self.assignment_attempt.grade, 0)
+        self.assertEqual(self.assignment_attempt.note, request_data.get('note'))
+
+        self.empty_grade_and_note_of_attempt()
+
+    def test_set_grade_and_note_of_tool_attempt_when_note_does_not_exist(self):
+        request_data = self.base_request_data.copy()
+        del request_data['note']
+        grading.set_grade_and_note_of_tool_attempt(self.assignment_attempt, request_data)
+
+        self.assertEqual(self.assignment_attempt.grade, request_data.get('grade'))
+        self.assertIsNone(self.assignment_attempt.note)
+
+        self.empty_grade_and_note_of_attempt()
+
+    def test_set_grade_and_note_of_tool_attempt_when_both_exist(self):
+        grading.set_grade_and_note_of_tool_attempt(self.assignment_attempt, self.base_request_data)
+
+        self.assertEqual(self.assignment_attempt.grade, self.base_request_data.get('grade'))
+        self.assertEqual(self.assignment_attempt.note, self.base_request_data.get('note'))
+
+        self.empty_grade_and_note_of_attempt()
+
+    def test_grade_assessment_tool_when_id_is_none(self):
+        request_data = self.base_request_data.copy()
+        del request_data['tool-attempt-id']
+        response = fetch_and_get_response(SUBMIT_GRADE_AND_NOTE_URL, request_data, authenticated_user=self.assessor_responsible_for_1)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), TOOL_ATTEMPT_ID_MUST_EXIST)
+
+    def test_grade_assessment_tool_when_grade_is_not_a_number(self):
+        request_data = self.base_request_data.copy()
+        request_data['grade'] = 'A'
+        response = fetch_and_get_response(SUBMIT_GRADE_AND_NOTE_URL, request_data, authenticated_user=self.assessor_responsible_for_1)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), GRADE_MUST_BE_A_NUMBER)
+
+    def test_grade_assessment_tool_when_note_is_not_a_text(self):
+        request_data = self.base_request_data.copy()
+        request_data['note'] = 190
+        response = fetch_and_get_response(SUBMIT_GRADE_AND_NOTE_URL, request_data, authenticated_user=self.assessor_responsible_for_1)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), NOTE_MUST_BE_A_STRING)
+
+    def test_grade_assessment_tool_when_tool_with_attempt_id_does_not_exist(self):
+        request_data = self.base_request_data.copy()
+        request_data['tool-attempt-id'] = str(uuid.uuid4())
+        response = fetch_and_get_response(SUBMIT_GRADE_AND_NOTE_URL, request_data, authenticated_user=self.assessor_responsible_for_1)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            TOOL_ATTEMPT_DOES_NOT_EXIST.format(request_data.get('tool-attempt-id'))
+        )
+
+    def test_grade_assessment_tool_when_user_is_not_assessor(self):
+        request_data = self.base_request_data.copy()
+        response = fetch_and_get_response(SUBMIT_GRADE_AND_NOTE_URL, request_data, authenticated_user=self.assessee_1)
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), ASSESSOR_NOT_FOUND.format(self.assessee_1))
+
+    def test_grade_assessment_tool_when_assessor_does_not_participate_in_event(self):
+        request_data = self.base_request_data.copy()
+        response = fetch_and_get_response(
+            SUBMIT_GRADE_AND_NOTE_URL,
+            request_data,
+            authenticated_user=self.non_responsible_assessor
+        )
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            ASSESSOR_NOT_PART_OF_EVENT.format(self.non_responsible_assessor, str(self.event.event_id))
+        )
+
+    def test_grade_assessment_tool_when_assessor_is_not_responsible_for_assessee(self):
+        request_data = self.base_request_data.copy()
+        response = fetch_and_get_response(
+            SUBMIT_GRADE_AND_NOTE_URL,
+            request_data,
+            authenticated_user=self.assessor_responsible_for_2
+        )
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            ASSESSOR_NOT_RESPONSIBLE_FOR_ASSESSEE.format(
+                self.assessor_responsible_for_2,
+                self.assessee_1,
+                str(self.event.event_id)
+            )
+        )
+
+    def test_grade_assessment_tool_when_request_is_valid(self):
+        request_data = self.base_request_data.copy()
+        response = fetch_and_get_response(
+            SUBMIT_GRADE_AND_NOTE_URL,
+            request_data,
+            authenticated_user=self.assessor_responsible_for_1
+        )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('grade'), request_data.get('grade'))
+        self.assertEqual(response_content.get('note'), request_data.get('note'))
+
+        changed_attempt = ToolAttempt.objects.get(tool_attempt_id=self.assignment_attempt.tool_attempt_id)
+        self.assertEqual(changed_attempt.grade, request_data.get('grade'))
+        self.assertEqual(changed_attempt.note, request_data.get('note'))
+
+        self.empty_grade_and_note_of_attempt()
+
+    def test_get_assignment_attempt_data_when_attempt_with_id_does_not_exist(self):
+        invalid_tool_attempt_id = str(uuid.uuid4())
+        response = get_response_for_assignment_attempt_data(
+            attempt_id=invalid_tool_attempt_id,
+            authenticated_user=self.assessor_responsible_for_1
+        )
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), TOOL_ATTEMPT_DOES_NOT_EXIST.format(invalid_tool_attempt_id))
+
+    def test_get_assignment_attempt_data_when_attempt_id_corresponds_to_non_assignment_tool(self):
+        non_assignment_attempt_id = str(self.quiz_attempt.tool_attempt_id)
+        response = get_response_for_assignment_attempt_data(
+            attempt_id=non_assignment_attempt_id,
+            authenticated_user=self.assessor_responsible_for_1
+        )
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), ATTEMPT_IS_NOT_AN_ASSIGNMENT.format(non_assignment_attempt_id))
+
+    def test_get_assignment_attempt_data_when_user_is_not_an_assessor(self):
+        assignment_attempt_id = str(self.assignment_attempt.tool_attempt_id)
+        response = get_response_for_assignment_attempt_data(
+            attempt_id=assignment_attempt_id,
+            authenticated_user=self.assessee_1
+        )
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), ASSESSOR_NOT_FOUND.format(self.assessee_1))
+
+    def test_get_assignment_attempt_data_when_assessor_is_not_responsible_for_event(self):
+        assignment_attempt_id = str(self.assignment_attempt.tool_attempt_id)
+        response = get_response_for_assignment_attempt_data(
+            attempt_id=assignment_attempt_id,
+            authenticated_user=self.assessor_responsible_for_2
+        )
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+
+        self.assertEqual(
+            response_content.get('message'),
+            ASSESSOR_NOT_RESPONSIBLE_FOR_ASSESSEE.format(
+                self.assessor_responsible_for_2,
+                self.assessee_1,
+                str(self.event.event_id)
+            )
+        )
+
+    def test_get_assignment_attempt_data_when_request_is_valid(self):
+        assignment_attempt_id = str(self.assignment_attempt.tool_attempt_id)
+        response = get_response_for_assignment_attempt_data(
+            attempt_id=assignment_attempt_id,
+            authenticated_user=self.assessor_responsible_for_1,
+        )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('submitted_time'), self.assignment_attempt.get_submitted_time().isoformat())
+        self.assertEqual(response_content.get('filename'), self.assignment_attempt.get_file_name())
+        self.assertEqual(response_content.get('grade'), self.assignment_attempt.grade)
+        self.assertEqual(response_content.get('note'), self.assignment_attempt.note)
+
+    @patch.object(google_storage, 'download_file_from_google_bucket')
+    def test_get_assignment_attempt_file_when_attempt_with_id_does_not_exist(self, mocked_download):
+        invalid_attempt_id = str(uuid.uuid4())
+        response = get_fetch_and_get_response(
+            GET_ASSIGNMENT_ATTEMPT_DATA_FILE,
+            request_param=invalid_attempt_id,
+            authenticated_user=self.assessor_responsible_for_1
+        )
+        mocked_download.assert_not_called()
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), TOOL_ATTEMPT_DOES_NOT_EXIST.format(invalid_attempt_id))
+
+    @patch.object(google_storage, 'download_file_from_google_bucket')
+    def test_get_assignment_attempt_file_when_user_is_not_assessor(self, mocked_download):
+        attempt_id = str(self.assignment_attempt.tool_attempt_id)
+        response = get_fetch_and_get_response(
+            GET_ASSIGNMENT_ATTEMPT_DATA_FILE,
+            request_param=attempt_id,
+            authenticated_user=self.assessee_1
+        )
+        mocked_download.assert_not_called()
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), ASSESSOR_NOT_FOUND.format(self.assessee_1))
+
+    @patch.object(google_storage, 'download_file_from_google_bucket')
+    def test_get_assignment_attempt_file_when_assessor_is_not_responsible_for_assessee(self, mocked_download):
+        attempt_id = str(self.assignment_attempt.tool_attempt_id)
+        response = get_fetch_and_get_response(
+            GET_ASSIGNMENT_ATTEMPT_DATA_FILE,
+            request_param=attempt_id,
+            authenticated_user=self.assessor_responsible_for_2
+        )
+        mocked_download.assert_not_called()
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            ASSESSOR_NOT_RESPONSIBLE_FOR_ASSESSEE.format(
+                self.assessor_responsible_for_2,
+                self.assessee_1,
+                str(self.event.event_id)
+            )
+        )
+
+    @patch.object(google_storage, 'download_file_from_google_bucket')
+    def test_get_assignment_attempt_file_when_no_file_has_been_submitted(self, mocked_download):
+        self.assignment_attempt.update_attempt_cloud_directory(None)
+        self.assignment_attempt.update_file_name(None)
+
+        attempt_id = str(self.assignment_attempt.tool_attempt_id)
+        response = get_fetch_and_get_response(
+            GET_ASSIGNMENT_ATTEMPT_DATA_FILE,
+            request_param=attempt_id,
+            authenticated_user=self.assessor_responsible_for_1
+        )
+        mocked_download.assert_not_called()
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), 'No attempt found')
+
+        self.assignment_attempt.update_attempt_cloud_directory('/filename.pdf')
+        self.assignment_attempt.update_file_name('filename.pdf')
+
+    @patch.object(google_storage, 'download_file_from_google_bucket')
+    def test_get_assignment_attempt_file_when_a_file_has_been_submitted(self, mocked_download):
+        dummy_file = SimpleUploadedFile(
+            self.assignment_attempt.get_file_name(),
+            b'Hello World',
+            content_type=APPLICATION_PDF
+        )
+        mocked_download.return_value = dummy_file
+
+        attempt_id = str(self.assignment_attempt.tool_attempt_id)
+        response = get_fetch_and_get_response(
+            GET_ASSIGNMENT_ATTEMPT_DATA_FILE,
+            request_param=attempt_id,
+            authenticated_user=self.assessor_responsible_for_1
+        )
+        mocked_download.assert_called_with(
+            self.assignment_attempt.get_attempt_cloud_directory(),
+            GOOGLE_STORAGE_BUCKET_NAME,
+            self.assignment_attempt.filename,
+            APPLICATION_PDF
+        )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertEqual(response.headers.get('Content-Length'), str(dummy_file.size))
+        self.assertEqual(response.headers.get('Content-Disposition'), f'attachment; filename="{dummy_file.name}"')
