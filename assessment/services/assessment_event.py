@@ -1,4 +1,4 @@
-from datetime import datetime, date
+from datetime import date
 from django.core.exceptions import ObjectDoesNotExist
 from one_day_intern import utils as odi_utils
 from one_day_intern.exceptions import RestrictedAccessException

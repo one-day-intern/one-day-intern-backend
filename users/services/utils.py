@@ -1,8 +1,13 @@
 from django.contrib.auth.models import AnonymousUser
+from django.core.exceptions import ObjectDoesNotExist
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import InvalidToken
+from rest_framework_simplejwt.tokens import RefreshToken
 from datetime import datetime
 from typing import Optional, Match
+
+
+from ..models import Assessor, Company
 import phonenumbers
 import re
 
@@ -80,3 +85,50 @@ def get_user_from_request(request):
     except InvalidToken:
         return AnonymousUser()
 
+
+def get_assessor_from_email(email):
+    try:
+        return Assessor.objects.get(email=email)
+    except ObjectDoesNotExist:
+        raise ObjectDoesNotExist(f'Assessor with email {email} not found')
+
+
+def get_company_from_email(email):
+    try:
+        return Company.objects.get(email=email)
+    except ObjectDoesNotExist:
+        raise ObjectDoesNotExist(f'Company with email {email} not found')
+
+
+def get_assessor_or_company_from_email(email):
+    user = None
+
+    try:
+        user = get_company_from_email(email)
+    except ObjectDoesNotExist:
+        pass
+
+    try:
+        user = get_assessor_from_email(email)
+    except ObjectDoesNotExist:
+        pass
+
+    if user:
+        return user
+    else:
+        raise ObjectDoesNotExist(f'Assessor or Company with email {email} not found')
+
+
+def generate_token_for_user(user):
+    token: RefreshToken = RefreshToken.for_user(user)
+    return {
+        'refresh': str(token),
+        'access': str(token.access_token)
+    }
+
+
+def get_assessor_from_user(user):
+    try:
+        return Assessor.objects.get(email=user.email)
+    except ObjectDoesNotExist:
+        raise ObjectDoesNotExist(f'Assessor with email {user.email} not found')
