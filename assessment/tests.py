@@ -1755,6 +1755,28 @@ class AssessmentEventTest(TestCase):
     def test_start_time_has_passed_when_event_date_has_not_passed(self):
         self.assertFalse(self.assessment_event.start_time_has_passed())
 
+    @patch.object(AssessmentEvent, 'has_been_attempted')
+    @patch.object(AssessmentEvent, 'start_time_has_passed')
+    def test_is_deletable_when_start_time_has_passed(self, mocked_start_time, mocked_attempted):
+        mocked_start_time.return_value = True
+        mocked_attempted.return_value = False
+        self.assertFalse(self.assessment_event.is_deletable())
+
+    @patch.object(AssessmentEvent, 'has_been_attempted')
+    @patch.object(AssessmentEvent, 'start_time_has_passed')
+    def test_is_deletable_when_event_has_been_attempted(self, mocked_start_time, mocked_attempted):
+        mocked_start_time.return_value = False
+        mocked_attempted.return_value = True
+        self.assertFalse(self.assessment_event.is_deletable())
+
+    @patch.object(AssessmentEvent, 'has_been_attempted')
+    @patch.object(AssessmentEvent, 'start_time_has_passed')
+    def test_is_deletable_when_start_time_has_not_passed_and_has_not_been_attempted(self, mocked_start_time,
+                                                                                    mocked_attempted):
+        mocked_start_time.return_value = False
+        mocked_attempted.return_value = False
+        self.assertTrue(self.assessment_event.is_deletable())
+
 
 class AssessmentEventParticipationTest(TestCase):
     def setUp(self) -> None:

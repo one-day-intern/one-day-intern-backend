@@ -506,6 +506,13 @@ class AssessmentEvent(models.Model):
     def start_time_has_passed(self):
         return self.start_date_time <= datetime.datetime.now(tz=pytz.utc)
 
+    def is_deletable(self):
+        """
+        An assessment event is deletable if the deadline has not passed
+        and no attempts for the assessment event has been made
+        """
+        return False
+
 
 class AssessmentEventSerializer(serializers.ModelSerializer):
     owning_company_id = serializers.ReadOnlyField(source=OWNING_COMPANY_COMPANY_ID)
