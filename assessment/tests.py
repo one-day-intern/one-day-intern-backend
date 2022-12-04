@@ -1695,6 +1695,32 @@ class AssessmentEventTest(TestCase):
         self.assertEqual(response_content.get('owning_company_id'), str(self.company_1.company_id))
         self.assertEqual(response_content.get('test_flow_id'), str(self.test_flow_3.test_flow_id))
 
+    def test_has_attempted_test_flow_when_assessee_has_not_created_any_attempt_for_test_flow(self):
+        tool_attempts = ToolAttempt.objects.filter(
+            test_flow_attempt=self.assessee_participation.attempt,
+            assessment_tool_attempted=self.assessment_tool
+        )
+        if tool_attempts:
+            tool_attempts[0].delete()
+
+        self.assertFalse(self.assessee_participation.has_attempted_test_flow())
+
+    def test_has_attempted_test_flow_when_assessee_has_created_an_attempt_for_the_test_flow(self):
+        tool_attempts = ToolAttempt.objects.filter(
+            test_flow_attempt=self.assessee_participation.attempt,
+            assessment_tool_attempted=self.assessment_tool
+        )
+        if not tool_attempts:
+            self.assessee_participation.create_assignment_attempt(self.assessment_tool)
+
+        self.assertTrue(self.assessee_participation.has_attempted_test_flow())
+
+        tool_attempt = ToolAttempt.objects.get(
+            test_flow_attempt=self.assessee_participation.attempt,
+            assessment_tool_attempted=self.assessment_tool
+        )
+        tool_attempt.delete()
+
 
 class AssessmentEventParticipationTest(TestCase):
     def setUp(self) -> None:
