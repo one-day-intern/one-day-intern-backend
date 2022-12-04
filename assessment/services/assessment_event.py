@@ -135,4 +135,11 @@ def validate_update_assessment_event(request_data, event: AssessmentEvent, creat
 
 
 def update_assessment_event_from_request_data(event: AssessmentEvent, request_data: dict, company: Company):
-    pass
+    if request_data.get('name'):
+        event.set_name(request_data.get('name'))
+    if request_data.get('start_date'):
+        start_date_time = utils.get_date_from_date_time_string(request_data.get('start_date'))
+        event.set_start_date(start_date_time)
+    if request_data.get('test_flow_id'):
+        test_flow = utils.get_active_test_flow_of_company_from_id(request_data.get('test_flow_id'), company)
+        event.set_test_flow(test_flow)
