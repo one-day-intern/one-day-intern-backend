@@ -41,6 +41,7 @@ from .models import (
     ToolAttemptSerializer,
     AssignmentAttemptSerializer
 )
+from .models import AssignmentSerializer, TestFlowSerializer, AssessmentEventSerializer, InteractiveQuizSerializer, ResponseTestSerializer
 import json
 
 

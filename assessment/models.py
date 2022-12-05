@@ -16,7 +16,6 @@ USERS_COMPANY = 'users.Company'
 OWNING_COMPANY_COMPANY_ID = 'owning_company.company_id'
 OWNING_COMPANY_COMPANY_NAME = 'owning_company.company_name'
 
-
 class AssessmentTool(PolymorphicModel):
     assessment_id = models.UUIDField(primary_key=True, auto_created=True, default=uuid.uuid4)
     name = models.CharField(max_length=50, null=False)
@@ -543,15 +542,12 @@ class TestFlowAttempt(models.Model):
 
 
 class ResponseTest(AssessmentTool):
-    sender = models.ForeignKey(USERS_ASSESSOR, on_delete=models.CASCADE)
+    sender = models.TextField(null=False)
     subject = models.TextField(null=False)
     prompt = models.TextField(null=False)
 
-
 class ResponseTestSerializer(serializers.ModelSerializer):
     owning_company_name = serializers.ReadOnlyField(source=OWNING_COMPANY_COMPANY_NAME)
-    sender = serializers.ReadOnlyField(source='sender.email')
-
     class Meta:
         model = ResponseTest
         fields = [

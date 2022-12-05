@@ -4,6 +4,7 @@ from .views import (
     serve_create_assignment,
     serve_create_test_flow,
     serve_create_assessment_event,
+    serve_add_assessment_event_participant,
     serve_update_assessment_event,
     serve_delete_assessment_event,
     serve_create_response_test,

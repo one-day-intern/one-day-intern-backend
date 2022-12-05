@@ -126,7 +126,9 @@ GET_TOOLS_URL = "/assessment/tools/"
 REQUEST_CONTENT_TYPE = 'application/json'
 APPLICATION_PDF = 'application/pdf'
 OK_RESPONSE_STATUS_CODE = 200
-
+CREATE_RESPONSE_TEST_URL = '/assessment/create/response-test/'
+GET_TOOLS_URL="/assessment/tools/"
+REQUEST_CONTENT_TYPE = 'application/json'
 
 class AssessmentTest(TestCase):
     def setUp(self) -> None:
@@ -2635,7 +2637,7 @@ class GetEventDataTest(TestCase):
             name='Response Test 2172',
             description='Description of Response Test',
             owning_company=self.company,
-            sender=self.assessor,
+            sender='Head of HR',
             subject='Welcome Onboard!',
             prompt='Hello, welcome to Google'
         )
@@ -2771,7 +2773,6 @@ class GetEventDataTest(TestCase):
         response_content = json.loads(response.content)
         self.assertDictEqual(response_content, self.expected_assessment_event)
 
-
 class ResponseTestTest(TestCase):
     def setUp(self) -> None:
         self.company = Company.objects.create_user(
@@ -2793,8 +2794,9 @@ class ResponseTestTest(TestCase):
             authentication_service=AuthenticationService.DEFAULT.value
         )
         self.request_data = {
-            'name': 'Communication Task 1',
+            'name': 'Communication Task 2',
             'description': 'This is the first assignment',
+            'sender':'Director of Public Relation',
             'subject': 'This is a dummy email',
             'prompt': 'Hi! This is a dummy email'
         }
@@ -2804,7 +2806,7 @@ class ResponseTestTest(TestCase):
             description=self.request_data.get('description'),
             prompt=self.request_data.get('prompt'),
             subject=self.request_data.get('subject'),
-            sender=self.assessor,
+            sender=self.request_data.get('sender'),
             owning_company=self.assessor.associated_company
         )
 
@@ -2817,6 +2819,16 @@ class ResponseTestTest(TestCase):
             assessment.validate_response_test(valid_request_data)
         except InvalidResponseTestRegistration as exception:
             self.fail(f'{exception} is raised')
+
+    def test_validate_response_test_when_sender_is_invalid(self):
+        request_data_with_no_sender = self.request_data.copy()
+        request_data_with_no_sender['sender'] = ''
+        expected_message = 'Sender Should Not Be Empty'
+        try:
+            assessment.validate_response_test(request_data_with_no_sender)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidResponseTestRegistration as exception:
+            self.assertEqual(str(exception), expected_message)
 
     def test_validate_response_test_when_subject_is_invalid(self):
         request_data_with_no_subject = self.request_data.copy()
@@ -2873,6 +2885,7 @@ class ResponseTestTest(TestCase):
         self.assertEqual(response_content.get('description'), self.expected_response_test_data.get('description'))
         self.assertEqual(response_content.get('subject'), self.expected_response_test_data.get('subject'))
         self.assertEqual(response_content.get('prompt'), self.expected_response_test_data.get('prompt'))
+        self.assertEqual(response_content.get('sender'), self.expected_response_test_data.get('sender'))
         self.assertEqual(response_content.get('owning_company_id'), self.company.id)
         self.assertEqual(response_content.get('owning_company_name'), self.company.company_name)
 
@@ -3719,7 +3732,7 @@ class AssessmentToolDeadlineTest(TestCase):
             name='Response Test 2823',
             description='A response test 2824',
             owning_company=self.company,
-            sender=self.assessor,
+            sender='Director of Public Relation',
             subject='ASAP Contact Me',
             prompt='Contact me ASAP'
         )
