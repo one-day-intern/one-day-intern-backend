@@ -455,6 +455,9 @@ class AssessmentEvent(models.Model):
 
         return released_assignments_data
 
+    def get_released_response_tests(self):
+        return None
+
     def get_assessment_event_participation_by_assessee(self, assessee):
         return self.assessmenteventparticipation_set.get(assessee=assessee)
 

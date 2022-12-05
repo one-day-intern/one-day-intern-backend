@@ -4916,3 +4916,119 @@ class GradingTest(TestCase):
         self.assertEqual(response.status_code, HTTPStatus.OK)
         self.assertEqual(response.headers.get('Content-Length'), str(dummy_file.size))
         self.assertEqual(response.headers.get('Content-Disposition'), f'attachment; filename="{dummy_file.name}"')
+
+class ActiveResponseTest(TestCase):
+    def setUp(self) -> None:
+        self.assessee = Assessee.objects.create_user(
+            email='assessee5151@gmail.com',
+            password='Password5152',
+            first_name='Assessee 5153',
+            last_name='Assessee 5154',
+            phone_number='+628231235155',
+            date_of_birth=datetime.datetime(2002, 12, 2),
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.company = Company.objects.create_user(
+            email='company5161@gmail.com',
+            password='Password5162',
+            company_name='Company 5163',
+            description='Description 5164',
+            address='Address 5165'
+        )
+
+        self.assessor = Assessor.objects.create_user(
+            email='assessor5169@gmail.com',
+            password='Password5170',
+            first_name='Assessor 5171',
+            last_name='Assessor 5172',
+            phone_number='+628231235173',
+            associated_company=self.company,
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.response_test: ResponseTest = ResponseTest.objects.create(
+            name='Response Test 5179',
+            description='Description 5180',
+            owning_company=self.company,
+            sender='sender5182@gmail.com',
+            subject='[Urgent] SUBMIT IT NOW 5183',
+            prompt='Please submit your assessment now.'
+        )
+
+        self.test_flow = TestFlow.objects.create(
+            name='TestFlow 5188',
+            owning_company=self.company
+        )
+
+        self.test_flow.add_tool(
+            assessment_tool=self.response_test,
+            release_time=datetime.time(10, 0),
+            start_working_time=datetime.time(10, 0)
+        )
+
+        self.assessment_event = AssessmentEvent.objects.create(
+            name='Assessment Event 5199',
+            start_date_time=datetime.datetime(2022, 12, 5),
+            owning_company=self.company,
+            test_flow_used=self.test_flow
+        )
+
+        self.assessment_event.add_participant(
+            assessee=self.assessee,
+            assessor=self.assessor
+        )
+
+        self.non_participating_assessee = Assessee.objects.create_user(
+            email='assessee5213@gmail.com',
+            password='Password5214',
+            first_name='Assessee 5215',
+            last_name='Assessee 5216',
+            phone_number='+628231235217',
+            date_of_birth=datetime.datetime(2002, 12, 2),
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.expected_tool_data = {
+            'name': self.response_test.name,
+            'description': self.response_test.description,
+            'type': 'responsetest',
+            'additional_info': {
+                'sender': self.response_test.sender,
+                'subject': self.response_test.subject,
+                'prompt': self.response_test.prompt
+            },
+            'id': str(self.response_test.assessment_id),
+            'released_time': '2022-12-05T10:00:00'
+        }
+
+    @freeze_time('2022-12-05 09:00:00')
+    def test_get_released_response_tests_when_its_event_day_but_no_response_test_is_released(self):
+        released_response_tests = self.assessment_event.get_released_response_tests()
+        self.assertEqual(len(released_response_tests), 0)
+
+    @freeze_time('2022-12-05 10:00:00')
+    def test_get_released_response_test_when_its_event_day_and_response_test_has_been_released(self):
+        released_response_tests = self.assessment_event.get_released_response_tests()
+        self.assertEqual(len(released_response_tests), 1)
+
+        released_tool = released_response_tests[0]
+        self.assertEqual(released_tool.get('type'), 'responsetest')
+        self.assertEqual(released_tool.get('name'), self.response_test.name)
+        self.assertEqual(released_tool.get('description'), self.response_test.description)
+        self.assertEqual(released_tool.get('released_time'), '2022-12-05T10:00:00')
+
+        response_test_data = released_tool.get('additional_info')
+        self.assertEqual(response_test_data.get('prompt'), self.response_test.prompt)
+        self.assertEqual(response_test_data.get('sender'), self.response_test.sender)
+        self.assertEqual(response_test_data.get('subject'), self.response_test.subject)
+
+    @freeze_time('2022-12-06 10:00:00')
+    def test_get_released_response_test_when_its_not_event_day_but_time_has_passed(self):
+        released_response_tests = self.assessment_event.get_released_response_tests()
+        self.assertEqual(len(released_response_tests), 0)
+
+    @freeze_time('2022-12-06 09:00:00')
+    def test_get_released_response_test_when_its_not_event_day_and_time_has_not_passed(self):
+        released_response_tests = self.assessment_event.get_released_response_tests()
+        self.assertEqual(len(released_response_tests), 0)
