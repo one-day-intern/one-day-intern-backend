@@ -87,6 +87,20 @@ class InteractiveQuiz(AssessmentTool):
     duration_in_minutes = models.IntegerField(null=False)
     total_points = models.IntegerField(null=False)
 
+    def get_end_working_time_if_executed_on_event_date(self, start_time: datetime.time, event_date):
+        end_working_time = datetime.datetime(
+            event_date.year,
+            event_date.month,
+            event_date.day,
+            start_time.hour,
+            start_time.minute,
+            start_time.second,
+            tzinfo=pytz.utc
+        )
+
+        end_working_time = end_working_time + datetime.timedelta(minutes=self.duration_in_minutes)
+        return end_working_time
+
 
 class Question(models.Model):
     TYPES_CHOICES = [
@@ -123,6 +137,9 @@ class MultipleChoiceAnswerOption(models.Model):
     question = models.ForeignKey('MultipleChoiceQuestion', related_name='questions', on_delete=models.CASCADE)
     content = models.TextField(null=False)
     correct = models.BooleanField(default=False)
+
+    def get_content(self):
+        return self.content
 
 
 class TextQuestion(Question):
@@ -469,6 +486,32 @@ class AssessmentEvent(models.Model):
         event_participation = self.get_assessment_event_participation_by_assessee(assessee)
         return event_participation.get_event_progress()
 
+    def set_name(self, name):
+        self.name = name
+        self.save()
+
+    def set_start_date(self, start_date_time):
+        self.start_date_time = start_date_time
+        self.save()
+
+    def set_test_flow(self, test_flow):
+        self.test_flow_used = test_flow
+        self.save()
+
+    def has_been_attempted(self):
+        event_participations: List[AssessmentEventParticipation] = self.assessmenteventparticipation_set.all()
+        return any([event_participation.has_attempted_test_flow() for event_participation in event_participations])
+
+    def start_time_has_passed(self):
+        return self.start_date_time <= datetime.datetime.now(tz=pytz.utc)
+
+    def is_deletable(self):
+        """
+        An assessment event is deletable if the deadline has not passed
+        and no attempts for the assessment event has been made
+        """
+        return not self.start_time_has_passed() and not self.has_been_attempted()
+
 
 class AssessmentEventSerializer(serializers.ModelSerializer):
     owning_company_id = serializers.ReadOnlyField(source=OWNING_COMPANY_COMPANY_ID)
@@ -493,6 +536,10 @@ class TestFlowAttempt(models.Model):
     grade = models.FloatField(default=0)
     event_participation = models.ForeignKey('assessment.AssessmentEventParticipation', on_delete=models.CASCADE)
     test_flow_attempted = models.ForeignKey('assessment.TestFlow', on_delete=models.RESTRICT)
+
+    def has_tool_attempts(self):
+        return self.toolattempt_set.exists()
+
 
 class ResponseTest(AssessmentTool):
     sender = models.TextField(null=False)
@@ -562,8 +609,29 @@ class VideoConferenceRoomSerializer(serializers.ModelSerializer):
 class ToolAttempt(PolymorphicModel):
     tool_attempt_id = models.UUIDField(default=uuid.uuid4, primary_key=True)
     grade = models.FloatField(default=0)
+    note = models.TextField(null=True)
     test_flow_attempt = models.ForeignKey('assessment.TestFlowAttempt', on_delete=models.CASCADE)
     assessment_tool_attempted = models.ForeignKey('assessment.AssessmentTool', on_delete=models.CASCADE, default=None)
+
+    def get_user_of_attempt(self):
+        return self.test_flow_attempt.event_participation.assessee
+
+    def get_event_of_attempt(self):
+        return self.test_flow_attempt.event_participation.assessment_event
+
+    def set_grade(self, grade):
+        self.grade = grade
+        self.save()
+
+    def set_note(self, note):
+        self.note = note
+        self.save()
+
+
+class ToolAttemptSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ToolAttempt
+        fields = '__all__'
 
 
 class AssignmentAttempt(ToolAttempt):
@@ -588,6 +656,60 @@ class AssignmentAttempt(ToolAttempt):
 
     def get_submitted_time(self):
         return self.submitted_time
+
+
+class InteractiveQuizAttempt(ToolAttempt):
+    submitted_time = models.DateTimeField(default=None, null=True)
+
+    def get_all_question_attempts(self):
+        return self.questionattempt_set
+
+    def get_question_attempt(self, question_id):
+        question = Question.objects.get(question_id=question_id)
+        matching_question_attempts = self.questionattempt_set.filter(question=question)
+        if matching_question_attempts:
+            return matching_question_attempts[0]
+        else:
+            return None
+
+    def set_submitted_time(self):
+        self.submitted_time = datetime.datetime.now(tz=pytz.utc)
+        self.save()
+
+    def get_submitted_time(self):
+        return self.submitted_time
+
+
+class QuestionAttempt(models.Model):
+    question = models.ForeignKey('Question', on_delete=models.CASCADE)
+    interactive_quiz_attempt = models.ForeignKey('InteractiveQuizAttempt',
+                                                 on_delete=models.CASCADE
+                                                 )
+    is_answered = models.BooleanField(default=False)
+
+
+class TextQuestionAttempt(QuestionAttempt):
+    answer = models.TextField(null=True)
+
+    def set_answer(self, answer):
+        self.answer = answer
+        self.save()
+
+    def get_answer(self):
+        return self.answer
+
+
+class MultipleChoiceAnswerOptionAttempt(QuestionAttempt):
+    selected_option = models.ForeignKey('MultipleChoiceAnswerOption', related_name='selected_option', on_delete=models.CASCADE)
+
+    def set_selected_option(self, answer_option_id):
+        matching_answer_option = MultipleChoiceAnswerOption.objects.filter(answer_option_id=answer_option_id)
+        answer_option = matching_answer_option[0]
+        self.selected_option = answer_option
+        self.save()
+
+    def get_selected_option_content(self):
+        return self.selected_option.get_content()
 
 
 class AssessmentEventParticipation(models.Model):
@@ -615,6 +737,26 @@ class AssessmentEventParticipation(models.Model):
             assessment_tool_attempted=assignment
         )
         return assignment_attempt
+
+    def get_all_interactive_quiz_attempts(self):
+        return self.attempt.toolattempt_set.instance_of(InteractiveQuizAttempt)
+
+    def get_interactive_quiz_attempt(self, interactive_quiz: InteractiveQuiz) -> Optional[InteractiveQuizAttempt]:
+        interactive_quiz_attempts = self.get_all_interactive_quiz_attempts()
+        matching_interactive_quiz_attempts = interactive_quiz_attempts.filter(assessment_tool_attempted=interactive_quiz)
+
+        if matching_interactive_quiz_attempts:
+            return matching_interactive_quiz_attempts[0]
+
+        else:
+            return None
+
+    def create_interactive_quiz_attempt(self, interactive_quiz: InteractiveQuiz) -> InteractiveQuizAttempt:
+        interactive_quiz_attempt = InteractiveQuizAttempt.objects.create(
+            test_flow_attempt=self.attempt,
+            assessment_tool_attempted=interactive_quiz
+        )
+        return interactive_quiz_attempt
 
     def get_all_assessment_tool_attempts(self):
         return self.attempt.toolattempt_set.all()
@@ -652,6 +794,9 @@ class AssessmentEventParticipation(models.Model):
 
         return progress_data
 
+    def has_attempted_test_flow(self):
+        return self.attempt.has_tool_attempts()
+
 
 class AssessmentEventParticipationSerializer(serializers.ModelSerializer):
     assessment_event_id = serializers.ReadOnlyField(source='assessment_event.assessment_event_id')
@@ -679,3 +824,14 @@ class TestFlowAttemptSerializer(serializers.ModelSerializer):
     class Meta:
         model = TestFlowAttempt
         fields = ['attempt_id', 'note', 'grade', 'event_participation', 'test_flow_attempted_id']
+
+
+class AssignmentAttemptSerializer(serializers.ModelSerializer):
+    submitted_time = serializers.SerializerMethodField(method_name='get_submitted_time_iso')
+
+    def get_submitted_time_iso(obj, self):
+        return self.submitted_time.isoformat()
+
+    class Meta:
+        model = AssignmentAttempt
+        fields = ['submitted_time', 'filename', 'grade', 'note']

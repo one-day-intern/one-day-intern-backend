@@ -71,6 +71,7 @@ def create_assignment(request_data, user):
     assignment = save_assignment_to_database(request_data, assessor)
     return assignment
 
+
 def validate_response_test(request_data):
     """
     response test MUST have subject and prompt
@@ -107,6 +108,7 @@ def create_response_test(request_data, user):
     validate_response_test(request_data)
     response_test = save_response_test_to_database(request_data, assessor)
     return response_test
+
 
 def validate_interactive_quiz(request_data):
     if request_data.get('total_points') is None:
