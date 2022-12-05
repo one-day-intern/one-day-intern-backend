@@ -23,6 +23,14 @@ def subscribe_to_assessment_flow(request_data, user) -> TaskGenerator:
 
 
 @catch_exception_and_convert_to_invalid_request_decorator(exception_types=EventDoesNotExist)
+def get_all_active_response_test(request_data: dict, user: User):
+    event = utils.get_active_assessment_event_from_id(request_data.get('assessment-event-id'))
+    assessee = utils.get_assessee_from_user(user)
+    validate_user_participation(event, assessee)
+    return event.get_released_response_tests()
+
+
+@catch_exception_and_convert_to_invalid_request_decorator(exception_types=EventDoesNotExist)
 def get_all_active_assignment(request_data: dict, user: User):
     event = utils.get_active_assessment_event_from_id(request_data.get('assessment-event-id'))
     assessee = utils.get_assessee_from_user(user)

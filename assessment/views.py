@@ -24,6 +24,7 @@ from .services.assessment_event import (
 from .services.assessment_event_attempt import (
     subscribe_to_assessment_flow,
     get_all_active_assignment,
+    get_all_active_response_test,
     get_assessment_event_data,
     submit_assignment,
     get_submitted_assignment,
@@ -219,7 +220,9 @@ def serve_get_all_active_response_test(request):
     request-data must contain:
     assessment-event-id: string
     """
-    return Response(data=None)
+    request_data = request.GET
+    active_response_tests = get_all_active_response_test(request_data, user=request.user)
+    return Response(data=active_response_tests)
 
 
 @require_GET
