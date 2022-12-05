@@ -41,7 +41,6 @@ from .models import (
     ToolAttemptSerializer,
     AssignmentAttemptSerializer
 )
-from .models import AssignmentSerializer, TestFlowSerializer, AssessmentEventSerializer, InteractiveQuizSerializer, ResponseTestSerializer
 import json
 
 
@@ -207,6 +206,20 @@ def serve_subscribe_to_assessment_flow(request):
     except Exception as exception:
         response_content = {'message': str(exception)}
         return HttpResponse(content=json.dumps(response_content), status=500)
+
+
+@require_GET
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def serve_get_all_active_response_test(request):
+    """
+    This view will serve as the end-point for assessees to get all active response tests (response tests
+    that have been released) in the current assessment event that they participate in.
+    ----------------------------------------------------------
+    request-data must contain:
+    assessment-event-id: string
+    """
+    return Response(data=None)
 
 
 @require_GET

@@ -112,6 +112,7 @@ SUBMIT_ASSIGNMENT_URL = reverse('submit-assignments')
 SUBMIT_INTERACTIVE_QUIZ_ANSWERS_URL = reverse('submit-interactive-quiz-answers')
 SUBMIT_INTERACTIVE_QUIZ_URL = reverse('submit-interactive-quiz')
 GET_RELEASED_ASSIGNMENTS = reverse('event-active-assignments') + ASSESSMENT_EVENT_ID_PARAM_NAME
+GET_RELEASED_RESPONSE_TESTS = reverse('event-active-response-tests') + ASSESSMENT_EVENT_ID_PARAM_NAME
 GET_EVENT_DATA = reverse('get-event-data') + ASSESSMENT_EVENT_ID_PARAM_NAME
 GET_AND_DOWNLOAD_ATTEMPT_URL = reverse('get-submitted-assignment')
 CREATE_RESPONSE_TEST_URL = '/assessment/create/response-test/'
@@ -126,9 +127,7 @@ GET_TOOLS_URL = "/assessment/tools/"
 REQUEST_CONTENT_TYPE = 'application/json'
 APPLICATION_PDF = 'application/pdf'
 OK_RESPONSE_STATUS_CODE = 200
-CREATE_RESPONSE_TEST_URL = '/assessment/create/response-test/'
-GET_TOOLS_URL="/assessment/tools/"
-REQUEST_CONTENT_TYPE = 'application/json'
+
 
 class AssessmentTest(TestCase):
     def setUp(self) -> None:
@@ -4917,6 +4916,7 @@ class GradingTest(TestCase):
         self.assertEqual(response.headers.get('Content-Length'), str(dummy_file.size))
         self.assertEqual(response.headers.get('Content-Disposition'), f'attachment; filename="{dummy_file.name}"')
 
+
 class ActiveResponseTest(TestCase):
     def setUp(self) -> None:
         self.assessee = Assessee.objects.create_user(
@@ -5032,3 +5032,63 @@ class ActiveResponseTest(TestCase):
     def test_get_released_response_test_when_its_not_event_day_and_time_has_not_passed(self):
         released_response_tests = self.assessment_event.get_released_response_tests()
         self.assertEqual(len(released_response_tests), 0)
+
+    @freeze_time('2022-12-05 10:00:00')
+    def test_serve_get_all_active_response_test_when_event_with_id_does_not_exist(self):
+        invalid_id = str(uuid.uuid4())
+        response = get_fetch_and_get_response(
+            GET_RELEASED_RESPONSE_TESTS,
+            request_param=invalid_id,
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), EVENT_DOES_NOT_EXIST.format(invalid_id))
+
+    @freeze_time('2022-12-05 10:00:00')
+    def test_serve_get_all_active_response_test_when_user_is_not_an_assessee(self):
+        response = get_fetch_and_get_response(
+            GET_RELEASED_RESPONSE_TESTS,
+            request_param=str(self.assessment_event.event_id),
+            authenticated_user=self.assessor
+        )
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), USER_IS_NOT_ASSESSEE.format(self.assessor))
+
+    @freeze_time('2022-12-05 10:00:00')
+    def test_serve_get_all_active_response_test_when_assessee_does_not_participate_in_event(self):
+        response = get_fetch_and_get_response(
+            GET_RELEASED_RESPONSE_TESTS,
+            request_param=str(self.assessment_event.event_id),
+            authenticated_user=self.non_participating_assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            NOT_PART_OF_EVENT.format(self.non_participating_assessee, self.assessment_event.event_id)
+        )
+
+    @freeze_time('2022-12-05 09:00:00')
+    def test_serve_get_all_active_response_test_when_response_test_has_not_been_released(self):
+        response = get_fetch_and_get_response(
+            GET_RELEASED_RESPONSE_TESTS,
+            request_param=str(self.assessment_event.event_id),
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertEqual(len(response_content), 0)
+
+    @freeze_time('2022-12-05 10:00:00')
+    def test_serve_get_all_active_response_test_when_response_test_has_been_released(self):
+        response = get_fetch_and_get_response(
+            GET_RELEASED_RESPONSE_TESTS,
+            request_param=str(self.assessment_event.event_id),
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertEqual(len(response_content), 1)
+        self.assertEqual(response_content, [self.expected_tool_data])
