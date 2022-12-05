@@ -1,14 +1,17 @@
-import pytz
 from django.db import models
+from one_day_intern import settings
 from rest_framework import serializers
 from polymorphic.models import PolymorphicModel
-from users.models import Assessor, AssessorSerializer
+from typing import List, Optional
+from users.models import Assessor, AssessorSerializer, Assessee
 from .services.TaskGenerator import TaskGenerator
 from .exceptions.exceptions import AssessmentToolDoesNotExist
-from typing import List, Optional
 import datetime
+import pytz
 import uuid
 
+
+USERS_ASSESSOR = 'users.Assessor'
 USERS_COMPANY = 'users.Company'
 OWNING_COMPANY_COMPANY_ID = 'owning_company.company_id'
 OWNING_COMPANY_COMPANY_NAME = 'owning_company.company_name'
@@ -25,6 +28,9 @@ class AssessmentTool(PolymorphicModel):
             'name': self.name,
             'description': self.description
         }
+
+    def get_type(self):
+        return self.__class__.__name__.lower()
 
 
 class AssessmentToolSerializer(serializers.ModelSerializer):
@@ -48,10 +54,18 @@ class Assignment(AssessmentTool):
         }
         return tool_base_data
 
-    def get_end_working_time(self, start_time: datetime.time):
-        temporary_datetime = datetime.datetime(2000, 1, 1, start_time.hour, start_time.minute, start_time.second)
-        temporary_datetime = temporary_datetime + datetime.timedelta(minutes=self.duration_in_minutes)
-        return temporary_datetime.time()
+    def get_end_working_time_if_executed_on_event_date(self, start_time: datetime.time, event_date):
+        end_working_time = datetime.datetime(
+            event_date.year,
+            event_date.month,
+            event_date.day,
+            start_time.hour,
+            start_time.minute,
+            start_time.second,
+            tzinfo=pytz.utc
+        )
+        end_working_time = end_working_time + datetime.timedelta(minutes=self.duration_in_minutes)
+        return end_working_time
 
 
 class AssignmentSerializer(serializers.ModelSerializer):
@@ -74,6 +88,20 @@ class InteractiveQuiz(AssessmentTool):
     duration_in_minutes = models.IntegerField(null=False)
     total_points = models.IntegerField(null=False)
 
+    def get_end_working_time_if_executed_on_event_date(self, start_time: datetime.time, event_date):
+        end_working_time = datetime.datetime(
+            event_date.year,
+            event_date.month,
+            event_date.day,
+            start_time.hour,
+            start_time.minute,
+            start_time.second,
+            tzinfo=pytz.utc
+        )
+
+        end_working_time = end_working_time + datetime.timedelta(minutes=self.duration_in_minutes)
+        return end_working_time
+
 
 class Question(models.Model):
     TYPES_CHOICES = [
@@ -81,6 +109,7 @@ class Question(models.Model):
         ('multiple_choice', 'Multiple Choice Question')
     ]
 
+    question_id = models.UUIDField(primary_key=True, auto_created=True, default=uuid.uuid4)
     interactive_quiz = models.ForeignKey(InteractiveQuiz, related_name='questions', on_delete=models.CASCADE)
     prompt = models.TextField(null=False)
     points = models.IntegerField(default=0)
@@ -105,9 +134,13 @@ class MultipleChoiceQuestion(Question):
 
 
 class MultipleChoiceAnswerOption(models.Model):
+    answer_option_id = models.UUIDField(primary_key=True, auto_created=True, default=uuid.uuid4)
     question = models.ForeignKey('MultipleChoiceQuestion', related_name='questions', on_delete=models.CASCADE)
     content = models.TextField(null=False)
     correct = models.BooleanField(default=False)
+
+    def get_content(self):
+        return self.content
 
 
 class TextQuestion(Question):
@@ -201,6 +234,58 @@ class TestFlow(models.Model):
         test_flow_tools = TestFlowTool.objects.filter(test_flow=self)
         return [test_flow_tool.get_release_time_and_assessment_data() for test_flow_tool in test_flow_tools]
 
+    def get_test_flow_last_end_time_when_executed_on_event(self, event_date):
+        """
+        This method computes the last deadline time of all tools that are part of the test flow.
+        For assignments and Interactive Quiz, end time is computed by start time + duration,
+        For response test, end time is computed by start time + 30 minutes
+        """
+        test_flow_tools = TestFlowTool.objects.filter(test_flow=self)
+        last_end_datetime = datetime.datetime(event_date.year, event_date.month, event_date.day, 0, 0, tzinfo=pytz.utc)
+
+        for test_flow_tool in test_flow_tools:
+            tool = test_flow_tool.assessment_tool
+            tool_start_time = test_flow_tool.start_working_time
+
+            if isinstance(tool, (Assignment, InteractiveQuiz)):
+                tool_end_datetime = tool.get_end_working_time_if_executed_on_event_date(tool_start_time, event_date)
+            else:
+                tool_start_datetime = datetime.datetime(
+                    event_date.year,
+                    event_date.month,
+                    event_date.day,
+                    tool_start_time.hour,
+                    tool_start_time.minute,
+                    tzinfo=pytz.utc
+                )
+                tool_end_datetime = tool_start_datetime + datetime.timedelta(minutes=settings.QUIZ_BASE_DURATION)
+
+            if tool_end_datetime > last_end_datetime:
+                last_end_datetime = tool_end_datetime
+
+        return last_end_datetime
+
+    def get_test_flow_tool_of_assessment_tool(self, assessment_tool):
+        test_flow_tool = TestFlowTool.objects.filter(test_flow=self).get(assessment_tool=assessment_tool)
+        return test_flow_tool
+
+    def check_if_is_submittable(self, assessment_tool: AssessmentTool, event_date):
+        test_flow_tool: TestFlowTool = self.get_test_flow_tool_of_assessment_tool(assessment_tool)
+
+        if isinstance(assessment_tool, (Assignment, InteractiveQuiz)):
+            current_time = datetime.datetime.now(tz=pytz.utc)
+            tool_end_time = assessment_tool.get_end_working_time_if_executed_on_event_date(
+                test_flow_tool.start_working_time, event_date
+            )
+            tool_deadline = tool_end_time + datetime.timedelta(seconds=settings.SUBMISSION_BUFFER_TIME_IN_SECONDS)
+            return current_time <= tool_deadline and test_flow_tool.release_time_has_passed_on_event_day(event_date)
+
+        elif isinstance(assessment_tool, ResponseTest):
+            return True
+
+    def get_tools(self):
+        return self.testflowtool_set.all()
+
 
 class TestFlowTool(models.Model):
     assessment_tool = models.ForeignKey('assessment.AssessmentTool', on_delete=models.CASCADE)
@@ -209,8 +294,8 @@ class TestFlowTool(models.Model):
     start_working_time = models.TimeField(auto_now=False, auto_now_add=False, default=datetime.time(0, 0))
 
     class Meta:
-        ordering = ['release_time']
-        get_latest_by = 'release_time'
+        ordering = ['release_time', 'start_working_time']
+        get_latest_by = 'start_working_time'
 
     def get_release_time_and_assessment_data(self) -> (str, dict):
         return {
@@ -218,10 +303,10 @@ class TestFlowTool(models.Model):
             'assessment_data': self.assessment_tool.get_tool_data()
         }
 
-    def release_time_has_passed(self):
-        return self.release_time <= datetime.datetime.now().time()
+    def release_time_has_passed_on_event_day(self, event_day: datetime.date):
+        return datetime.datetime.now().date() == event_day and self.release_time <= datetime.datetime.now().time()
 
-    def get_released_tool_data(self) -> dict:
+    def get_released_tool_data(self, execution_date: datetime.date = None) -> dict:
         """
         Data format for assignment
         {
@@ -234,18 +319,40 @@ class TestFlowTool(models.Model):
                 'expected_file_format': 'pdf'
             },
             'released_time': '12:00:00',
-            'end_working_time': '15:00:00' (release-time + duration)
+            'end_working_time': '2022-15:00:00' (release-time + duration)
         }
         """
         released_data = self.assessment_tool.get_tool_data()
         released_data['id'] = str(self.assessment_tool.assessment_id)
 
         if isinstance(self.assessment_tool, Assignment):
-            released_data['released_time'] = str(self.release_time)
-            released_data['end_working_time'] = str(
-                self.assessment_tool.get_end_working_time(start_time=self.release_time))
+            released_data['released_time'] = self.get_iso_release_time_on_event_date(execution_date)
+            released_data['end_working_time'] = self.assessment_tool.get_end_working_time_if_executed_on_event_date(
+                start_time=self.release_time,
+                event_date=execution_date
+            ).isoformat()
 
         return released_data
+
+    def get_iso_release_time_on_event_date(self, execution_date):
+        release_time = datetime.datetime(
+            year=execution_date.year,
+            month=execution_date.month,
+            day=execution_date.day,
+            hour=self.release_time.hour,
+            minute=self.release_time.minute
+        )
+        return release_time.isoformat()
+
+    def get_iso_start_working_time_on_event_date(self, execution_date):
+        start_working_time = datetime.datetime(
+            year=execution_date.year,
+            month=execution_date.month,
+            day=execution_date.day,
+            hour=self.start_working_time.hour,
+            minute=self.start_working_time.minute
+        )
+        return start_working_time.isoformat()
 
 
 class TestFlowToolSerializer(serializers.ModelSerializer):
@@ -312,6 +419,14 @@ class AssessmentEvent(models.Model):
         )
         return found_assessors.exists()
 
+    def check_assessee_and_assessor_pair(self, assessee, assessor):
+        found_pairs = AssessmentEventParticipation.objects.filter(
+            assessment_event=self,
+            assessee=assessee,
+            assessor=assessor
+        )
+        return found_pairs.exists()
+
     def get_task_generator(self):
         task_generator = TaskGenerator()
         test_flow = self.test_flow_used
@@ -325,15 +440,19 @@ class AssessmentEvent(models.Model):
         return task_generator
 
     def is_active(self) -> bool:
-        return self.start_date_time <= datetime.datetime.now(datetime.timezone.utc)
+        return self.start_date_time <= datetime.datetime.now(datetime.timezone.utc) <= self.get_event_end_date_time()
 
     def get_released_assignments(self):
         test_flow_tools = self.test_flow_used.testflowtool_set.all()
         released_assignments_data = []
+        event_date = self.start_date_time.date()
+
         for test_flow_tool in test_flow_tools:
             tool_used = test_flow_tool.assessment_tool
-            if isinstance(tool_used, Assignment) and test_flow_tool.release_time_has_passed():
-                released_assignments_data.append(test_flow_tool.get_released_tool_data())
+            if isinstance(tool_used, Assignment) and test_flow_tool.release_time_has_passed_on_event_day(event_date):
+                released_assignments_data.append(
+                    test_flow_tool.get_released_tool_data(execution_date=self.start_date_time.date())
+                )
 
         return released_assignments_data
 
@@ -352,14 +471,64 @@ class AssessmentEvent(models.Model):
                 f'Tool with id {assessment_id} associated with event with id {self.event_id} is not found'
             )
 
+    def get_event_end_date_time(self):
+        extra_minutes_before_end = 10
+        last_end_time = \
+            self.test_flow_used.get_test_flow_last_end_time_when_executed_on_event(self.start_date_time.date())
+        return last_end_time + datetime.timedelta(minutes=extra_minutes_before_end)
+
+    def check_if_tool_is_submittable(self, assessment_tool):
+        return self.test_flow_used.check_if_is_submittable(assessment_tool, event_date=self.start_date_time.date())
+
+    def get_test_flow(self):
+        return self.test_flow_used
+
+    def get_assessee_progress_on_event(self, assessee: Assessee):
+        event_participation = self.get_assessment_event_participation_by_assessee(assessee)
+        return event_participation.get_event_progress()
+
+    def set_name(self, name):
+        self.name = name
+        self.save()
+
+    def set_start_date(self, start_date_time):
+        self.start_date_time = start_date_time
+        self.save()
+
+    def set_test_flow(self, test_flow):
+        self.test_flow_used = test_flow
+        self.save()
+
+    def has_been_attempted(self):
+        event_participations: List[AssessmentEventParticipation] = self.assessmenteventparticipation_set.all()
+        return any([event_participation.has_attempted_test_flow() for event_participation in event_participations])
+
+    def start_time_has_passed(self):
+        return self.start_date_time <= datetime.datetime.now(tz=pytz.utc)
+
+    def is_deletable(self):
+        """
+        An assessment event is deletable if the deadline has not passed
+        and no attempts for the assessment event has been made
+        """
+        return not self.start_time_has_passed() and not self.has_been_attempted()
+
 
 class AssessmentEventSerializer(serializers.ModelSerializer):
     owning_company_id = serializers.ReadOnlyField(source=OWNING_COMPANY_COMPANY_ID)
     test_flow_id = serializers.ReadOnlyField(source='test_flow_used.test_flow_id')
+    end_date_time = serializers.SerializerMethodField(method_name='get_end_time_iso')
+    start_date_time = serializers.SerializerMethodField(method_name='get_start_time_iso')
+
+    def get_end_time_iso(self, serialized_obj):
+        return serialized_obj.get_event_end_date_time().isoformat()
+
+    def get_start_time_iso(self, serialized_obj):
+        return serialized_obj.start_date_time.isoformat()
 
     class Meta:
         model = AssessmentEvent
-        fields = ['event_id', 'name', 'start_date_time', 'owning_company_id', 'test_flow_id']
+        fields = ['event_id', 'name', 'start_date_time', 'end_date_time', 'owning_company_id', 'test_flow_id']
 
 
 class TestFlowAttempt(models.Model):
@@ -369,9 +538,12 @@ class TestFlowAttempt(models.Model):
     event_participation = models.ForeignKey('assessment.AssessmentEventParticipation', on_delete=models.CASCADE)
     test_flow_attempted = models.ForeignKey('assessment.TestFlow', on_delete=models.RESTRICT)
 
+    def has_tool_attempts(self):
+        return self.toolattempt_set.exists()
+
 
 class ResponseTest(AssessmentTool):
-    sender = models.ForeignKey('users.Assessor', on_delete=models.CASCADE)
+    sender = models.ForeignKey(USERS_ASSESSOR, on_delete=models.CASCADE)
     subject = models.TextField(null=False)
     prompt = models.TextField(null=False)
 
@@ -379,6 +551,7 @@ class ResponseTest(AssessmentTool):
 class ResponseTestSerializer(serializers.ModelSerializer):
     owning_company_name = serializers.ReadOnlyField(source=OWNING_COMPANY_COMPANY_NAME)
     sender = serializers.ReadOnlyField(source='sender.email')
+
     class Meta:
         model = ResponseTest
         fields = [
@@ -393,10 +566,24 @@ class ResponseTestSerializer(serializers.ModelSerializer):
         ]
 
 
+class PolymorphicAssessmentToolSerializer:
+    def __init__(self, assessment_tool):
+        self.assessment_tool = assessment_tool
+        self.data = self.get_data()
+
+    def get_data(self):
+        if isinstance(self.assessment_tool, Assignment):
+            return AssignmentSerializer(self.assessment_tool).data
+        elif isinstance(self.assessment_tool, InteractiveQuiz):
+            return InteractiveQuizSerializer(self.assessment_tool).data
+        else:
+            return ResponseTestSerializer(self.assessment_tool).data
+
+
 class VideoConferenceRoom(models.Model):
     part_of = models.ForeignKey('assessment.AssessmentEventParticipation', on_delete=models.CASCADE)
     room_id = models.TextField(null=True, default=None)
-    conference_participants = models.ManyToManyField('users.Assessor')
+    conference_participants = models.ManyToManyField(USERS_ASSESSOR)
     room_opened = models.BooleanField(default=False)
 
     def is_room_created(self) -> bool:
@@ -426,8 +613,29 @@ class VideoConferenceRoomSerializer(serializers.ModelSerializer):
 class ToolAttempt(PolymorphicModel):
     tool_attempt_id = models.UUIDField(default=uuid.uuid4, primary_key=True)
     grade = models.FloatField(default=0)
+    note = models.TextField(null=True)
     test_flow_attempt = models.ForeignKey('assessment.TestFlowAttempt', on_delete=models.CASCADE)
     assessment_tool_attempted = models.ForeignKey('assessment.AssessmentTool', on_delete=models.CASCADE, default=None)
+
+    def get_user_of_attempt(self):
+        return self.test_flow_attempt.event_participation.assessee
+
+    def get_event_of_attempt(self):
+        return self.test_flow_attempt.event_participation.assessment_event
+
+    def set_grade(self, grade):
+        self.grade = grade
+        self.save()
+
+    def set_note(self, note):
+        self.note = note
+        self.save()
+
+
+class ToolAttemptSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ToolAttempt
+        fields = '__all__'
 
 
 class AssignmentAttempt(ToolAttempt):
@@ -454,10 +662,64 @@ class AssignmentAttempt(ToolAttempt):
         return self.submitted_time
 
 
+class InteractiveQuizAttempt(ToolAttempt):
+    submitted_time = models.DateTimeField(default=None, null=True)
+
+    def get_all_question_attempts(self):
+        return self.questionattempt_set
+
+    def get_question_attempt(self, question_id):
+        question = Question.objects.get(question_id=question_id)
+        matching_question_attempts = self.questionattempt_set.filter(question=question)
+        if matching_question_attempts:
+            return matching_question_attempts[0]
+        else:
+            return None
+
+    def set_submitted_time(self):
+        self.submitted_time = datetime.datetime.now(tz=pytz.utc)
+        self.save()
+
+    def get_submitted_time(self):
+        return self.submitted_time
+
+
+class QuestionAttempt(models.Model):
+    question = models.ForeignKey('Question', on_delete=models.CASCADE)
+    interactive_quiz_attempt = models.ForeignKey('InteractiveQuizAttempt',
+                                                 on_delete=models.CASCADE
+                                                 )
+    is_answered = models.BooleanField(default=False)
+
+
+class TextQuestionAttempt(QuestionAttempt):
+    answer = models.TextField(null=True)
+
+    def set_answer(self, answer):
+        self.answer = answer
+        self.save()
+
+    def get_answer(self):
+        return self.answer
+
+
+class MultipleChoiceAnswerOptionAttempt(QuestionAttempt):
+    selected_option = models.ForeignKey('MultipleChoiceAnswerOption', related_name='selected_option', on_delete=models.CASCADE)
+
+    def set_selected_option(self, answer_option_id):
+        matching_answer_option = MultipleChoiceAnswerOption.objects.filter(answer_option_id=answer_option_id)
+        answer_option = matching_answer_option[0]
+        self.selected_option = answer_option
+        self.save()
+
+    def get_selected_option_content(self):
+        return self.selected_option.get_content()
+
+
 class AssessmentEventParticipation(models.Model):
     assessment_event = models.ForeignKey('assessment.AssessmentEvent', on_delete=models.CASCADE)
     assessee = models.ForeignKey('users.Assessee', on_delete=models.CASCADE)
-    assessor = models.ForeignKey('users.Assessor', on_delete=models.RESTRICT)
+    assessor = models.ForeignKey(USERS_ASSESSOR, on_delete=models.RESTRICT)
     attempt = models.OneToOneField('assessment.TestFlowAttempt', on_delete=models.CASCADE, null=True)
 
     def get_all_assignment_attempts(self):
@@ -479,6 +741,65 @@ class AssessmentEventParticipation(models.Model):
             assessment_tool_attempted=assignment
         )
         return assignment_attempt
+
+    def get_all_interactive_quiz_attempts(self):
+        return self.attempt.toolattempt_set.instance_of(InteractiveQuizAttempt)
+
+    def get_interactive_quiz_attempt(self, interactive_quiz: InteractiveQuiz) -> Optional[InteractiveQuizAttempt]:
+        interactive_quiz_attempts = self.get_all_interactive_quiz_attempts()
+        matching_interactive_quiz_attempts = interactive_quiz_attempts.filter(assessment_tool_attempted=interactive_quiz)
+
+        if matching_interactive_quiz_attempts:
+            return matching_interactive_quiz_attempts[0]
+
+        else:
+            return None
+
+    def create_interactive_quiz_attempt(self, interactive_quiz: InteractiveQuiz) -> InteractiveQuizAttempt:
+        interactive_quiz_attempt = InteractiveQuizAttempt.objects.create(
+            test_flow_attempt=self.attempt,
+            assessment_tool_attempted=interactive_quiz
+        )
+        return interactive_quiz_attempt
+
+    def get_all_assessment_tool_attempts(self):
+        return self.attempt.toolattempt_set.all()
+
+    def get_assessment_tool_attempt(self, assessment_tool: AssessmentTool) -> Optional[ToolAttempt]:
+        tool_attempts = self.get_all_assessment_tool_attempts()
+        matching_tool_attempts = tool_attempts.filter(assessment_tool_attempted=assessment_tool)
+
+        if matching_tool_attempts:
+            return matching_tool_attempts[0]
+        else:
+            return None
+
+    def get_event_progress(self):
+        event_test_flow = self.assessment_event.get_test_flow()
+        event_tools: List[TestFlowTool] = event_test_flow.get_tools()
+        progress_data = []
+        for event_tool in event_tools:
+            assessment_tool = event_tool.assessment_tool
+            attempt = self.get_assessment_tool_attempt(assessment_tool)
+
+            if attempt:
+                attempt_id = attempt.tool_attempt_id
+            else:
+                attempt_id = None
+
+            tool_progress_data = {
+                'start_working_time':
+                    event_tool.get_iso_start_working_time_on_event_date(self.assessment_event.start_date_time),
+                'type': assessment_tool.get_type(),
+                'tool-data': PolymorphicAssessmentToolSerializer(assessment_tool).data,
+                'attempt-id': attempt_id
+            }
+            progress_data.append(tool_progress_data)
+
+        return progress_data
+
+    def has_attempted_test_flow(self):
+        return self.attempt.has_tool_attempts()
 
 
 class AssessmentEventParticipationSerializer(serializers.ModelSerializer):
@@ -507,3 +828,14 @@ class TestFlowAttemptSerializer(serializers.ModelSerializer):
     class Meta:
         model = TestFlowAttempt
         fields = ['attempt_id', 'note', 'grade', 'event_participation', 'test_flow_attempted_id']
+
+
+class AssignmentAttemptSerializer(serializers.ModelSerializer):
+    submitted_time = serializers.SerializerMethodField(method_name='get_submitted_time_iso')
+
+    def get_submitted_time_iso(obj, self):
+        return self.submitted_time.isoformat()
+
+    class Meta:
+        model = AssignmentAttempt
+        fields = ['submitted_time', 'filename', 'grade', 'note']

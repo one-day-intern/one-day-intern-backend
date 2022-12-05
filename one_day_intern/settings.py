@@ -182,6 +182,9 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+QUIZ_BASE_DURATION = 30
+SUBMISSION_BUFFER_TIME_IN_SECONDS = 10
+
 # Settings for Google Auth Login and Registration
 AUTH_USER_MODEL = 'users.OdiUser'
 GOOGLE_AUTH_CLIENT_ID = os.getenv('CLIENT_ID')
