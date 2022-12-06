@@ -248,6 +248,21 @@ def serve_submit_response_test(request):
 @require_GET
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
+def serve_get_submitted_response_test(request):
+    """
+    This view will serve as the end-point for assessees to get the response test attempt that they
+    have submitted.
+    ----------------------------------------------------------
+    request-param must contain:
+    assessment-event-id: string
+    assessment-tool-id: string
+    """
+    return Response(data=None, status=200)
+
+
+@require_GET
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def serve_get_all_active_assignment(request):
     """
     Endpoint that can only be accessed by assessee.
