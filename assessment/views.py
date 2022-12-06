@@ -26,6 +26,7 @@ from .services.assessment_event_attempt import (
     get_all_active_assignment,
     get_all_active_response_test,
     get_assessment_event_data,
+    submit_response_test,
     submit_assignment,
     get_submitted_assignment,
     submit_interactive_quiz,
@@ -239,7 +240,9 @@ def serve_submit_response_test(request):
     subject: string
     response: string
     """
-    return Response(data=None, status=200)
+    request_data = json.loads(request.body.decode('utf-8'))
+    submit_response_test(request_data, user=request.user)
+    return Response(data={'message': 'Response test has been saved successfully'}, status=200)
 
 
 @require_GET

@@ -1,5 +1,5 @@
 from django.contrib.auth.models import User
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from one_day_intern.decorators import catch_exception_and_convert_to_invalid_request_decorator
 from one_day_intern.exceptions import RestrictedAccessException, InvalidRequestException
 from one_day_intern.settings import GOOGLE_BUCKET_BASE_DIRECTORY, GOOGLE_STORAGE_BUCKET_NAME
@@ -66,6 +66,25 @@ def save_response_test_response(event: AssessmentEvent, response_test: ResponseT
     response_test_attempt = event_participation.create_response_test_attempt(response_test)
     response_test_attempt.set_subject(request_data.get('subject'))
     response_test_attempt.set_response(request_data.get('response'))
+
+
+@catch_exception_and_convert_to_invalid_request_decorator(exception_types=ObjectDoesNotExist)
+def submit_response_test(request_data, user):
+    event = utils.get_active_assessment_event_from_id(request_data.get('assessment-event-id'))
+    assessee = utils.get_assessee_from_user(user)
+    validate_user_participation(event, assessee)
+    assessment_tool = event.get_assessment_tool_from_assessment_id(assessment_id=request_data.get('assessment-tool-id'))
+    validate_attempt_is_submittable(assessment_tool, event)
+    validate_tool_is_response_test(assessment_tool)
+    validate_response_test_has_not_been_attempted(event, assessment_tool, assessee)
+    save_response_test_response(event, assessment_tool, assessee, request_data)
+
+
+def validate_tool_is_response_test(assessment_tool):
+    if not assessment_tool:
+        raise InvalidRequestException('Assessment tool associated with event does not exist')
+    if not isinstance(assessment_tool, ResponseTest):
+        raise InvalidRequestException(f'Assessment tool with id {assessment_tool.assessment_id} is not a response test')
 
 
 @catch_exception_and_convert_to_invalid_request_decorator(exception_types=EventDoesNotExist)
