@@ -750,6 +750,9 @@ class AssessmentEventParticipation(models.Model):
     assessor = models.ForeignKey(USERS_ASSESSOR, on_delete=models.RESTRICT)
     attempt = models.OneToOneField('assessment.TestFlowAttempt', on_delete=models.CASCADE, null=True)
 
+    def get_response_test_attempt(self, response_test: ResponseTest):
+        return None
+
     def get_all_assignment_attempts(self):
         return self.attempt.toolattempt_set.instance_of(AssignmentAttempt)
 

@@ -51,6 +51,7 @@ from .models import (
     TextQuestionAttempt,
     PolymorphicAssessmentToolSerializer,
     AssignmentAttempt, ToolAttempt,
+    ResponseTestAttempt
 )
 from .services import (
     assessment, utils,
@@ -5092,3 +5093,113 @@ class ActiveResponseTest(TestCase):
         response_content = json.loads(response.content)
         self.assertEqual(len(response_content), 1)
         self.assertEqual(response_content, [self.expected_tool_data])
+
+
+class ResponseTestSubmissionTest(TestCase):
+    def setUp(self) -> None:
+        self.company_1 = Company.objects.create_user(
+            email='company4912@email.com',
+            password='Password4913',
+            company_name='Company 4912',
+            description='Description 4915',
+            address='Company 4916 address'
+        )
+
+        self.assessor_responsible_for_1 = Assessor.objects.create_user(
+            email='assessor_4920@email.com',
+            password='Password4921',
+            first_name='Assessor 4922',
+            last_name='Assessor 4923',
+            phone_number='+11234925',
+            associated_company=self.company_1,
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.assessee = Assessee.objects.create_user(
+            email='assessee4933@email.com',
+            password='Password4934',
+            first_name='Assessee 4935',
+            last_name='Assessee 4936',
+            phone_number='+6282344937',
+            date_of_birth=datetime.date(2022, 1, 1),
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.assessee_2 = Assessee.objects.create_user(
+            email='assessee4943@email.com',
+            password='Password4944',
+            first_name='Assessee 4935',
+            last_name='Assessee 4936',
+            phone_number='+6282344937',
+            date_of_birth=datetime.date(2022, 1, 1),
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.response_test = ResponseTest.objects.create(
+            name='Response Test 4912',
+            description='Description 4913',
+            owning_company=self.company_1,
+            sender='direkturutama@gojek.com',
+            subject='Welcome On Board',
+            prompt='Selamat datang. Kami senang Anda dapat bergabung dengan kami.'
+        )
+
+        self.assignment = Assignment.objects.create(
+            name='Assignment 4966',
+            description='Description 4967',
+            owning_company=self.company_1,
+            expected_file_format='pdf',
+            duration_in_minutes=300
+        )
+
+        self.test_flow = TestFlow.objects.create(
+            name='Test Flow 4943',
+            owning_company=self.company_1
+        )
+
+        self.test_flow.add_tool(
+            self.response_test,
+            release_time=datetime.time(10, 30),
+            start_working_time=datetime.time(10, 30)
+        )
+
+        self.test_flow.add_tool(
+            self.assignment,
+            release_time=datetime.time(12, 0),
+            start_working_time=datetime.time(12, 0)
+        )
+
+        self.assessment_event = AssessmentEvent.objects.create(
+            name='Event 4954',
+            start_date_time=datetime.datetime(2022, 12, 4),
+            owning_company=self.company_1,
+            test_flow_used=self.test_flow
+        )
+
+        self.assessment_event.add_participant(
+            assessor=self.assessor_responsible_for_1,
+            assessee=self.assessee
+        )
+        self.event_participation = self.assessment_event.get_assessment_event_participation_by_assessee(self.assessee)
+
+        self.submit_request_data = {
+            'assessment-event-id': str(self.assessment_event.event_id),
+            'assessment-tool-id': str(self.response_test.assessment_id),
+            'subject': "Subject",
+            'response': "Response"
+        }
+
+    def test_get_response_test_attempt_when_the_attempt_exists(self):
+        response_test_attempt = ResponseTestAttempt.objects.create(
+            test_flow_attempt=self.event_participation.attempt,
+            assessment_tool_attempted=self.response_test
+        )
+        found_attempt = self.event_participation.get_response_test_attempt(self.response_test)
+        self.assertIsNotNone(found_attempt)
+        self.assertEqual(found_attempt.assessment_tool_attempted, self.response_test)
+
+        response_test_attempt.delete()
+
+    def test_get_response_test_attempt_when_the_attempt_does_not_exist(self):
+        found_attempt = self.event_participation.get_response_test_attempt(self.response_test)
+        self.assertIsNone(found_attempt)
