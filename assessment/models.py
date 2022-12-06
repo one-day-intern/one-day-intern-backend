@@ -732,6 +732,18 @@ class MultipleChoiceAnswerOptionAttempt(QuestionAttempt):
         return self.selected_option.get_content()
 
 
+class ResponseTestAttempt(ToolAttempt):
+    submitted_time = models.DateTimeField(default=None, null=True)
+    subject = models.TextField(null=True)
+    response = models.TextField(null=True)
+
+
+class ResponseTestAttemptSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ResponseTestAttempt
+        fields = ['tool_attempt_id', 'submitted_time', 'subject', 'response']
+
+
 class AssessmentEventParticipation(models.Model):
     assessment_event = models.ForeignKey('assessment.AssessmentEvent', on_delete=models.CASCADE)
     assessee = models.ForeignKey('users.Assessee', on_delete=models.CASCADE)
