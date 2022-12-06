@@ -61,6 +61,10 @@ def validate_response_test_has_not_been_attempted(event: AssessmentEvent, respon
         raise InvalidRequestException(f'Response test with id {response_test.assessment_id} has been attempted')
 
 
+def save_response_test_response(event: AssessmentEvent, response_test: ResponseTest, assessee: Assessee, request_data):
+    pass
+
+
 @catch_exception_and_convert_to_invalid_request_decorator(exception_types=EventDoesNotExist)
 def get_assessment_event_data(request_data, user: User):
     event = utils.get_active_assessment_event_from_id(request_data.get('assessment-event-id'))

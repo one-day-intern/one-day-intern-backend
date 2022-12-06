@@ -5232,3 +5232,16 @@ class ResponseTestSubmissionTest(TestCase):
             )
         except Exception as exception:
             self.fail(f'{exception} is raised')
+
+    @patch.object(ResponseTestAttempt, 'set_response')
+    @patch.object(ResponseTestAttempt, 'set_subject')
+    def test_save_response_test_response(self, mocked_set_subject, mocked_set_response):
+        assessment_event_attempt.save_response_test_response(
+            event=self.assessment_event,
+            response_test=self.response_test,
+            assessee=self.assessee,
+            request_data=self.submit_request_data
+        )
+
+        mocked_set_subject.assert_called_with(self.submit_request_data.get('subject'))
+        mocked_set_response.assert_called_with(self.submit_request_data.get('response'))

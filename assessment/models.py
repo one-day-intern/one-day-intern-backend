@@ -737,6 +737,15 @@ class ResponseTestAttempt(ToolAttempt):
     subject = models.TextField(null=True)
     response = models.TextField(null=True)
 
+    def set_subject(self, subject):
+        self.subject = subject
+        self.save()
+
+    def set_response(self, response):
+        self.submitted_time = datetime.datetime.now(tz=pytz.utc)
+        self.response = response
+        self.save()
+
 
 class ResponseTestAttemptSerializer(serializers.ModelSerializer):
     class Meta:
