@@ -23,6 +23,7 @@ from .TaskGenerator import TaskGenerator
 from . import utils, google_storage
 import mimetypes
 
+ASSOCIATED_TOOL_NOT_FOUND = 'Assessment tool associated with event does not exist'
 ASSESEE_NOT_PART_OF_EVENT = 'Assessee with email {} is not part of assessment with id {}'
 
 
@@ -82,7 +83,7 @@ def submit_response_test(request_data, user):
 
 def validate_tool_is_response_test(assessment_tool):
     if not assessment_tool:
-        raise InvalidRequestException('Assessment tool associated with event does not exist')
+        raise InvalidRequestException(ASSOCIATED_TOOL_NOT_FOUND)
     if not isinstance(assessment_tool, ResponseTest):
         raise InvalidRequestException(f'Assessment tool with id {assessment_tool.assessment_id} is not a response test')
 
@@ -112,7 +113,7 @@ def validate_attempt_is_submittable(assessment_tool: AssessmentTool, event: Asse
 
 def validate_submission(assessment_tool, file_name):
     if assessment_tool is None:
-        raise InvalidRequestException('Assessment tool associated with event does not exist')
+        raise InvalidRequestException(ASSOCIATED_TOOL_NOT_FOUND)
 
     if not isinstance(assessment_tool, Assignment):
         raise InvalidRequestException(f'Assessment tool with id {assessment_tool.assessment_id} is not an assignment')
@@ -207,7 +208,7 @@ def get_or_create_interactive_quiz_attempt(event: AssessmentEvent, interactive_q
 
 def validate_interactive_quiz_submission(assessment_tool):
     if assessment_tool is None:
-        raise InvalidRequestException('Assessment tool associated with event does not exist')
+        raise InvalidRequestException(ASSOCIATED_TOOL_NOT_FOUND)
 
     if not isinstance(assessment_tool, InteractiveQuiz):
         raise InvalidRequestException(f'Assessment tool with id {assessment_tool.assessment_id} '
