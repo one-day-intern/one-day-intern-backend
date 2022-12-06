@@ -104,6 +104,7 @@ EVENT_DATE_HAS_PASSED = 'The event has passed. It cannot be edited without chang
 MUST_NOT_BEGIN_ON_PREVIOUS_DATE = 'The assessment event must not begin on a previous date.'
 EVENT_NOT_DELETABLE = 'Assessment event with {} is not deletable'
 NOT_A_COMPANY_OR_ASSESSOR = 'User with email {} is not a company or an assessor'
+RESPONSE_TEST_HAS_BEEN_ATTEMPTED = 'Response test with id {} has been attempted'
 
 CREATE_TEST_FLOW_URL = reverse('test-flow-create')
 CREATE_ASSESSMENT_EVENT_URL = reverse('assessment-event-create')
@@ -5203,3 +5204,31 @@ class ResponseTestSubmissionTest(TestCase):
     def test_get_response_test_attempt_when_the_attempt_does_not_exist(self):
         found_attempt = self.event_participation.get_response_test_attempt(self.response_test)
         self.assertIsNone(found_attempt)
+
+    def test_validate_response_test_when_has_been_attempted(self):
+        response_test_attempt = ResponseTestAttempt.objects.create(
+            test_flow_attempt=self.event_participation.attempt,
+            assessment_tool_attempted=self.response_test
+        )
+
+        try:
+            assessment_event_attempt.validate_response_test_has_not_been_attempted(
+                event=self.assessment_event,
+                response_test=self.response_test,
+                assessee=self.assessee,
+            )
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidRequestException as exception:
+            self.assertEqual(str(exception), RESPONSE_TEST_HAS_BEEN_ATTEMPTED.format(self.response_test.assessment_id))
+
+        response_test_attempt.delete()
+
+    def test_validate_response_test_when_has_not_been_attempted(self):
+        try:
+            assessment_event_attempt.validate_response_test_has_not_been_attempted(
+                event=self.assessment_event,
+                response_test=self.response_test,
+                assessee=self.assessee
+            )
+        except Exception as exception:
+            self.fail(f'{exception} is raised')

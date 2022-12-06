@@ -6,8 +6,19 @@ from one_day_intern.settings import GOOGLE_BUCKET_BASE_DIRECTORY, GOOGLE_STORAGE
 from users.models import Assessee, Assessor
 from .participation_validators import validate_user_participation
 from ..exceptions.exceptions import EventDoesNotExist, AssessmentToolDoesNotExist
-from ..models import AssessmentEvent, AssignmentAttempt, Assignment, AssessmentTool, InteractiveQuiz, \
-    InteractiveQuizAttempt, Question, MultipleChoiceAnswerOptionAttempt, MultipleChoiceAnswerOption, TextQuestionAttempt
+from ..models import (
+    AssessmentEvent,
+    AssignmentAttempt,
+    Assignment,
+    AssessmentTool,
+    InteractiveQuiz,
+    InteractiveQuizAttempt,
+    Question,
+    MultipleChoiceAnswerOptionAttempt,
+    MultipleChoiceAnswerOption,
+    TextQuestionAttempt,
+    ResponseTest
+)
 from .TaskGenerator import TaskGenerator
 from . import utils, google_storage
 import mimetypes
@@ -36,6 +47,10 @@ def get_all_active_assignment(request_data: dict, user: User):
     assessee = utils.get_assessee_from_user(user)
     validate_user_participation(event, assessee)
     return event.get_released_assignments()
+
+
+def validate_response_test_has_not_been_attempted(event: AssessmentEvent, response_test: ResponseTest, assessee: Assessee):
+    raise Exception
 
 
 @catch_exception_and_convert_to_invalid_request_decorator(exception_types=EventDoesNotExist)
