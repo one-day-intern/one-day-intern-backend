@@ -750,8 +750,18 @@ class AssessmentEventParticipation(models.Model):
     assessor = models.ForeignKey(USERS_ASSESSOR, on_delete=models.RESTRICT)
     attempt = models.OneToOneField('assessment.TestFlowAttempt', on_delete=models.CASCADE, null=True)
 
+    def get_all_response_test_attempts(self):
+        return self.attempt.toolattempt_set.instance_of(ResponseTestAttempt)
+
     def get_response_test_attempt(self, response_test: ResponseTest):
-        return None
+        response_test_attempts = self.get_all_response_test_attempts()
+        matching_response_test_attempts = response_test_attempts.filter(assessment_tool_attempted=response_test)
+
+        if matching_response_test_attempts:
+            return matching_response_test_attempts[0]
+
+        else:
+            return None
 
     def get_all_assignment_attempts(self):
         return self.attempt.toolattempt_set.instance_of(AssignmentAttempt)
