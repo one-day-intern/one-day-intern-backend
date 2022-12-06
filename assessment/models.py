@@ -772,6 +772,13 @@ class AssessmentEventParticipation(models.Model):
         else:
             return None
 
+    def create_response_test_attempt(self, response_test: ResponseTest):
+        interactive_quiz_attempt = ResponseTestAttempt.objects.create(
+            test_flow_attempt=self.attempt,
+            assessment_tool_attempted=response_test
+        )
+        return interactive_quiz_attempt
+
     def get_all_assignment_attempts(self):
         return self.attempt.toolattempt_set.instance_of(AssignmentAttempt)
 

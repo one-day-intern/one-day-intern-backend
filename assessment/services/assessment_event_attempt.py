@@ -62,7 +62,10 @@ def validate_response_test_has_not_been_attempted(event: AssessmentEvent, respon
 
 
 def save_response_test_response(event: AssessmentEvent, response_test: ResponseTest, assessee: Assessee, request_data):
-    pass
+    event_participation = event.get_assessment_event_participation_by_assessee(assessee)
+    response_test_attempt = event_participation.create_response_test_attempt(response_test)
+    response_test_attempt.set_subject(request_data.get('subject'))
+    response_test_attempt.set_response(request_data.get('response'))
 
 
 @catch_exception_and_convert_to_invalid_request_decorator(exception_types=EventDoesNotExist)
