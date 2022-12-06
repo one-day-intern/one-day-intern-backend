@@ -124,6 +124,7 @@ GET_ASSIGNMENT_ATTEMPT_DATA_URL = reverse('get-assignment-attempt-data') + '?too
 GET_ASSIGNMENT_ATTEMPT_DATA_FILE = reverse('get-assignment-attempt-file') + '?tool-attempt-id='
 UPDATE_ASSESSMENT_EVENT_URL = reverse('assessment-event-update')
 DELETE_ASSESSMENT_EVENT_URL = reverse('assessment-event-delete')
+SUBMIT_RESPONSE_TEST_URL = reverse('submit-response-test')
 
 GET_TOOLS_URL = "/assessment/tools/"
 REQUEST_CONTENT_TYPE = 'application/json'
@@ -5245,3 +5246,117 @@ class ResponseTestSubmissionTest(TestCase):
 
         mocked_set_subject.assert_called_with(self.submit_request_data.get('subject'))
         mocked_set_response.assert_called_with(self.submit_request_data.get('response'))
+
+
+    @freeze_time('2022-12-04')
+    def test_submit_response_test_when_event_with_id_does_not_exist(self):
+        invalid_id = str(uuid.uuid4())
+        request_data = self.submit_request_data.copy()
+        request_data['assessment-event-id'] = invalid_id
+        response = fetch_and_get_response(SUBMIT_RESPONSE_TEST_URL, request_data, authenticated_user=self.assessee)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), EVENT_DOES_NOT_EXIST.format(invalid_id))
+
+    @freeze_time('2022-12-03')
+    def test_submit_response_test_when_event_with_id_is_not_active(self):
+        response = fetch_and_get_response(SUBMIT_RESPONSE_TEST_URL, self.submit_request_data, authenticated_user=self.assessee)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), EVENT_IS_NOT_ACTIVE.format(self.assessment_event.event_id))
+
+    @freeze_time('2022-12-04')
+    def test_submit_response_test_when_user_is_not_an_assessee(self):
+        response = fetch_and_get_response(
+            SUBMIT_RESPONSE_TEST_URL,
+            self.submit_request_data,
+            authenticated_user=self.assessor_responsible_for_1
+        )
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), USER_IS_NOT_ASSESSEE.format(self.assessor_responsible_for_1))
+
+    @freeze_time('2022-12-04')
+    def test_submit_response_test_when_user_does_not_participate_in_event(self):
+        response = fetch_and_get_response(
+            SUBMIT_RESPONSE_TEST_URL,
+            self.submit_request_data,
+            authenticated_user=self.assessee_2
+        )
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            NOT_PART_OF_EVENT.format(self.assessee_2, self.assessment_event.event_id)
+        )
+
+    @freeze_time('2022-12-04')
+    def test_submit_response_test_when_response_test_with_id_does_not_exist(self):
+        invalid_id = str(uuid.uuid4())
+        request_data = self.submit_request_data.copy()
+        request_data['assessment-tool-id'] = invalid_id
+        response = fetch_and_get_response(
+            SUBMIT_RESPONSE_TEST_URL,
+            request_data,
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            TOOL_OF_EVENT_NOT_FOUND.format(request_data['assessment-tool-id'], str(self.assessment_event.event_id))
+        )
+
+    @freeze_time('2022-12-04 12:01:00')
+    def test_submit_response_test_when_tool_with_id_is_not_a_response_test(self):
+        request_data = self.submit_request_data.copy()
+        request_data['assessment-tool-id'] = str(self.assignment.assessment_id)
+        response = fetch_and_get_response(
+            SUBMIT_RESPONSE_TEST_URL,
+            request_data,
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            'Assessment tool with id {} is not a response test'.format(str(self.assignment.assessment_id))
+        )
+
+    @freeze_time('2022-12-04')
+    def test_submit_response_test_when_response_test_has_been_attempted(self):
+        response_test_attempt = ResponseTestAttempt.objects.create(
+            test_flow_attempt=self.event_participation.attempt,
+            assessment_tool_attempted=self.response_test
+        )
+
+        response = fetch_and_get_response(
+            SUBMIT_RESPONSE_TEST_URL,
+            self.submit_request_data,
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            RESPONSE_TEST_HAS_BEEN_ATTEMPTED.format(self.response_test.assessment_id)
+        )
+
+        response_test_attempt.delete()
+
+    @freeze_time('2022-12-04')
+    def test_submit_response_test_when_request_is_valid(self):
+        response = fetch_and_get_response(
+            SUBMIT_RESPONSE_TEST_URL,
+            self.submit_request_data,
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), 'Response test has been saved successfully')
+
+        response_test_attempt = ResponseTestAttempt.objects.get(
+            test_flow_attempt=self.event_participation.attempt,
+            assessment_tool_attempted=self.response_test
+        )
+        response_test_attempt.delete()

@@ -225,6 +225,23 @@ def serve_get_all_active_response_test(request):
     return Response(data=active_response_tests)
 
 
+@require_POST
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def serve_submit_response_test(request):
+    """
+    This view will serve as the end-point for assessees to submit their response test
+    attempt to an interactive quiz tool that they currently undergo in an assessment event.
+    ----------------------------------------------------------
+    request-data must contain:
+    assessment-event-id: string
+    assessment-tool-id: string
+    subject: string
+    response: string
+    """
+    return Response(data=None, status=200)
+
+
 @require_GET
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
