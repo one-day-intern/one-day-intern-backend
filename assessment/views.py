@@ -25,6 +25,7 @@ from .services.assessment_event_attempt import (
     subscribe_to_assessment_flow,
     get_all_active_assignment,
     get_all_active_response_test,
+    get_submitted_response_test,
     get_assessment_event_data,
     submit_response_test,
     submit_assignment,
@@ -41,7 +42,8 @@ from .models import (
     InteractiveQuizSerializer,
     ResponseTestSerializer,
     ToolAttemptSerializer,
-    AssignmentAttemptSerializer
+    AssignmentAttemptSerializer,
+    ResponseTestAttemptSerializer
 )
 import json
 
@@ -257,7 +259,10 @@ def serve_get_submitted_response_test(request):
     assessment-event-id: string
     assessment-tool-id: string
     """
-    return Response(data=None, status=200)
+    request_data = request.GET
+    response_test_attempt = get_submitted_response_test(request_data, user=request.user)
+    response_data = ResponseTestAttemptSerializer(response_test_attempt).data
+    return Response(data=response_data, status=200)
 
 
 @require_GET

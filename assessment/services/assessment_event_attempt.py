@@ -88,6 +88,17 @@ def validate_tool_is_response_test(assessment_tool):
         raise InvalidRequestException(f'Assessment tool with id {assessment_tool.assessment_id} is not a response test')
 
 
+@catch_exception_and_convert_to_invalid_request_decorator(exception_types=ObjectDoesNotExist)
+def get_submitted_response_test(request_data: dict, user: User):
+    event = utils.get_active_assessment_event_from_id(request_data.get('assessment-event-id'))
+    assessee = utils.get_assessee_from_user(user)
+    validate_user_participation(event, assessee)
+    assessment_tool = event.get_assessment_tool_from_assessment_id(assessment_id=request_data.get('assessment-tool-id'))
+    validate_tool_is_response_test(assessment_tool)
+    response_test_attempt = get_response_test_attempt(event, response_test=assessment_tool, assessee=assessee)
+    return response_test_attempt
+
+
 @catch_exception_and_convert_to_invalid_request_decorator(exception_types=EventDoesNotExist)
 def get_assessment_event_data(request_data, user: User):
     event = utils.get_active_assessment_event_from_id(request_data.get('assessment-event-id'))
