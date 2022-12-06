@@ -24,7 +24,10 @@ from .services.assessment_event import (
 from .services.assessment_event_attempt import (
     subscribe_to_assessment_flow,
     get_all_active_assignment,
+    get_all_active_response_test,
+    get_submitted_response_test,
     get_assessment_event_data,
+    submit_response_test,
     submit_assignment,
     get_submitted_assignment,
     submit_interactive_quiz,
@@ -39,9 +42,9 @@ from .models import (
     InteractiveQuizSerializer,
     ResponseTestSerializer,
     ToolAttemptSerializer,
-    AssignmentAttemptSerializer
+    AssignmentAttemptSerializer,
+    ResponseTestAttemptSerializer
 )
-from .models import AssignmentSerializer, TestFlowSerializer, AssessmentEventSerializer, InteractiveQuizSerializer, ResponseTestSerializer
 import json
 
 
@@ -207,6 +210,59 @@ def serve_subscribe_to_assessment_flow(request):
     except Exception as exception:
         response_content = {'message': str(exception)}
         return HttpResponse(content=json.dumps(response_content), status=500)
+
+
+@require_GET
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def serve_get_all_active_response_test(request):
+    """
+    This view will serve as the end-point for assessees to get all active response tests (response tests
+    that have been released) in the current assessment event that they participate in.
+    ----------------------------------------------------------
+    request-data must contain:
+    assessment-event-id: string
+    """
+    request_data = request.GET
+    active_response_tests = get_all_active_response_test(request_data, user=request.user)
+    return Response(data=active_response_tests)
+
+
+@require_POST
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def serve_submit_response_test(request):
+    """
+    This view will serve as the end-point for assessees to submit their response test
+    attempt to an interactive quiz tool that they currently undergo in an assessment event.
+    ----------------------------------------------------------
+    request-data must contain:
+    assessment-event-id: string
+    assessment-tool-id: string
+    subject: string
+    response: string
+    """
+    request_data = json.loads(request.body.decode('utf-8'))
+    submit_response_test(request_data, user=request.user)
+    return Response(data={'message': 'Response test has been saved successfully'}, status=200)
+
+
+@require_GET
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def serve_get_submitted_response_test(request):
+    """
+    This view will serve as the end-point for assessees to get the response test attempt that they
+    have submitted.
+    ----------------------------------------------------------
+    request-param must contain:
+    assessment-event-id: string
+    assessment-tool-id: string
+    """
+    request_data = request.GET
+    response_test_attempt = get_submitted_response_test(request_data, user=request.user)
+    response_data = ResponseTestAttemptSerializer(response_test_attempt).data
+    return Response(data=response_data, status=200)
 
 
 @require_GET
