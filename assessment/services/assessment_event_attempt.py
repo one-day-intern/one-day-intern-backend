@@ -49,8 +49,16 @@ def get_all_active_assignment(request_data: dict, user: User):
     return event.get_released_assignments()
 
 
+def get_response_test_attempt(event: AssessmentEvent, response_test: ResponseTest, assessee: Assessee):
+    assessee_participation = event.get_assessment_event_participation_by_assessee(assessee)
+    found_attempt = assessee_participation.get_response_test_attempt(response_test)
+    return found_attempt
+
+
 def validate_response_test_has_not_been_attempted(event: AssessmentEvent, response_test: ResponseTest, assessee: Assessee):
-    raise Exception
+    found_attempt = get_response_test_attempt(event, response_test, assessee)
+    if found_attempt:
+        raise InvalidRequestException(f'Response test with id {response_test.assessment_id} has been attempted')
 
 
 @catch_exception_and_convert_to_invalid_request_decorator(exception_types=EventDoesNotExist)
