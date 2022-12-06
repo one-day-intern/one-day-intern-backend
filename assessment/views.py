@@ -10,7 +10,7 @@ from assessment.services.assessment_tool import (
     serialize_assignment_list_using_serializer,
     serialize_test_flow_list
 )
-from .services.assessment import create_assignment, create_interactive_quiz, create_response_test
+from .services.assessment import create_assignment, create_interactive_quiz, create_response_test, create_video_conference_notification
 from one_day_intern.exceptions import RestrictedAccessException
 from users.services import utils as user_utils
 from .services import utils
@@ -39,7 +39,8 @@ from .models import (
     InteractiveQuizSerializer,
     ResponseTestSerializer,
     ToolAttemptSerializer,
-    AssignmentAttemptSerializer
+    AssignmentAttemptSerializer,
+    VideoConferenceNotificationSerializer
 )
 from .models import AssignmentSerializer, TestFlowSerializer, AssessmentEventSerializer, InteractiveQuizSerializer, ResponseTestSerializer
 import json
@@ -175,12 +176,29 @@ def serve_add_assessment_event_participant(request):
 def serve_create_response_test(request):
     """
     request_data must contain
+    sender
     prompt
     subject
     """
     request_data = json.loads(request.body.decode('utf-8'))
     assignment = create_response_test(request_data, request.user)
     response_data = ResponseTestSerializer(assignment).data
+    return Response(data=response_data)
+
+
+@require_POST
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def serve_create_video_conference_notification(request):
+    """
+    request_data must contain
+    sender
+    prompt
+    subject
+    """
+    request_data = json.loads(request.body.decode('utf-8'))
+    assignment = create_video_conference_notification(request_data, request.user)
+    response_data = VideoConferenceNotificationSerializer(assignment).data
     return Response(data=response_data)
 
 
