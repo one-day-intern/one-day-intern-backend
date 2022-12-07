@@ -1,17 +1,29 @@
 from django.contrib.auth.models import User
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from one_day_intern.decorators import catch_exception_and_convert_to_invalid_request_decorator
 from one_day_intern.exceptions import RestrictedAccessException, InvalidRequestException
 from one_day_intern.settings import GOOGLE_BUCKET_BASE_DIRECTORY, GOOGLE_STORAGE_BUCKET_NAME
 from users.models import Assessee, Assessor
 from .participation_validators import validate_user_participation
 from ..exceptions.exceptions import EventDoesNotExist, AssessmentToolDoesNotExist
-from ..models import AssessmentEvent, AssignmentAttempt, Assignment, AssessmentTool, InteractiveQuiz, \
-    InteractiveQuizAttempt, Question, MultipleChoiceAnswerOptionAttempt, MultipleChoiceAnswerOption, TextQuestionAttempt
+from ..models import (
+    AssessmentEvent,
+    AssignmentAttempt,
+    Assignment,
+    AssessmentTool,
+    InteractiveQuiz,
+    InteractiveQuizAttempt,
+    Question,
+    MultipleChoiceAnswerOptionAttempt,
+    MultipleChoiceAnswerOption,
+    TextQuestionAttempt,
+    ResponseTest
+)
 from .TaskGenerator import TaskGenerator
 from . import utils, google_storage
 import mimetypes
 
+ASSOCIATED_TOOL_NOT_FOUND = 'Assessment tool associated with event does not exist'
 ASSESEE_NOT_PART_OF_EVENT = 'Assessee with email {} is not part of assessment with id {}'
 
 
@@ -23,11 +35,68 @@ def subscribe_to_assessment_flow(request_data, user) -> TaskGenerator:
 
 
 @catch_exception_and_convert_to_invalid_request_decorator(exception_types=EventDoesNotExist)
+def get_all_active_response_test(request_data: dict, user: User):
+    event = utils.get_active_assessment_event_from_id(request_data.get('assessment-event-id'))
+    assessee = utils.get_assessee_from_user(user)
+    validate_user_participation(event, assessee)
+    return event.get_released_response_tests()
+
+
+@catch_exception_and_convert_to_invalid_request_decorator(exception_types=EventDoesNotExist)
 def get_all_active_assignment(request_data: dict, user: User):
     event = utils.get_active_assessment_event_from_id(request_data.get('assessment-event-id'))
     assessee = utils.get_assessee_from_user(user)
     validate_user_participation(event, assessee)
     return event.get_released_assignments()
+
+
+def get_response_test_attempt(event: AssessmentEvent, response_test: ResponseTest, assessee: Assessee):
+    assessee_participation = event.get_assessment_event_participation_by_assessee(assessee)
+    found_attempt = assessee_participation.get_response_test_attempt(response_test)
+    return found_attempt
+
+
+def validate_response_test_has_not_been_attempted(event: AssessmentEvent, response_test: ResponseTest, assessee: Assessee):
+    found_attempt = get_response_test_attempt(event, response_test, assessee)
+    if found_attempt:
+        raise InvalidRequestException(f'Response test with id {response_test.assessment_id} has been attempted')
+
+
+def save_response_test_response(event: AssessmentEvent, response_test: ResponseTest, assessee: Assessee, request_data):
+    event_participation = event.get_assessment_event_participation_by_assessee(assessee)
+    response_test_attempt = event_participation.create_response_test_attempt(response_test)
+    response_test_attempt.set_subject(request_data.get('subject'))
+    response_test_attempt.set_response(request_data.get('response'))
+
+
+@catch_exception_and_convert_to_invalid_request_decorator(exception_types=ObjectDoesNotExist)
+def submit_response_test(request_data, user):
+    event = utils.get_active_assessment_event_from_id(request_data.get('assessment-event-id'))
+    assessee = utils.get_assessee_from_user(user)
+    validate_user_participation(event, assessee)
+    assessment_tool = event.get_assessment_tool_from_assessment_id(assessment_id=request_data.get('assessment-tool-id'))
+    validate_attempt_is_submittable(assessment_tool, event)
+    validate_tool_is_response_test(assessment_tool)
+    validate_response_test_has_not_been_attempted(event, assessment_tool, assessee)
+    save_response_test_response(event, assessment_tool, assessee, request_data)
+
+
+def validate_tool_is_response_test(assessment_tool):
+    if not assessment_tool:
+        raise InvalidRequestException(ASSOCIATED_TOOL_NOT_FOUND)
+    if not isinstance(assessment_tool, ResponseTest):
+        raise InvalidRequestException(f'Assessment tool with id {assessment_tool.assessment_id} is not a response test')
+
+
+@catch_exception_and_convert_to_invalid_request_decorator(exception_types=ObjectDoesNotExist)
+def get_submitted_response_test(request_data: dict, user: User):
+    event = utils.get_active_assessment_event_from_id(request_data.get('assessment-event-id'))
+    assessee = utils.get_assessee_from_user(user)
+    validate_user_participation(event, assessee)
+    assessment_tool = event.get_assessment_tool_from_assessment_id(assessment_id=request_data.get('assessment-tool-id'))
+    validate_tool_is_response_test(assessment_tool)
+    response_test_attempt = get_response_test_attempt(event, response_test=assessment_tool, assessee=assessee)
+    return response_test_attempt
 
 
 @catch_exception_and_convert_to_invalid_request_decorator(exception_types=EventDoesNotExist)
@@ -55,7 +124,7 @@ def validate_attempt_is_submittable(assessment_tool: AssessmentTool, event: Asse
 
 def validate_submission(assessment_tool, file_name):
     if assessment_tool is None:
-        raise InvalidRequestException('Assessment tool associated with event does not exist')
+        raise InvalidRequestException(ASSOCIATED_TOOL_NOT_FOUND)
 
     if not isinstance(assessment_tool, Assignment):
         raise InvalidRequestException(f'Assessment tool with id {assessment_tool.assessment_id} is not an assignment')
@@ -150,7 +219,7 @@ def get_or_create_interactive_quiz_attempt(event: AssessmentEvent, interactive_q
 
 def validate_interactive_quiz_submission(assessment_tool):
     if assessment_tool is None:
-        raise InvalidRequestException('Assessment tool associated with event does not exist')
+        raise InvalidRequestException(ASSOCIATED_TOOL_NOT_FOUND)
 
     if not isinstance(assessment_tool, InteractiveQuiz):
         raise InvalidRequestException(f'Assessment tool with id {assessment_tool.assessment_id} '
