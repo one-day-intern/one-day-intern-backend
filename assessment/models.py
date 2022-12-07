@@ -26,7 +26,8 @@ class AssessmentTool(PolymorphicModel):
     def get_tool_data(self) -> dict:
         return {
             'name': self.name,
-            'description': self.description
+            'description': self.description,
+            'type': self.get_type()
         }
 
     def get_type(self):
@@ -47,7 +48,6 @@ class Assignment(AssessmentTool):
 
     def get_tool_data(self) -> dict:
         tool_base_data = super().get_tool_data()
-        tool_base_data['type'] = 'assignment'
         tool_base_data['additional_info'] = {
             'duration': self.duration_in_minutes,
             'expected_file_format': self.expected_file_format
@@ -347,6 +347,9 @@ class TestFlowTool(models.Model):
                 event_date=execution_date
             ).isoformat()
 
+        if isinstance(self.assessment_tool, ResponseTest):
+            released_data['released_time'] = self.get_iso_release_time_on_event_date(execution_date)
+
         return released_data
 
     def get_iso_release_time_on_event_date(self, execution_date):
@@ -457,19 +460,25 @@ class AssessmentEvent(models.Model):
     def is_active(self) -> bool:
         return self.start_date_time <= datetime.datetime.now(datetime.timezone.utc) <= self.get_event_end_date_time()
 
-    def get_released_assignments(self):
+    def get_released_tools(self, tool_type):
         test_flow_tools = self.test_flow_used.testflowtool_set.all()
-        released_assignments_data = []
+        released_tools_data = []
         event_date = self.start_date_time.date()
 
         for test_flow_tool in test_flow_tools:
             tool_used = test_flow_tool.assessment_tool
-            if isinstance(tool_used, Assignment) and test_flow_tool.release_time_has_passed_on_event_day(event_date):
-                released_assignments_data.append(
+            if isinstance(tool_used, tool_type) and test_flow_tool.release_time_has_passed_on_event_day(event_date):
+                released_tools_data.append(
                     test_flow_tool.get_released_tool_data(execution_date=self.start_date_time.date())
                 )
 
-        return released_assignments_data
+        return released_tools_data
+
+    def get_released_assignments(self):
+        return self.get_released_tools(tool_type=Assignment)
+
+    def get_released_response_tests(self):
+        return self.get_released_tools(tool_type=ResponseTest)
 
     def get_assessment_event_participation_by_assessee(self, assessee):
         return self.assessmenteventparticipation_set.get(assessee=assessee)
@@ -558,15 +567,22 @@ class TestFlowAttempt(models.Model):
 
 
 class ResponseTest(AssessmentTool):
-    sender = models.ForeignKey(USERS_ASSESSOR, on_delete=models.CASCADE)
+    sender = models.TextField(null=False)
     subject = models.TextField(null=False)
     prompt = models.TextField(null=False)
+
+    def get_tool_data(self) -> dict:
+        tool_base_data = super().get_tool_data()
+        tool_base_data['additional_info'] = {
+            'sender': self.sender,
+            'subject': self.subject,
+            'prompt': self.prompt
+        }
+        return tool_base_data
 
 
 class ResponseTestSerializer(serializers.ModelSerializer):
     owning_company_name = serializers.ReadOnlyField(source=OWNING_COMPANY_COMPANY_NAME)
-    sender = serializers.ReadOnlyField(source='sender.email')
-
     class Meta:
         model = ResponseTest
         fields = [
@@ -806,11 +822,52 @@ class MultipleChoiceAnswerOptionAttemptSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+class ResponseTestAttempt(ToolAttempt):
+    submitted_time = models.DateTimeField(default=None, null=True)
+    subject = models.TextField(null=True)
+    response = models.TextField(null=True)
+
+    def set_subject(self, subject):
+        self.subject = subject
+        self.save()
+
+    def set_response(self, response):
+        self.submitted_time = datetime.datetime.now(tz=pytz.utc)
+        self.response = response
+        self.save()
+
+
+class ResponseTestAttemptSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ResponseTestAttempt
+        fields = ['tool_attempt_id', 'submitted_time', 'subject', 'response']
+
+
 class AssessmentEventParticipation(models.Model):
     assessment_event = models.ForeignKey('assessment.AssessmentEvent', on_delete=models.CASCADE)
     assessee = models.ForeignKey('users.Assessee', on_delete=models.CASCADE)
     assessor = models.ForeignKey(USERS_ASSESSOR, on_delete=models.RESTRICT)
     attempt = models.OneToOneField('assessment.TestFlowAttempt', on_delete=models.CASCADE, null=True)
+
+    def get_all_response_test_attempts(self):
+        return self.attempt.toolattempt_set.instance_of(ResponseTestAttempt)
+
+    def get_response_test_attempt(self, response_test: ResponseTest):
+        response_test_attempts = self.get_all_response_test_attempts()
+        matching_response_test_attempts = response_test_attempts.filter(assessment_tool_attempted=response_test)
+
+        if matching_response_test_attempts:
+            return matching_response_test_attempts[0]
+
+        else:
+            return None
+
+    def create_response_test_attempt(self, response_test: ResponseTest):
+        interactive_quiz_attempt = ResponseTestAttempt.objects.create(
+            test_flow_attempt=self.attempt,
+            assessment_tool_attempted=response_test
+        )
+        return interactive_quiz_attempt
 
     def get_all_assignment_attempts(self):
         return self.attempt.toolattempt_set.instance_of(AssignmentAttempt)
