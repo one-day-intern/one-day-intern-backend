@@ -23,6 +23,9 @@ from .views import (
     serve_grade_assessment_tool_attempts,
     serve_get_assignment_attempt_data,
     serve_get_assignment_attempt_file,
+    serve_grade_individual_question_attempts,
+    serve_save_graded_attempt,
+    serve_get_interactive_quiz_attempt_data,
     serve_create_video_conference_notification,
     serve_get_submitted_response_test
 )
@@ -51,6 +54,9 @@ urlpatterns = [
     path('assessment-event/submit-interactive_quiz/', serve_submit_interactive_quiz, name='submit-interactive-quiz'),
     path('assessment-event/progress/', serve_get_assessee_progress_on_event, name='get-assessee-progress'),
     path('grade/submit-grade-and-note/', serve_grade_assessment_tool_attempts, name='submit-grade-and-note'),
+    path('grade/individual-question/', serve_grade_individual_question_attempts, name='grade-individual-question'),
+    path('grade/interactive-quiz/', serve_save_graded_attempt, name='grade-interactive-quiz'),
+    path('review/interactive-quiz/', serve_get_interactive_quiz_attempt_data, name='review-interactive-quiz'),
     path('review/assignment/data/', serve_get_assignment_attempt_data, name='get-assignment-attempt-data'),
     path('review/assignment/file/', serve_get_assignment_attempt_file, name='get-assignment-attempt-file'),
 ]
