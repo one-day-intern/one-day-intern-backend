@@ -70,6 +70,7 @@ import pytz
 import uuid
 
 ASSESSMENT_EVENT_ID_PARAM_NAME = '?assessment-event-id='
+TOOL_ATTEMPT_ID_PARAM_NAME = '?tool-attempt-id='
 
 EXCEPTION_NOT_RAISED = 'Exception not raised'
 TEST_FLOW_INVALID_NAME = 'Test Flow name must exist and must be at most 50 characters'
@@ -123,9 +124,9 @@ GET_PROGRESS_URL = reverse('get-assessee-progress')
 SUBMIT_GRADE_AND_NOTE_URL = reverse('submit-grade-and-note')
 SUBMIT_INDIVIDUAL_QUESTION_GRADE_AND_NOTE_URL = reverse('grade-individual-question')
 SUBMIT_INTERACTIVE_QUIZ_GRADE_AND_NOTE_URL = reverse('grade-interactive-quiz')
-GET_QUIZ_ATTEMPT_DATA_URL = reverse('review-interactive-quiz') + '?tool-attempt-id='
-GET_ASSIGNMENT_ATTEMPT_DATA_URL = reverse('get-assignment-attempt-data') + '?tool-attempt-id='
-GET_ASSIGNMENT_ATTEMPT_DATA_FILE = reverse('get-assignment-attempt-file') + '?tool-attempt-id='
+GET_QUIZ_ATTEMPT_DATA_URL = reverse('review-interactive-quiz') + TOOL_ATTEMPT_ID_PARAM_NAME
+GET_ASSIGNMENT_ATTEMPT_DATA_URL = reverse('get-assignment-attempt-data') + TOOL_ATTEMPT_ID_PARAM_NAME
+GET_ASSIGNMENT_ATTEMPT_DATA_FILE = reverse('get-assignment-attempt-file') + TOOL_ATTEMPT_ID_PARAM_NAME
 UPDATE_ASSESSMENT_EVENT_URL = reverse('assessment-event-update')
 DELETE_ASSESSMENT_EVENT_URL = reverse('assessment-event-delete')
 SUBMIT_RESPONSE_TEST_URL = reverse('submit-response-test')
