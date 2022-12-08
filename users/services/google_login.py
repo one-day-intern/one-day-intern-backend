@@ -11,7 +11,9 @@ from one_day_intern.exceptions import (
     InvalidGoogleAuthCodeException,
     InvalidGoogleIDTokenException,
     EmailNotFoundException,
-    InvalidGoogleLoginException, InvalidRegistrationException
+    InvalidRequestException,
+    InvalidGoogleLoginException,
+    InvalidRegistrationException
 )
 from rest_framework_simplejwt.tokens import RefreshToken
 from ..models import OdiUser, Assessor, Assessee, AuthenticationService, CompanyOneTimeLinkCode
@@ -115,8 +117,8 @@ def register_assessee_with_google_data(user_data):
         return create_assessee_from_data_using_google_auth(user_data)
     else:
         try:
-            return get_assessee_assessor_user_with_google_matching_data(user_data)
-        except EmailNotFoundException:
+            return get_assessee_user_with_google_matching_data(user_data)
+        except InvalidRequestException:
             raise InvalidGoogleLoginException('User is already registered through the One Day Intern login service.')
 
 
@@ -155,8 +157,8 @@ def register_assessor_with_google_data(user_data, otc_data):
         return create_assessor_from_data_using_google_auth(user_data, otc_data)
     else:
         try:
-            return get_assessee_assessor_user_with_google_matching_data(user_data)
-        except EmailNotFoundException:
+            return get_assessor_user_with_google_matching_data(user_data)
+        except InvalidRequestException:
             raise InvalidGoogleLoginException('User is already registered through the One Day Intern login service.')
 
 
