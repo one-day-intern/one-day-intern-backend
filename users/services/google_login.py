@@ -63,8 +63,17 @@ def get_assessee_user_with_google_matching_data(user_data):
     )
 
 
+@catch_exception_and_convert_to_invalid_request_decorator(exception_types=EmailNotFoundException)
 def get_assessor_user_with_google_matching_data(user_data):
-    raise Exception
+    user_email = user_data.get('email')
+    found_assessor_with_google = Assessor.objects.filter(email=user_email,
+                                                         authentication_service=AuthenticationService.GOOGLE.value)
+    if found_assessor_with_google.exists():
+        return found_assessor_with_google[0]
+
+    raise EmailNotFoundException(
+        f'Assessor registering with google login with {user_email} email is not found'
+    )
 
 
 def get_assessee_assessor_user_with_google_matching_data(user_data):
