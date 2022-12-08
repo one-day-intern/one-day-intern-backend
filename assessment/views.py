@@ -10,7 +10,7 @@ from assessment.services.assessment_tool import (
     serialize_assignment_list_using_serializer,
     serialize_test_flow_list
 )
-from .services.assessment import create_assignment, create_interactive_quiz, create_response_test
+from .services.assessment import create_assignment, create_interactive_quiz, create_response_test, create_video_conference_notification
 from one_day_intern.exceptions import RestrictedAccessException
 from users.services import utils as user_utils
 from .services import utils
@@ -34,7 +34,14 @@ from .services.assessment_event_attempt import (
     submit_interactive_quiz_answers
 )
 from .services.progress_review import get_assessee_progress_on_assessment_event
-from .services.grading import grade_assessment_tool, get_assignment_attempt_data, get_assignment_attempt_file
+from .services.grading import (
+    grade_assessment_tool,
+    get_assignment_attempt_data,
+    get_assignment_attempt_file,
+    grade_interactive_quiz_individual_question,
+    grade_interactive_quiz,
+    get_interactive_quiz_attempt_data
+)
 from .models import (
     AssignmentSerializer,
     TestFlowSerializer,
@@ -43,6 +50,7 @@ from .models import (
     ResponseTestSerializer,
     ToolAttemptSerializer,
     AssignmentAttemptSerializer,
+    VideoConferenceNotificationSerializer,
     ResponseTestAttemptSerializer
 )
 import json
@@ -178,12 +186,29 @@ def serve_add_assessment_event_participant(request):
 def serve_create_response_test(request):
     """
     request_data must contain
+    sender
     prompt
     subject
     """
     request_data = json.loads(request.body.decode('utf-8'))
     assignment = create_response_test(request_data, request.user)
     response_data = ResponseTestSerializer(assignment).data
+    return Response(data=response_data)
+
+
+@require_POST
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def serve_create_video_conference_notification(request):
+    """
+    request_data must contain
+    sender
+    prompt
+    subject
+    """
+    request_data = json.loads(request.body.decode('utf-8'))
+    assignment = create_video_conference_notification(request_data, request.user)
+    response_data = VideoConferenceNotificationSerializer(assignment).data
     return Response(data=response_data)
 
 
@@ -480,3 +505,61 @@ def serve_delete_assessment_event(request):
     request_data = json.loads(request.body.decode('utf-8'))
     delete_assessment_event(request_data, user=request.user)
     return Response(data={'message': 'Assessment event has been deleted'}, status=200)
+
+
+@require_POST
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def serve_grade_individual_question_attempts(request):
+    """
+    This view will serve as the end-point for assessors to grade their assessee's attempts on a single Interactive
+    Quiz question
+    ----------------------------------------------------------
+    request-data must contain:
+    tool-attempt-id: string
+    question-attempt-id: string
+    grade: float (text question) or is-correct: boolean (multiple choice question)
+    note: string
+    """
+    request_data = json.loads(request.body.decode('utf-8'))
+    grade, note = grade_interactive_quiz_individual_question(request_data, user=request.user)
+    return Response(data={
+        'message': f'Grade for question {request_data.get("question-attempt-id")} is saved',
+        'grade': grade,
+        'note': note}, status=200
+    )
+
+@require_POST
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def serve_save_graded_attempt(request):
+    """
+    This view will serve as the end-point for assessors to save the interactive quiz final grade after the
+    assessor has finished grading
+    ----------------------------------------------------------
+    request-data must contain:
+    tool-attempt-id: string
+    """
+    request_data = json.loads(request.body.decode('utf-8'))
+    grade, note = grade_interactive_quiz(request_data, user=request.user)
+    return Response(data={'message': 'Interactive Quiz grade saved successfully',
+                          'grade': str(grade),
+                          'note': note},
+                    status=200)
+
+
+@require_GET
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def serve_get_interactive_quiz_attempt_data(request):
+    """
+    This view will serve as the end-point for assessor to view the assessee submitted assignment data
+    ----------------------------------------------------------
+    request-data must contain:
+    tool-attempt-id: string
+    Format:
+    assessment/review/interactive-quiz/data?tool-attempt-id=<ToolAttemptId>
+    """
+    request_data = request.GET
+    response_data = get_interactive_quiz_attempt_data(request_data, user=request.user)
+    return Response(data=response_data, status=200)
