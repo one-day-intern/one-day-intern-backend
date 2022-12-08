@@ -51,8 +51,7 @@ LOGIN_ASSESSOR_AND_COMPANY_URL = reverse('login-assessor-company')
 GOOGLE_LOGIN_ASSESSEE_URL = reverse('glogin-assessee') + '?code=<sample_code>'
 GOOGLE_LOGIN_ASSESSOR_URL = reverse('glogin-login-assessor') + '?code=<sample_code>'
 GOOGLE_REGISTER_ASSESSEE_URL = reverse('glogin-assessee') + '?code=<sample_code>'
-GOOGLE_REGISTER_ASSESSOR_URL = reverse('glogin-register-assessor') + '?code=<sample_code>' + '/?state=<{' \
-                                                                                             'self.one_time_code}>/ '
+GOOGLE_REGISTER_ASSESSOR_URL = reverse('glogin-register-assessor') + '?code=<sample_code>'
 
 
 class OdiUserTestCase(TestCase):
@@ -1622,7 +1621,7 @@ class GoogleLoginViewTest(TestCase):
     def test_serve_google_register_assessor_callback_when_can_be_registered(self, mocked_post,
                                                                             mocked_json, mocked_verify_oauth2_token):
         self.setup_google_mocks(mocked_post, mocked_json, mocked_verify_oauth2_token)
-        response = self.client.get(GOOGLE_REGISTER_ASSESSOR_URL)
+        response = self.client.get(GOOGLE_REGISTER_ASSESSOR_URL + f'/?state=<{self.one_time_code}>/')
         response_cookies = response.client.cookies
         self.assertIsNotNone(response_cookies.get('accessToken'))
         self.assertIsNotNone(response_cookies.get('refreshToken'))
