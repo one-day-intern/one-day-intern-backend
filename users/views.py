@@ -33,23 +33,6 @@ from .models import (
 import json
 
 
-@require_POST
-@api_view(['POST'])
-def serve_register_company(request):
-    """
-        request_data must contain
-        email,
-        password,
-        confirmed_password,
-        company_name,
-        company_description,
-        company_address
-    """
-    request_data = json.loads(request.body.decode('utf-8'))
-    company = register_company(request_data)
-    response_data = CompanySerializer(company).data
-    return Response(data=response_data)
-
 @require_GET
 @api_view(['GET'])
 def serve_google_register_assessor(request):
@@ -58,40 +41,6 @@ def serve_google_register_assessor(request):
     id_token = google_get_id_token_from_auth_code(auth_code, GOOGLE_AUTH_REGISTER_ASSESSOR_REDIRECT_URI)
     user_profile = google_get_profile_from_id_token(id_token)
     user = register_assessor_with_google_data(user_profile, otc_data)
-    tokens = get_tokens_for_user(user)
-
-    response = redirect(GOOGLE_AUTH_CLIENT_CALLBACK_URL)
-    response.set_cookie('accessToken', tokens.get('access'))
-    response.set_cookie('refreshToken', tokens.get('refresh'))
-    return response
-
-@require_POST
-@api_view(['POST'])
-def serve_register_assessor(request):
-    """
-        request_data must contain
-        email,
-        password,
-        confirmed_password,
-        first_name,
-        last_name,
-        phone_number,
-        employee_id,
-        one_time_code
-    """
-    request_data = json.loads(request.body.decode('utf-8'))
-    assessor = register_assessor(request_data)
-    response_data = AssessorSerializer(assessor).data
-    return Response(data=response_data)
-
-
-@require_GET
-@api_view(['GET'])
-def serve_google_login_callback(request):
-    auth_code = request.GET.get('code')
-    id_token = google_get_id_token_from_auth_code(auth_code, GOOGLE_AUTH_LOGIN_REDIRECT_URI)
-    user_profile = google_get_profile_from_id_token(id_token)
-    user = get_assessee_assessor_user_with_google_matching_data(user_profile)
     tokens = get_tokens_for_user(user)
 
     response = redirect(GOOGLE_AUTH_CLIENT_CALLBACK_URL)
@@ -114,9 +63,43 @@ def serve_google_register_assessee(request):
     response.set_cookie('refreshToken', tokens.get('refresh'))
     return response
 
+
+@require_GET
+@api_view(['GET'])
+def serve_google_login_callback(request):
+    auth_code = request.GET.get('code')
+    id_token = google_get_id_token_from_auth_code(auth_code, GOOGLE_AUTH_LOGIN_REDIRECT_URI)
+    user_profile = google_get_profile_from_id_token(id_token)
+    user = get_assessee_assessor_user_with_google_matching_data(user_profile)
+    tokens = get_tokens_for_user(user)
+
+    response = redirect(GOOGLE_AUTH_CLIENT_CALLBACK_URL)
+    response.set_cookie('accessToken', tokens.get('access'))
+    response.set_cookie('refreshToken', tokens.get('refresh'))
+    return response
+
+
 @require_POST
 @api_view(['POST'])
-def serve_register_assessee(request):
+def serve_register_company(request):
+    """
+        request_data must contain
+        email,
+        password,
+        confirmed_password,
+        company_name,
+        company_description,
+        company_address
+    """
+    request_data = json.loads(request.body.decode('utf-8'))
+    company = register_company(request_data)
+    response_data = CompanySerializer(company).data
+    return Response(data=response_data)
+
+
+@require_POST
+@api_view(['POST'])
+def serve_register_assessor(request):
     """
         request_data must contain
         email,
@@ -125,12 +108,14 @@ def serve_register_assessee(request):
         first_name,
         last_name,
         phone_number,
-        date_of_birth,
+        employee_id,
+        one_time_code
     """
     request_data = json.loads(request.body.decode('utf-8'))
-    assessee = register_assessee(request_data)
-    response_data = AssesseeSerializer(assessee).data
+    assessor = register_assessor(request_data)
+    response_data = AssessorSerializer(assessor).data
     return Response(data=response_data)
+
 
 @require_POST
 @api_view(['POST'])
@@ -149,6 +134,40 @@ def serve_register_assessee(request):
     assessee = register_assessee(request_data)
     response_data = AssesseeSerializer(assessee).data
     return Response(data=response_data)
+
+
+@require_POST
+@api_view(['POST'])
+def serve_register_assessee(request):
+    """
+        request_data must contain
+        email,
+        password,
+        confirmed_password,
+        first_name,
+        last_name,
+        phone_number,
+        date_of_birth,
+    """
+    request_data = json.loads(request.body.decode('utf-8'))
+    assessee = register_assessee(request_data)
+    response_data = AssesseeSerializer(assessee).data
+    return Response(data=response_data)
+
+
+@require_POST
+@api_view(['POST'])
+def serve_login_assessor_company(request):
+    """
+    This view will return the refresh and access token for an assessor or company.
+    ----------------------------------------------------------
+    request-data must contain:
+    email: string
+    password: string
+    """
+    request_data = json.loads(request.body.decode('utf-8'))
+    token = login_assessor_company(request_data)
+    return Response(data=token, status=200)
 
 
 @require_POST
@@ -166,18 +185,3 @@ def generate_assessor_one_time_code(request):
 def serve_get_user_info(request):
     response_data = get_user_info(request.user)
     return Response(data=response_data)
-
-
-@require_POST
-@api_view(['POST'])
-def serve_login_assessor_company(request):
-    """
-    This view will return the refresh and access token for an assessor or company.
-    ----------------------------------------------------------
-    request-data must contain:
-    email: string
-    password: string
-    """
-    request_data = json.loads(request.body.decode('utf-8'))
-    token = login_assessor_company(request_data)
-    return Response(data=token, status=200)
