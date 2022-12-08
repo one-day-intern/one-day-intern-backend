@@ -1621,9 +1621,7 @@ class GoogleLoginViewTest(TestCase):
     @patch.object(requests.Session, 'post')
     def test_serve_google_register_assessor_callback_when_can_be_registered(self, mocked_post,
                                                                             mocked_json, mocked_verify_oauth2_token):
-        mocked_post.return_value = requests.Response()
-        mocked_json.return_value = self.dummy_response_data_from_auth_code
-        mocked_verify_oauth2_token.return_value = self.dummy_response_user_profile_data_from_id_token
+        self.setup_google_mocks(mocked_post, mocked_json, mocked_verify_oauth2_token)
         response = self.client.get(GOOGLE_REGISTER_ASSESSOR_URL)
         response_cookies = response.client.cookies
         self.assertIsNotNone(response_cookies.get('accessToken'))
