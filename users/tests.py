@@ -8,6 +8,7 @@ from unittest.mock import patch
 from .services import registration, utils, google_login
 from one_day_intern.exceptions import (
     InvalidRegistrationException,
+    InvalidRequestException,
     EmailNotFoundException,
     InvalidGoogleLoginException,
     InvalidGoogleIDTokenException,
@@ -1276,7 +1277,7 @@ class GoogleAuthTest(TestCase):
         try:
             google_login.get_assessee_user_with_google_matching_data(self.dummy_user_data)
             self.fail(EXCEPTION_NOT_RAISED)
-        except EmailNotFoundException as exception:
+        except InvalidRequestException as exception:
             self.assertEqual(
                 str(exception),
                 f'Assessee registering with google login with {expected_assessee.email} email is not found'
