@@ -596,6 +596,23 @@ class ResponseTestSerializer(serializers.ModelSerializer):
             'owning_company_name',
         ]
 
+class VideoConferenceNotification(AssessmentTool):
+    subject = models.TextField(null=False)
+    message = models.TextField(null=False)
+
+class VideoConferenceNotificationSerializer(serializers.ModelSerializer):
+    owning_company_name = serializers.ReadOnlyField(source=OWNING_COMPANY_COMPANY_NAME)
+    class Meta:
+        model = VideoConferenceNotification
+        fields = [
+            'assessment_id',
+            'name',
+            'description',
+            'subject',
+            'message',
+            'owning_company_id',
+            'owning_company_name',
+        ]    
 
 class PolymorphicAssessmentToolSerializer:
     def __init__(self, assessment_tool):

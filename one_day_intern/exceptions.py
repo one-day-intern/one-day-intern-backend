@@ -1,3 +1,6 @@
+from re import L
+
+
 class RestrictedAccessException(Exception):
     pass
 
@@ -38,4 +41,7 @@ class InvalidResponseTestRegistration(Exception):
 
 
 class InvalidLoginCredentialsException(Exception):
+    pass
+
+class InvalidVideoConferenceNotificationException(Exception):
     pass
