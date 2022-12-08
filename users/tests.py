@@ -1479,6 +1479,7 @@ class GoogleLoginViewTest(TestCase):
         self.assessee_google_registration_url = '/users/google/oauth/register/assessee/?code=<sample_code>'
         self.google_login_url = '/users/google/oauth/login/?code=<sample_code>'
         self.google_login_assessee_url = '/users/google/oauth/login/assessee/?code=<sample_code>'
+        self.google_login_assessor_url = '/users/google/oauth/login/assessor/?code=<sample_code>'
 
     def setup_google_mocks(self, mocked_post, mocked_json, mocked_verify_oauth2_token):
         mocked_post.return_value = requests.Response()
@@ -1504,6 +1505,7 @@ class GoogleLoginViewTest(TestCase):
             authentication_service=authentication_service
         )
         expected_assessor.save()
+        return expected_assessor
 
     @patch.object(id_token, 'verify_oauth2_token')
     @patch.object(requests.Response, 'json')
@@ -1559,6 +1561,36 @@ class GoogleLoginViewTest(TestCase):
             f'Assessee registering with google login with {self.dummy_response_user_profile_data_from_id_token["email"]} email is not found'
         )
         assessee.delete()
+
+    @patch.object(id_token, 'verify_oauth2_token')
+    @patch.object(requests.Response, 'json')
+    @patch.object(requests.Session, 'post')
+    def test_serve_google_login_assessor_callback_when_assessor_exists(self, mocked_post, mocked_json,
+                                                                       mocked_verify_oauth2_token):
+        self.setup_google_mocks(mocked_post, mocked_json, mocked_verify_oauth2_token)
+        assessor = self.create_and_save_assessor_data(AuthenticationService.GOOGLE.value)
+        response = self.client.get(self.google_login_assessor_url)
+        response_cookies = response.client.cookies
+        self.assertIsNotNone(response_cookies.get('accessToken'))
+        self.assertIsNotNone(response_cookies.get('refreshToken'))
+        assessor.delete()
+
+    @patch.object(id_token, 'verify_oauth2_token')
+    @patch.object(requests.Response, 'json')
+    @patch.object(requests.Session, 'post')
+    def test_serve_google_login_assessor_callback_when_assessor_does_not_exist(self, mocked_post, mocked_json,
+                                                                               mocked_verify_oauth2_token):
+        self.setup_google_mocks(mocked_post, mocked_json, mocked_verify_oauth2_token)
+        assessor = self.create_and_save_assessor_data(AuthenticationService.DEFAULT.value)
+        response = self.client.get(self.google_login_assessor_url)
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertIsNotNone(response_content.get('message'))
+        self.assertEqual(
+            response_content['message'],
+            f'Assessor registering with google login with {self.dummy_response_user_profile_data_from_id_token["email"]} email is not found'
+        )
+        assessor.delete()
 
     @patch.object(id_token, 'verify_oauth2_token')
     @patch.object(requests.Response, 'json')
