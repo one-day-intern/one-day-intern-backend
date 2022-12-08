@@ -58,5 +58,5 @@ urlpatterns = [
     path('grade/interactive-quiz/', serve_save_graded_attempt, name='grade-interactive-quiz'),
     path('review/interactive-quiz/', serve_get_interactive_quiz_attempt_data, name='review-interactive-quiz'),
     path('review/assignment/data/', serve_get_assignment_attempt_data, name='get-assignment-attempt-data'),
-    path('review/assignment/file/', serve_get_assignment_attempt_file, name='get-assignment-attempt-file'),
+    path('review/assignment/file/', serve_get_assignment_attempt_file, name='get-assignment-attempt-file')
 ]

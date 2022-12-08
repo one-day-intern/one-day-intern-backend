@@ -51,7 +51,8 @@ from .models import (
     ToolAttemptSerializer,
     AssignmentAttemptSerializer,
     VideoConferenceNotificationSerializer,
-    ResponseTestAttemptSerializer
+    ResponseTestAttemptSerializer,
+    GradedResponseTestAttemptSerializer
 )
 import json
 
@@ -528,6 +529,7 @@ def serve_grade_individual_question_attempts(request):
         'grade': grade,
         'note': note}, status=200
     )
+
 
 @require_POST
 @api_view(['POST'])
