@@ -23,6 +23,7 @@ from .views import (
     serve_grade_assessment_tool_attempts,
     serve_get_assignment_attempt_data,
     serve_get_assignment_attempt_file,
+    serve_create_video_conference_notification,
     serve_get_submitted_response_test
 )
 
@@ -31,6 +32,7 @@ urlpatterns = [
     path('create/assignment/', serve_create_assignment),
     path('create/response-test/', serve_create_response_test, name='create-response-test'),
     path('create/interactive-quiz/', serve_create_interactive_quiz),
+    path('create/video-conference-notification/', serve_create_video_conference_notification, name='create-video-conference-notification'),
     path('test-flow/create/', serve_create_test_flow, name='test-flow-create'),
     path('test-flow/all/', serve_get_test_flow, name='test-flow-get'),
     path('assessment-event/create/', serve_create_assessment_event, name='assessment-event-create'),
