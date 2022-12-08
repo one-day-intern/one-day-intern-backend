@@ -23,11 +23,9 @@ from .views import (
     serve_grade_assessment_tool_attempts,
     serve_get_assignment_attempt_data,
     serve_get_assignment_attempt_file,
-    serve_get_submitted_response_test,
-    serve_get_assignment_attempt_file,
     serve_grade_individual_question_attempts,
     serve_save_graded_attempt,
-    serve_get_interactive_quiz_attempt_data
+    serve_get_interactive_quiz_attempt_data,
     serve_create_video_conference_notification,
     serve_get_submitted_response_test
 )
