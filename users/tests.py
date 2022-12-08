@@ -1461,9 +1461,7 @@ class GoogleLoginViewTest(TestCase):
     @patch.object(requests.Session, 'post')
     def test_serve_google_register_assessee_callback_when_can_be_registered(self, mocked_post,
                                                                             mocked_json, mocked_verify_oauth2_token):
-        mocked_post.return_value = requests.Response()
-        mocked_json.return_value = self.dummy_response_data_from_auth_code
-        mocked_verify_oauth2_token.return_value = self.dummy_response_user_profile_data_from_id_token
+        self.setup_google_mocks(mocked_post, mocked_json, mocked_verify_oauth2_token)
         response = self.client.get(self.assessee_google_registration_url)
         response_cookies = response.client.cookies
         self.assertIsNotNone(response_cookies.get('accessToken'))
@@ -1475,17 +1473,8 @@ class GoogleLoginViewTest(TestCase):
     def test_serve_google_register_assessee_callback_when_can_not_be_registered(self,
                                                                                 mocked_post, mocked_json,
                                                                                 mocked_verify_oauth2_token):
-        assessee = Assessee(
-            email=self.dummy_response_user_profile_data_from_id_token['email'],
-            first_name=self.dummy_response_user_profile_data_from_id_token['given_name'],
-            last_name=self.dummy_response_user_profile_data_from_id_token['family_name'],
-            authentication_service=AuthenticationService.DEFAULT
-        )
-        assessee.save()
-
-        mocked_post.return_value = requests.Response()
-        mocked_json.return_value = self.dummy_response_data_from_auth_code
-        mocked_verify_oauth2_token.return_value = self.dummy_response_user_profile_data_from_id_token
+        self.setup_google_mocks(mocked_post, mocked_json, mocked_verify_oauth2_token)
+        self.create_and_save_assessee_data(AuthenticationService.DEFAULT.value)
         response = self.client.get(self.assessee_google_registration_url)
         response_content = json.loads(response.content)
         self.assertIsNotNone(response_content.get('message'))
@@ -1526,10 +1515,8 @@ class GoogleLoginViewTest(TestCase):
     @patch.object(requests.Response, 'json')
     @patch.object(requests.Session, 'post')
     def test_serve_google_login_callback(self, mocked_post, mocked_json, mocked_verify_oauth2_token):
+        self.setup_google_mocks(mocked_post, mocked_json, mocked_verify_oauth2_token)
         self.create_and_save_assessor_data(AuthenticationService.GOOGLE.value)
-        mocked_post.return_value = requests.Response()
-        mocked_json.return_value = self.dummy_response_data_from_auth_code
-        mocked_verify_oauth2_token.return_value = self.dummy_response_user_profile_data_from_id_token
         response = self.client.get(self.google_login_url)
         response_cookies = response.client.cookies
         self.assertIsNotNone(response_cookies.get('accessToken'))
@@ -1539,10 +1526,8 @@ class GoogleLoginViewTest(TestCase):
     @patch.object(requests.Response, 'json')
     @patch.object(requests.Session, 'post')
     def test_serve_google_login_callback_when_not_exist(self, mocked_post, mocked_json, mocked_verify_oauth2_token):
+        self.setup_google_mocks(mocked_post, mocked_json, mocked_verify_oauth2_token)
         self.create_and_save_assessor_data(AuthenticationService.DEFAULT.value)
-        mocked_post.return_value = requests.Response()
-        mocked_json.return_value = self.dummy_response_data_from_auth_code
-        mocked_verify_oauth2_token.return_value = self.dummy_response_user_profile_data_from_id_token
         response = self.client.get(self.google_login_url)
         response_content = json.loads(response.content)
         self.assertIsNotNone(response_content.get('message'))
