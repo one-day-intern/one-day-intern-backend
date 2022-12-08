@@ -254,5 +254,6 @@ def get_interactive_quiz_attempt_data(request_data, user):
 
 
 def validate_tool_attempt_is_for_response_test(tool_attempt):
-   raise Exception
+    if not isinstance(tool_attempt, ResponseTestAttempt):
+        raise InvalidRequestException(f'Attempt with id {tool_attempt.tool_attempt_id} is not a response test')
 
