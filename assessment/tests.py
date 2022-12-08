@@ -4921,7 +4921,7 @@ class InteractiveQuizGradingTest(TestCase):
 
         self.assessee_2 = Assessee.objects.create_user(
             email='assessee_mail02@email.com',
-            password='Passworr234',
+            password='Password2345',
             first_name='Assessee 2904',
             last_name='Last',
             phone_number='+6282234232947',
@@ -4931,7 +4931,7 @@ class InteractiveQuizGradingTest(TestCase):
 
         self.company = Company.objects.create_user(
             email='mycompany@email.com',
-            password='Pass3344word',
+            password='Password001',
             company_name='My Company',
             description='Description last',
             address='Address of company'
