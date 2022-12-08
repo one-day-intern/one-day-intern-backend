@@ -47,6 +47,9 @@ REGISTER_ASSESSOR_URL = '/users/register-assessor/'
 GENERATE_ONE_TIME_CODE_URL = '/users/generate-code/'
 GET_USER_INFO_URL = '/users/get-info/'
 LOGIN_ASSESSOR_AND_COMPANY_URL = reverse('login-assessor-company')
+GOOGLE_LOGIN_ASSESSEE_URL = reverse('glogin-login-assessee') + '?code=<sample_code>'
+GOOGLE_LOGIN_ASSESSOR_URL = reverse('glogin-login-assessor') + '?code=<sample_code>'
+GOOGLE_LOGIN_URL = '/users/google/oauth/login/?code=<sample_code>'
 
 
 class OdiUserTestCase(TestCase):
@@ -1477,9 +1480,6 @@ class GoogleLoginViewTest(TestCase):
         }
         self.assessor_company = Company.objects.create_user(email='company@company.com', password='Password123')
         self.assessee_google_registration_url = '/users/google/oauth/register/assessee/?code=<sample_code>'
-        self.google_login_url = '/users/google/oauth/login/?code=<sample_code>'
-        self.google_login_assessee_url = '/users/google/oauth/login/assessee/?code=<sample_code>'
-        self.google_login_assessor_url = '/users/google/oauth/login/assessor/?code=<sample_code>'
 
     def setup_google_mocks(self, mocked_post, mocked_json, mocked_verify_oauth2_token):
         mocked_post.return_value = requests.Response()
@@ -1540,7 +1540,7 @@ class GoogleLoginViewTest(TestCase):
                                                   mocked_verify_oauth2_token):
         self.setup_google_mocks(mocked_post, mocked_json, mocked_verify_oauth2_token)
         assessee = self.create_and_save_assessee_data(AuthenticationService.GOOGLE.value)
-        response = self.client.get(self.google_login_assessee_url)
+        response = self.client.get(GOOGLE_LOGIN_ASSESSEE_URL)
         response_cookies = response.client.cookies
         self.assertIsNotNone(response_cookies.get('accessToken'))
         self.assertIsNotNone(response_cookies.get('refreshToken'))
@@ -1553,7 +1553,7 @@ class GoogleLoginViewTest(TestCase):
                                                                  mocked_verify_oauth2_token):
         self.setup_google_mocks(mocked_post, mocked_json, mocked_verify_oauth2_token)
         assessee = self.create_and_save_assessee_data(AuthenticationService.DEFAULT.value)
-        response = self.client.get(self.google_login_assessee_url)
+        response = self.client.get(GOOGLE_LOGIN_ASSESSEE_URL)
         response_content = json.loads(response.content)
         self.assertIsNotNone(response_content.get('message'))
         self.assertEqual(
@@ -1569,7 +1569,7 @@ class GoogleLoginViewTest(TestCase):
                                                                        mocked_verify_oauth2_token):
         self.setup_google_mocks(mocked_post, mocked_json, mocked_verify_oauth2_token)
         assessor = self.create_and_save_assessor_data(AuthenticationService.GOOGLE.value)
-        response = self.client.get(self.google_login_assessor_url)
+        response = self.client.get(GOOGLE_LOGIN_ASSESSOR_URL)
         response_cookies = response.client.cookies
         self.assertIsNotNone(response_cookies.get('accessToken'))
         self.assertIsNotNone(response_cookies.get('refreshToken'))
@@ -1582,7 +1582,7 @@ class GoogleLoginViewTest(TestCase):
                                                                                mocked_verify_oauth2_token):
         self.setup_google_mocks(mocked_post, mocked_json, mocked_verify_oauth2_token)
         assessor = self.create_and_save_assessor_data(AuthenticationService.DEFAULT.value)
-        response = self.client.get(self.google_login_assessor_url)
+        response = self.client.get(GOOGLE_LOGIN_ASSESSOR_URL)
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
         self.assertIsNotNone(response_content.get('message'))
@@ -1598,7 +1598,7 @@ class GoogleLoginViewTest(TestCase):
     def test_serve_google_login_callback(self, mocked_post, mocked_json, mocked_verify_oauth2_token):
         self.setup_google_mocks(mocked_post, mocked_json, mocked_verify_oauth2_token)
         self.create_and_save_assessor_data(AuthenticationService.GOOGLE.value)
-        response = self.client.get(self.google_login_url)
+        response = self.client.get(GOOGLE_LOGIN_URL)
         response_cookies = response.client.cookies
         self.assertIsNotNone(response_cookies.get('accessToken'))
         self.assertIsNotNone(response_cookies.get('refreshToken'))
@@ -1609,7 +1609,7 @@ class GoogleLoginViewTest(TestCase):
     def test_serve_google_login_callback_when_not_exist(self, mocked_post, mocked_json, mocked_verify_oauth2_token):
         self.setup_google_mocks(mocked_post, mocked_json, mocked_verify_oauth2_token)
         self.create_and_save_assessor_data(AuthenticationService.DEFAULT.value)
-        response = self.client.get(self.google_login_url)
+        response = self.client.get(GOOGLE_LOGIN_URL)
         response_content = json.loads(response.content)
         self.assertIsNotNone(response_content.get('message'))
         self.assertEqual(
