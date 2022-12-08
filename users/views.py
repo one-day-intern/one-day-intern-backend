@@ -14,7 +14,7 @@ from .services.google_login import (
     google_get_id_token_from_auth_code,
     get_assessee_assessor_user_with_google_matching_data,
     get_tokens_for_user,
-    register_assessee_with_google_data, register_assessor_with_google_data
+    register_assessee_with_google_data, register_assessor_with_google_data, get_assessee_user_with_google_matching_data
 )
 from .services.user_info import get_user_info
 from .services.login import login_assessor_company
@@ -77,6 +77,19 @@ def serve_google_login_callback(request):
     response.set_cookie('accessToken', tokens.get('access'))
     response.set_cookie('refreshToken', tokens.get('refresh'))
     return response
+
+
+@require_GET
+@api_view(['GET'])
+def serve_google_login_callback_for_assessee(request):
+    """
+    This view will serve as the callback for the Assessee Google login.
+    An authcode is expected to be present in the request argument.
+    ----------------------------------------------------------
+    request-param must contain:
+    code: string
+    """
+    return Response(data=None)
 
 
 @require_POST
