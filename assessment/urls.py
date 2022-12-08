@@ -8,11 +8,13 @@ from .views import (
     serve_delete_assessment_event,
     serve_create_response_test,
     serve_get_all_active_assignment,
+    serve_get_all_active_response_test,
     serve_create_interactive_quiz,
     serve_add_assessment_event_participant,
     serve_get_test_flow,
     serve_subscribe_to_assessment_flow,
     serve_get_assessment_event_data,
+    serve_submit_response_test,
     serve_submit_assignment,
     serve_get_submitted_assignment,
     serve_submit_interactive_quiz,
@@ -20,7 +22,8 @@ from .views import (
     serve_get_assessee_progress_on_event,
     serve_grade_assessment_tool_attempts,
     serve_get_assignment_attempt_data,
-    serve_get_assignment_attempt_file
+    serve_get_assignment_attempt_file,
+    serve_get_submitted_response_test
 )
 
 urlpatterns = [
@@ -35,6 +38,9 @@ urlpatterns = [
     path('assessment-event/delete/', serve_delete_assessment_event, name='assessment-event-delete'),
     path('assessment-event/add-participant/', serve_add_assessment_event_participant, name='event-add-participation'),
     path('assessment-event/subscribe/', serve_subscribe_to_assessment_flow, name='event-subscription'),
+    path('assessment-event/released-response-tests/', serve_get_all_active_response_test, name='event-active-response-tests'),
+    path('assessment-event/submit-response-test/', serve_submit_response_test, name='submit-response-test'),
+    path('assessment-event/get-submitted-response-test/', serve_get_submitted_response_test, name='get-submitted-response'),
     path('assessment-event/released-assignments/', serve_get_all_active_assignment, name='event-active-assignments'),
     path('assessment-event/get-data/', serve_get_assessment_event_data, name='get-event-data'),
     path('assessment-event/submit-assignments/', serve_submit_assignment, name='submit-assignments'),

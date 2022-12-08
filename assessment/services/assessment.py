@@ -80,6 +80,8 @@ def validate_response_test(request_data):
         raise InvalidResponseTestRegistration('Prompt Should Not Be Empty')
     if len(request_data.get('subject').split()) == 0:
         raise InvalidResponseTestRegistration('Subject Should Not Be Empty')
+    if len(request_data.get('sender').split()) == 0:
+        raise InvalidResponseTestRegistration('Sender Should Not Be Empty')
 
 
 def save_response_test_to_database(request_data: dict, assessor: Assessor):
@@ -88,7 +90,7 @@ def save_response_test_to_database(request_data: dict, assessor: Assessor):
     owning_company = assessor.associated_company
     prompt = request_data.get('prompt')
     subject = request_data.get('subject')
-    sender = assessor
+    sender = request_data.get('sender')
     assignment = ResponseTest.objects.create(
         name=name,
         description=description,
