@@ -40,6 +40,7 @@ ASSESSOR_WITH_EMAIL_NOT_EXIST = 'Assessor with email {} not found'
 COMPANY_WITH_EMAIL_NOT_EXIST = 'Company with email {} not found'
 ASSESSOR_COMPANY_WITH_EMAIL_NOT_FOUND = 'Assessor or Company with email {} not found'
 PASSWORD_IS_INVALID = 'Password for {} is invalid'
+ALREADY_REGISTERED_THROUGH_DEFAULT_LOGIN = 'User is registered through the One Day Intern login service'
 
 REGISTER_COMPANY_URL = '/users/register-company/'
 REGISTER_ASSESSEE_URL = '/users/register-assessee/'
@@ -47,9 +48,9 @@ REGISTER_ASSESSOR_URL = '/users/register-assessor/'
 GENERATE_ONE_TIME_CODE_URL = '/users/generate-code/'
 GET_USER_INFO_URL = '/users/get-info/'
 LOGIN_ASSESSOR_AND_COMPANY_URL = reverse('login-assessor-company')
-GOOGLE_LOGIN_ASSESSEE_URL = reverse('glogin-login-assessee') + '?code=<sample_code>'
+GOOGLE_LOGIN_ASSESSEE_URL = reverse('glogin-assessee') + '?code=<sample_code>'
 GOOGLE_LOGIN_ASSESSOR_URL = reverse('glogin-login-assessor') + '?code=<sample_code>'
-GOOGLE_LOGIN_URL = '/users/google/oauth/login/?code=<sample_code>'
+GOOGLE_REGISTER_ASSESSEE_URL = reverse('glogin-assessee') + '?code=<sample_code>'
 
 
 class OdiUserTestCase(TestCase):
@@ -1385,7 +1386,7 @@ class GoogleAuthTest(TestCase):
 
     @patch.object(google_login, 'create_assessee_from_data_using_google_auth')
     def test_register_assessee_with_google_data_when_not_exist(self, mocked_create_assessee_google):
-        google_login.register_assessee_with_google_data(self.dummy_user_data)
+        google_login.login_or_register_assessee_with_google_data(self.dummy_user_data)
         mocked_create_assessee_google.assert_called_once()
 
     def test_register_assessee_with_google_data_when_assessee_already_register_through_default_service(self):
@@ -1397,10 +1398,10 @@ class GoogleAuthTest(TestCase):
         )
         existing_user.save()
         try:
-            google_login.register_assessee_with_google_data(self.dummy_user_data)
+            google_login.login_or_register_assessee_with_google_data(self.dummy_user_data)
             self.fail(EXCEPTION_NOT_RAISED)
         except InvalidGoogleLoginException as exception:
-            self.assertEqual(str(exception), 'User is already registered through the One Day Intern login service.')
+            self.assertEqual(str(exception), ALREADY_REGISTERED_THROUGH_DEFAULT_LOGIN)
 
     @patch.object(id_token, 'verify_oauth2_token')
     def test_get_profile_from_id_token(self, mocked_google_verify_token):
@@ -1479,7 +1480,6 @@ class GoogleLoginViewTest(TestCase):
             'exp': 1664703860
         }
         self.assessor_company = Company.objects.create_user(email='company@company.com', password='Password123')
-        self.assessee_google_registration_url = '/users/google/oauth/register/assessee/?code=<sample_code>'
 
     def setup_google_mocks(self, mocked_post, mocked_json, mocked_verify_oauth2_token):
         mocked_post.return_value = requests.Response()
@@ -1513,7 +1513,7 @@ class GoogleLoginViewTest(TestCase):
     def test_serve_google_register_assessee_callback_when_can_be_registered(self, mocked_post,
                                                                             mocked_json, mocked_verify_oauth2_token):
         self.setup_google_mocks(mocked_post, mocked_json, mocked_verify_oauth2_token)
-        response = self.client.get(self.assessee_google_registration_url)
+        response = self.client.get(GOOGLE_REGISTER_ASSESSEE_URL)
         response_cookies = response.client.cookies
         self.assertIsNotNone(response_cookies.get('accessToken'))
         self.assertIsNotNone(response_cookies.get('refreshToken'))
@@ -1526,11 +1526,11 @@ class GoogleLoginViewTest(TestCase):
                                                                                 mocked_verify_oauth2_token):
         self.setup_google_mocks(mocked_post, mocked_json, mocked_verify_oauth2_token)
         self.create_and_save_assessee_data(AuthenticationService.DEFAULT.value)
-        response = self.client.get(self.assessee_google_registration_url)
+        response = self.client.get(GOOGLE_REGISTER_ASSESSEE_URL)
         response_content = json.loads(response.content)
         self.assertIsNotNone(response_content.get('message'))
         self.assertEqual(
-            response_content['message'], 'User is already registered through the One Day Intern login service.'
+            response_content['message'], ALREADY_REGISTERED_THROUGH_DEFAULT_LOGIN
         )
 
     @patch.object(id_token, 'verify_oauth2_token')
@@ -1558,7 +1558,7 @@ class GoogleLoginViewTest(TestCase):
         self.assertIsNotNone(response_content.get('message'))
         self.assertEqual(
             response_content['message'],
-            f'Assessee registering with google login with {self.dummy_response_user_profile_data_from_id_token["email"]} email is not found'
+            ALREADY_REGISTERED_THROUGH_DEFAULT_LOGIN
         )
         assessee.delete()
 
@@ -1591,32 +1591,6 @@ class GoogleLoginViewTest(TestCase):
             f'Assessor registering with google login with {self.dummy_response_user_profile_data_from_id_token["email"]} email is not found'
         )
         assessor.delete()
-
-    @patch.object(id_token, 'verify_oauth2_token')
-    @patch.object(requests.Response, 'json')
-    @patch.object(requests.Session, 'post')
-    def test_serve_google_login_callback(self, mocked_post, mocked_json, mocked_verify_oauth2_token):
-        self.setup_google_mocks(mocked_post, mocked_json, mocked_verify_oauth2_token)
-        self.create_and_save_assessor_data(AuthenticationService.GOOGLE.value)
-        response = self.client.get(GOOGLE_LOGIN_URL)
-        response_cookies = response.client.cookies
-        self.assertIsNotNone(response_cookies.get('accessToken'))
-        self.assertIsNotNone(response_cookies.get('refreshToken'))
-
-    @patch.object(id_token, 'verify_oauth2_token')
-    @patch.object(requests.Response, 'json')
-    @patch.object(requests.Session, 'post')
-    def test_serve_google_login_callback_when_not_exist(self, mocked_post, mocked_json, mocked_verify_oauth2_token):
-        self.setup_google_mocks(mocked_post, mocked_json, mocked_verify_oauth2_token)
-        self.create_and_save_assessor_data(AuthenticationService.DEFAULT.value)
-        response = self.client.get(GOOGLE_LOGIN_URL)
-        response_content = json.loads(response.content)
-        self.assertIsNotNone(response_content.get('message'))
-        self.assertEqual(
-            response_content['message'],
-            'Assessor or Assessee registering with google login with '
-            f'{self.dummy_response_user_profile_data_from_id_token["email"]} email is not found.'
-        )
 
 
 class UserInfoViewTestCase(TestCase):

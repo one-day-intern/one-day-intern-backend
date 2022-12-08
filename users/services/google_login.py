@@ -109,7 +109,7 @@ def create_assessee_from_data_using_google_auth(user_data):
     return assessee
 
 
-def register_assessee_with_google_data(user_data):
+def login_or_register_assessee_with_google_data(user_data):
     user_email = user_data.get('email')
     found_users = OdiUser.objects.filter(email=user_email)
 
@@ -119,7 +119,7 @@ def register_assessee_with_google_data(user_data):
         try:
             return get_assessee_user_with_google_matching_data(user_data)
         except InvalidRequestException:
-            raise InvalidGoogleLoginException('User is already registered through the One Day Intern login service.')
+            raise InvalidGoogleLoginException('User is registered through the One Day Intern login service')
 
 
 def create_assessor_from_data_using_google_auth(user_data, otc_data):
