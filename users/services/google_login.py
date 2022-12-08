@@ -51,7 +51,15 @@ def google_get_profile_from_id_token(identity_token):
 
 
 def get_assessee_user_with_google_matching_data(user_data):
-    return Exception
+    user_email = user_data.get('email')
+    found_assessee_with_google = Assessee.objects.filter(email=user_email,
+                                                         authentication_service=AuthenticationService.GOOGLE.value)
+    if found_assessee_with_google.exists():
+        return found_assessee_with_google[0]
+
+    raise EmailNotFoundException(
+        f'Assessee registering with google login with {user_email} email is not found'
+    )
 
 
 def get_assessee_assessor_user_with_google_matching_data(user_data):
