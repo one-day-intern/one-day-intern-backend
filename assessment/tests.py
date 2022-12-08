@@ -136,6 +136,37 @@ REQUEST_CONTENT_TYPE = 'application/json'
 APPLICATION_PDF = 'application/pdf'
 OK_RESPONSE_STATUS_CODE = 200
 
+INTERACTIVE_QUIZ_DATA = {
+            'name': 'Data Cleaning Test',
+            'description': 'This is a data cleaning test',
+            'duration_in_minutes': 55,
+            'total_points': 10,
+            'questions': [
+                {
+                    'prompt': 'What is data cleaning?',
+                    'points': 5,
+                    'question_type': 'multiple_choice',
+                    'answer_options': [
+                        {
+                            'content': 'Cleaning data',
+                            'correct': True,
+                        },
+                        {
+                            'content': 'Creating new features',
+                            'correct': False,
+                        },
+
+                    ]
+                },
+                {
+                    'prompt': 'Have you ever done data cleaning with Pandas?',
+                    'points': 5,
+                    'question_type': 'text',
+                    'answer_key': 'Yes, I have',
+                }
+            ]
+        }
+
 
 class AssessmentTest(TestCase):
     def setUp(self) -> None:
@@ -332,36 +363,7 @@ class InteractiveQuizTest(TestCase):
             authentication_service=AuthenticationService.DEFAULT.value
         )
 
-        self.request_data = {
-            'name': 'Data Cleaning Test',
-            'description': 'This is a data cleaning test',
-            'duration_in_minutes': 55,
-            'total_points': 10,
-            'questions': [
-                {
-                    'prompt': 'What is data cleaning?',
-                    'points': 5,
-                    'question_type': 'multiple_choice',
-                    'answer_options': [
-                        {
-                            'content': 'Cleaning data',
-                            'correct': True,
-                        },
-                        {
-                            'content': 'Creating new features',
-                            'correct': False,
-                        },
-
-                    ]
-                },
-                {
-                    'prompt': 'Have you ever done data cleaning with Pandas?',
-                    'points': 5,
-                    'question_type': 'text',
-                    'answer_key': 'Yes, I have',
-                }
-            ]
-        }
+        self.request_data = INTERACTIVE_QUIZ_DATA.copy()
 
         self.expected_interactive_quiz = InteractiveQuiz.objects.create(
             name=self.request_data.get('name'),
@@ -3850,36 +3852,7 @@ class InteractiveQuizSubmissionTest(TestCase):
             authentication_service=AuthenticationService.DEFAULT.value
         )
 
-        self.request_data = {
-            'name': 'Data Cleaning Test',
-            'description': 'This is a data cleaning test',
-            'duration_in_minutes': 55,
-            'total_points': 10,
-            'questions': [
-                {
-                    'prompt': 'What is data cleaning?',
-                    'points': 5,
-                    'question_type': 'multiple_choice',
-                    'answer_options': [
-                        {
-                            'content': 'Cleaning data',
-                            'correct': True,
-                        },
-                        {
-                            'content': 'Creating new features',
-                            'correct': False,
-                        },
-
-                    ]
-                },
-                {
-                    'prompt': 'Have you ever done data cleaning with Pandas?',
-                    'points': 5,
-                    'question_type': 'text',
-                    'answer_key': 'Yes, I have',
-                }
-            ]
-        }
+        self.request_data = INTERACTIVE_QUIZ_DATA
 
         self.interactive_quiz = InteractiveQuiz.objects.create(
             name=self.request_data.get('name'),
@@ -3994,13 +3967,6 @@ class InteractiveQuizSubmissionTest(TestCase):
             date_of_birth=datetime.date(2000, 12, 19),
             authentication_service=AuthenticationService.DEFAULT.value
         )
-
-    def test_get_assessment_event_participation_by_assessee(self):
-        retrieved_assessment_event: AssessmentEventParticipation = (
-            self.assessment_event.get_assessment_event_participation_by_assessee(self.assessee))
-
-        self.assertEquals(retrieved_assessment_event.assessment_event, self.assessment_event)
-        self.assertEquals(retrieved_assessment_event.assessee, self.assessee)
 
     def test_get_interactive_quiz_attempt_when_no_attempt_exist(self):
         interactive_quiz_attempt = self.event_participation.get_interactive_quiz_attempt(self.interactive_quiz)
@@ -4943,101 +4909,72 @@ def get_response_for_quiz_attempt_data(attempt_id, authenticated_user):
 class InteractiveQuizGradingTest(TestCase):
     def setUp(self) -> None:
         self.assessee_1 = Assessee.objects.create_user(
-            email='assessee3333@email.com',
-            password='Password3334',
-            first_name='Assessee 3335',
-            last_name='Assessee 3336',
-            phone_number='+628231233337',
-            date_of_birth=datetime.datetime(2000, 1, 3),
+            email='assessee_mail@email.com',
+            password='Password5432',
+            first_name='Mister',
+            last_name='Assessee',
+            phone_number='+6282312433337',
+            date_of_birth=datetime.datetime(1998, 1, 3),
             authentication_service=AuthenticationService.DEFAULT.value
         )
 
         self.assessee_2 = Assessee.objects.create_user(
-            email='assessee4443@email.com',
-            password='Password4444',
-            first_name='Assessee 4445',
-            last_name='Assessee 4446',
-            phone_number='+628231234447',
-            date_of_birth=datetime.datetime(2000, 1, 4),
+            email='assessee_mail02@email.com',
+            password='Passworr234',
+            first_name='Assessee 2904',
+            last_name='Last',
+            phone_number='+6282234232947',
+            date_of_birth=datetime.datetime(1999, 1, 4),
             authentication_service=AuthenticationService.DEFAULT.value
         )
 
         self.company = Company.objects.create_user(
-            email='company3343@email.com',
-            password='Password3344',
-            company_name='Company 3345',
-            description='Description 3346',
-            address='Address 3347'
+            email='mycompany@email.com',
+            password='Pass3344word',
+            company_name='My Company',
+            description='Description last',
+            address='Address of company'
         )
 
         self.assessor_responsible_for_1 = Assessor.objects.create_user(
-            email='assessor3351@email.com',
-            password='Password3352',
-            first_name='Assessor 3353',
-            last_name='Assessor 3354',
-            phone_number='+62823123355',
+            email='assessor101@email.com',
+            password='Password411',
+            first_name='Hailey',
+            last_name='Annie',
+            phone_number='+628253123355',
             associated_company=self.company,
             authentication_service=AuthenticationService.DEFAULT.value
         )
 
         self.assessor_responsible_for_2 = Assessor.objects.create_user(
-            email='assessor4451@email.com',
-            password='Password4452',
-            first_name='Assessor 4453',
-            last_name='Assessor 4454',
-            phone_number='+62823123355',
+            email='assessor1209@email.com',
+            password='PasswordHey1',
+            first_name='Miss',
+            last_name='Assesor',
+            phone_number='+62823198355',
             associated_company=self.company,
             authentication_service=AuthenticationService.DEFAULT.value
         )
 
         self.non_responsible_assessor = Assessor.objects.create_user(
-            email='nonresponsibleassessor3368@email.com',
-            password='Password3369',
-            first_name='Assessor 3370',
-            last_name='Assessor 3371',
-            phone_number='+62823123372',
+            email='1stnonresponsibleassessor@email.com',
+            password='PasswordTAF',
+            first_name='Addams',
+            last_name='Gomez',
+            phone_number='+62880123372',
             associated_company=self.company,
             authentication_service=AuthenticationService.DEFAULT.value
         )
 
         self.assignment = Assignment.objects.create(
-            name='Assessment Asg 3361',
-            description='Description 3362',
+            name='Assignment Data',
+            description='Description of Assignment',
             owning_company=self.company,
-            expected_file_format='pdf',
-            duration_in_minutes=30
+            expected_file_format='ppt',
+            duration_in_minutes=15
         )
 
-        self.request_data = {
-            'name': 'Data Cleaning Test',
-            'description': 'This is a data cleaning test',
-            'duration_in_minutes': 55,
-            'total_points': 10,
-            'questions': [
-                {
-                    'prompt': 'What is data cleaning?',
-                    'points': 5,
-                    'question_type': 'multiple_choice',
-                    'answer_options': [
-                        {
-                            'content': 'Cleaning data',
-                            'correct': True,
-                        },
-                        {
-                            'content': 'Creating new features',
-                            'correct': False,
-                        },
-
-                    ]
-                },
-                {
-                    'prompt': 'Have you ever done data cleaning with Pandas?',
-                    'points': 5,
-                    'question_type': 'text',
-                    'answer_key': 'Yes, I have',
-                }
-            ]
-        }
+        self.request_data = INTERACTIVE_QUIZ_DATA
 
         self.interactive_quiz = InteractiveQuiz.objects.create(
             name=self.request_data.get('name'),
@@ -5091,13 +5028,13 @@ class InteractiveQuizGradingTest(TestCase):
 
         self.test_flow.add_tool(
             assessment_tool=self.interactive_quiz,
-            release_time=datetime.time(15, 0),
-            start_working_time=datetime.time(15, 10)
+            release_time=datetime.time(16, 0),
+            start_working_time=datetime.time(16, 10)
         )
 
         self.event = AssessmentEvent.objects.create(
-            name='Uji Latih Sekretaris TA 3380',
-            start_date_time=datetime.datetime(2022, 10, 10),
+            name='Ujian Apa',
+            start_date_time=datetime.datetime(2022, 11, 10),
             owning_company=self.company,
             test_flow_used=self.test_flow
         )
