@@ -1199,6 +1199,18 @@ class GoogleAuthTest(TestCase):
             'id_token': 'sample_id_token'
         }
 
+        self.expected_company = Company.objects.create_user(email='company@company.com', password='Password123')
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.expected_company)
+
+        response = self.client.post(
+            GENERATE_ONE_TIME_CODE_URL,
+            content_type=REQUEST_CONTENT_TYPE
+        )
+
+        response_content = json.loads(response.content)
+        self.otc_data = {'one_time_code': response_content['code']}
+
     def test_parameterize_url_when_parameter_arguments_all_not_none(self):
         base_url = 'www.base_url/token?'
         parameter_arguments = {
@@ -1248,13 +1260,21 @@ class GoogleAuthTest(TestCase):
         self.assertEqual(created_assessee.first_name, self.dummy_user_data['given_name'])
         self.assertEqual(created_assessee.last_name, self.dummy_user_data['family_name'])
 
+    @patch.object(Assessor, 'save')
+    def test_create_assessor_from_data_using_google_auth(self, mocked_save):
+        created_assessor = google_login.create_assessor_from_data_using_google_auth(self.dummy_user_data, self.otc_data)
+        mocked_save.assert_called_once()
+        self.assertEqual(created_assessor.email, self.dummy_user_data['email'])
+        self.assertEqual(created_assessor.first_name, self.dummy_user_data['given_name'])
+        self.assertEqual(created_assessor.last_name, self.dummy_user_data['family_name'])
+        self.assertEqual(created_assessor.associated_company, self.expected_company)
+
     def test_get_assessee_assessor_user_with_google_matching_data_when_assessor_exists(self):
-        assessor_company = Company.objects.create_user(email='company@company.com', password='Password123')
         expected_assessor = Assessor(
             email=self.dummy_user_data['email'],
             first_name=self.dummy_user_data['given_name'],
             last_name=self.dummy_user_data['family_name'],
-            associated_company=assessor_company,
+            associated_company=self.expected_company,
             authentication_service=AuthenticationService.GOOGLE.value
         )
         expected_assessor.save()
@@ -1300,6 +1320,11 @@ class GoogleAuthTest(TestCase):
         google_login.register_assessee_with_google_data(self.dummy_user_data)
         mocked_create_assessee_google.assert_called_once()
 
+    @patch.object(google_login, 'create_assessor_from_data_using_google_auth')
+    def test_register_assessor_with_google_data_when_not_exist(self, mocked_create_assessor_google):
+        google_login.register_assessor_with_google_data(self.dummy_user_data, self.otc_data)
+        mocked_create_assessor_google.assert_called_once()
+
     def test_register_assessee_with_google_data_when_assessee_already_register_through_default_service(self):
         existing_user = Assessee(
             email=self.dummy_user_data['email'],
@@ -1310,6 +1335,21 @@ class GoogleAuthTest(TestCase):
         existing_user.save()
         try:
             google_login.register_assessee_with_google_data(self.dummy_user_data)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidGoogleLoginException as exception:
+            self.assertEqual(str(exception), 'User is already registered through the One Day Intern login service.')
+
+    def test_register_assessor_with_google_data_when_assessor_already_register_through_default_service(self):
+        existing_user = Assessor(
+            email=self.dummy_user_data['email'],
+            first_name=self.dummy_user_data['given_name'],
+            last_name=self.dummy_user_data['family_name'],
+            associated_company=self.expected_company,
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+        existing_user.save()
+        try:
+            google_login.register_assessor_with_google_data(self.dummy_user_data, self.otc_data)
             self.fail(EXCEPTION_NOT_RAISED)
         except InvalidGoogleLoginException as exception:
             self.assertEqual(str(exception), 'User is already registered through the One Day Intern login service.')
@@ -1391,7 +1431,20 @@ class GoogleLoginViewTest(TestCase):
             'exp': 1664703860
         }
         self.assessor_company = Company.objects.create_user(email='company@company.com', password='Password123')
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.assessor_company)
+
+        response = self.client.post(
+            GENERATE_ONE_TIME_CODE_URL,
+            content_type=REQUEST_CONTENT_TYPE
+        )
+
+        response_content = json.loads(response.content)
+        self.one_time_code = response_content['code']
+
         self.assessee_google_registration_url = '/users/google/oauth/register/assessee/?code=<sample_code>'
+        self.assessor_google_registration_url = f'/users/google/oauth/register/assessee/?code=<sample_code' \
+                                                '>/?state=<{self.one_time_code}>/ '
         self.google_login_url = '/users/google/oauth/login/?code=<sample_code>'
 
     def create_and_save_assessor_data(self, authentication_service):
@@ -1435,6 +1488,44 @@ class GoogleLoginViewTest(TestCase):
         mocked_json.return_value = self.dummy_response_data_from_auth_code
         mocked_verify_oauth2_token.return_value = self.dummy_response_user_profile_data_from_id_token
         response = self.client.get(self.assessee_google_registration_url)
+        response_content = json.loads(response.content)
+        self.assertIsNotNone(response_content.get('message'))
+        self.assertEqual(
+            response_content['message'], 'User is already registered through the One Day Intern login service.'
+        )
+
+    @patch.object(id_token, 'verify_oauth2_token')
+    @patch.object(requests.Response, 'json')
+    @patch.object(requests.Session, 'post')
+    def test_serve_google_register_assessor_callback_when_can_be_registered(self, mocked_post,
+                                                                            mocked_json, mocked_verify_oauth2_token):
+        mocked_post.return_value = requests.Response()
+        mocked_json.return_value = self.dummy_response_data_from_auth_code
+        mocked_verify_oauth2_token.return_value = self.dummy_response_user_profile_data_from_id_token
+        response = self.client.get(self.assessor_google_registration_url)
+        response_cookies = response.client.cookies
+        self.assertIsNotNone(response_cookies.get('accessToken'))
+        self.assertIsNotNone(response_cookies.get('refreshToken'))
+
+    @patch.object(id_token, 'verify_oauth2_token')
+    @patch.object(requests.Response, 'json')
+    @patch.object(requests.Session, 'post')
+    def test_serve_google_register_assessor_callback_when_can_not_be_registered(self,
+                                                                                mocked_post, mocked_json,
+                                                                                mocked_verify_oauth2_token):
+        assessor = Assessor(
+            email=self.dummy_response_user_profile_data_from_id_token['email'],
+            first_name=self.dummy_response_user_profile_data_from_id_token['given_name'],
+            last_name=self.dummy_response_user_profile_data_from_id_token['family_name'],
+            associated_company=self.assessor_company,
+            authentication_service=AuthenticationService.DEFAULT
+        )
+        assessor.save()
+
+        mocked_post.return_value = requests.Response()
+        mocked_json.return_value = self.dummy_response_data_from_auth_code
+        mocked_verify_oauth2_token.return_value = self.dummy_response_user_profile_data_from_id_token
+        response = self.client.get(self.assessor_google_registration_url)
         response_content = json.loads(response.content)
         self.assertIsNotNone(response_content.get('message'))
         self.assertEqual(
