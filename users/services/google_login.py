@@ -1,24 +1,24 @@
-import uuid
-
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
+from one_day_intern.decorators import catch_exception_and_convert_to_invalid_request_decorator
 from one_day_intern.settings import (
     GOOGLE_AUTH_CLIENT_SECRET,
     GOOGLE_AUTH_CLIENT_ID,
     GOOGLE_AUTH_GRANT_TYPE,
     GOOGLE_AUTH_TOKEN_URL
 )
-from rest_framework_simplejwt.tokens import RefreshToken
 from one_day_intern.exceptions import (
     InvalidGoogleAuthCodeException,
     InvalidGoogleIDTokenException,
     EmailNotFoundException,
     InvalidGoogleLoginException, InvalidRegistrationException
 )
+from rest_framework_simplejwt.tokens import RefreshToken
 from ..models import OdiUser, Assessor, Assessee, AuthenticationService, CompanyOneTimeLinkCode
 from . import utils
 import requests
 import time
+import uuid
 
 
 def google_get_id_token_from_auth_code(auth_code, redirect_uri):
@@ -50,6 +50,7 @@ def google_get_profile_from_id_token(identity_token):
     return identity_info
 
 
+@catch_exception_and_convert_to_invalid_request_decorator(exception_types=EmailNotFoundException)
 def get_assessee_user_with_google_matching_data(user_data):
     user_email = user_data.get('email')
     found_assessee_with_google = Assessee.objects.filter(email=user_email,
