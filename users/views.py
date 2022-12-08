@@ -40,7 +40,7 @@ import json
 @api_view(['GET'])
 def serve_google_register_assessor(request):
     auth_code = request.GET.get('code')
-    otc_data = {'one_time_code': request.GET.get('one_time_code')}
+    otc_data = {'one_time_code': request.GET.get('state')}
     id_token = google_get_id_token_from_auth_code(auth_code, GOOGLE_AUTH_REGISTER_ASSESSOR_REDIRECT_URI)
     user_profile = google_get_profile_from_id_token(id_token)
     user = register_assessor_with_google_data(user_profile, otc_data)

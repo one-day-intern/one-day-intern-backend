@@ -159,7 +159,7 @@ def register_assessor_with_google_data(user_data, otc_data):
         try:
             return get_assessor_user_with_google_matching_data(user_data)
         except InvalidRequestException:
-            raise InvalidGoogleLoginException('User is already registered through the One Day Intern login service.')
+            raise InvalidGoogleLoginException('User is registered through the One Day Intern login service')
 
 
 def get_tokens_for_user(user):

@@ -21,7 +21,7 @@ urlpatterns = [
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('google/oauth/login/assessor/', serve_google_login_callback_for_assessor, name='glogin-login-assessor'),
-    path('google/oauth/register/assessor/', serve_google_register_assessor),
+    path('google/oauth/register/assessor/', serve_google_register_assessor, name='glogin-register-assessor'),
     path('google/oauth/login-register/assessee/', serve_google_login_register_assessee, name='glogin-assessee'),
     path('register-assessee/', serve_register_assessee),
     path('generate-code/', generate_assessor_one_time_code),
