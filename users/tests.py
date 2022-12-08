@@ -1200,6 +1200,14 @@ class GoogleAuthTest(TestCase):
             'id_token': 'sample_id_token'
         }
 
+        self.company = Company.objects.create_user(
+            email='company1203@email.com',
+            password='Password1204',
+            company_name='Company 1203',
+            description='Description 1205',
+            address='Address 1206'
+        )
+
     def test_parameterize_url_when_parameter_arguments_all_not_none(self):
         base_url = 'www.base_url/token?'
         parameter_arguments = {
@@ -1284,6 +1292,46 @@ class GoogleAuthTest(TestCase):
             )
 
         expected_assessee.delete()
+
+    def test_get_assessor_user_with_google_matching_data_when_assessor_exists(self):
+        expected_assessor = Assessor(
+            email=self.dummy_user_data['email'],
+            first_name=self.dummy_user_data['given_name'],
+            last_name=self.dummy_user_data['family_name'],
+            phone_number='+62123451294',
+            associated_company=self.company,
+            authentication_service=AuthenticationService.GOOGLE.value
+        )
+        expected_assessor.save()
+
+        retrieved_assessor = google_login.get_assessor_user_with_google_matching_data(self.dummy_user_data)
+        self.assertEqual(retrieved_assessor.email, expected_assessor.email)
+        self.assertEqual(retrieved_assessor.first_name, expected_assessor.first_name)
+        self.assertEqual(retrieved_assessor.last_name, expected_assessor.last_name)
+
+        expected_assessor.delete()
+
+    def test_get_assessor_user_with_google_matching_data_when_assessor_does_not_exist(self):
+        expected_assessor = Assessor(
+            email=self.dummy_user_data['email'],
+            first_name=self.dummy_user_data['given_name'],
+            last_name=self.dummy_user_data['family_name'],
+            phone_number='+62123451310',
+            associated_company=self.company,
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+        expected_assessor.save()
+
+        try:
+            google_login.get_assessor_user_with_google_matching_data(self.dummy_user_data)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidRequestException as exception:
+            self.assertEqual(
+                str(exception),
+                f'Assessor registering with google login with {expected_assessor.email} email is not found'
+            )
+
+        expected_assessor.delete()
 
     def test_get_assessee_assessor_user_with_google_matching_data_when_assessor_exists(self):
         assessor_company = Company.objects.create_user(email='company@company.com', password='Password123')
