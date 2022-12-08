@@ -115,10 +115,19 @@ class Question(models.Model):
     points = models.IntegerField(default=0)
     question_type = models.CharField(choices=TYPES_CHOICES, null=False, max_length=16)
 
+    def get_points(self):
+        return self.points
+
+    def get_question_type(self):
+        return self.question_type
+
+    def get_prompt(self):
+        return self.prompt
+
 
 class MultipleChoiceQuestion(Question):
     def get_answer_options(self):
-        return self.multiplechoiceansweroption_set
+        return self.multiplechoiceansweroption_set.all()
 
     def save_answer_option_to_database(self, answer: dict):
         content = answer.get('content')
@@ -132,15 +141,21 @@ class MultipleChoiceQuestion(Question):
 
         return answer_option
 
+    def check_if_correct(self, answer_option_id):
+        return self.multiplechoiceansweroption_set.get(answer_option_id=answer_option_id).is_correct()
+
 
 class MultipleChoiceAnswerOption(models.Model):
     answer_option_id = models.UUIDField(primary_key=True, auto_created=True, default=uuid.uuid4)
-    question = models.ForeignKey('MultipleChoiceQuestion', related_name='questions', on_delete=models.CASCADE)
+    question = models.ForeignKey('MultipleChoiceQuestion', on_delete=models.CASCADE)
     content = models.TextField(null=False)
     correct = models.BooleanField(default=False)
 
     def get_content(self):
         return self.content
+
+    def is_correct(self):
+        return self.correct
 
 
 class TextQuestion(Question):
@@ -581,6 +596,23 @@ class ResponseTestSerializer(serializers.ModelSerializer):
             'owning_company_name',
         ]
 
+class VideoConferenceNotification(AssessmentTool):
+    subject = models.TextField(null=False)
+    message = models.TextField(null=False)
+
+class VideoConferenceNotificationSerializer(serializers.ModelSerializer):
+    owning_company_name = serializers.ReadOnlyField(source=OWNING_COMPANY_COMPANY_NAME)
+    class Meta:
+        model = VideoConferenceNotification
+        fields = [
+            'assessment_id',
+            'name',
+            'description',
+            'subject',
+            'message',
+            'owning_company_id',
+            'owning_company_name',
+        ]    
 
 class PolymorphicAssessmentToolSerializer:
     def __init__(self, assessment_tool):
@@ -639,6 +671,9 @@ class ToolAttempt(PolymorphicModel):
     def get_event_of_attempt(self):
         return self.test_flow_attempt.event_participation.assessment_event
 
+    def get_grade(self):
+        return self.grade
+
     def set_grade(self, grade):
         self.grade = grade
         self.save()
@@ -682,7 +717,7 @@ class InteractiveQuizAttempt(ToolAttempt):
     submitted_time = models.DateTimeField(default=None, null=True)
 
     def get_all_question_attempts(self):
-        return self.questionattempt_set
+        return self.questionattempt_set.all()
 
     def get_question_attempt(self, question_id):
         question = Question.objects.get(question_id=question_id)
@@ -699,17 +734,66 @@ class InteractiveQuizAttempt(ToolAttempt):
     def get_submitted_time(self):
         return self.submitted_time
 
+    def accumulate_points(self, points):
+        self.grade += points
+        self.save()
+
+    def calculate_total_points(self):
+        for question_attempt in self.questionattempt_set.all():
+            question_type = question_attempt.get_question().get_question_type()
+            if question_type == 'multiple_choice':
+                if question_attempt.is_answered:
+                    mcq_attempt = MultipleChoiceAnswerOptionAttempt.objects.get(
+                        question_attempt_id=question_attempt.question_attempt_id
+                    )
+                    if mcq_attempt.get_is_correct():
+                        self.accumulate_points(question_attempt.get_question().get_points())
+
 
 class QuestionAttempt(models.Model):
+    question_attempt_id = models.UUIDField(default=uuid.uuid4, primary_key=True)
     question = models.ForeignKey('Question', on_delete=models.CASCADE)
     interactive_quiz_attempt = models.ForeignKey('InteractiveQuizAttempt',
                                                  on_delete=models.CASCADE
                                                  )
     is_answered = models.BooleanField(default=False)
+    point = models.FloatField(default=0, null=True)
+    question_note = models.TextField(null=True)
+
+    def set_point(self, point):
+
+        if point > self.question.get_points() or point < 0:
+            raise InvalidRequestException('Cannot give points outside of constraint')
+
+        self.point = point
+        self.save()
+
+    def get_point(self):
+        return self.point
+
+    def set_note(self, note):
+        self.question_note = note
+        self.save()
+
+    def get_note(self):
+        return self.question_note
+
+    def get_question(self):
+        return self.question
+
+    def get_question_type(self):
+        return self.question.get_question_type()
+
+    def get_is_answered(self):
+        return self.is_answered
+
+    def get_id(self):
+        return self.question_attempt_id
 
 
 class TextQuestionAttempt(QuestionAttempt):
     answer = models.TextField(null=True)
+    is_graded = models.BooleanField(default=False)
 
     def set_answer(self, answer):
         self.answer = answer
@@ -722,6 +806,10 @@ class TextQuestionAttempt(QuestionAttempt):
 class MultipleChoiceAnswerOptionAttempt(QuestionAttempt):
     selected_option = models.ForeignKey('MultipleChoiceAnswerOption', related_name='selected_option', on_delete=models.CASCADE)
 
+    @property
+    def is_correct(self):
+        return self.selected_option.is_correct()
+
     def set_selected_option(self, answer_option_id):
         matching_answer_option = MultipleChoiceAnswerOption.objects.filter(answer_option_id=answer_option_id)
         answer_option = matching_answer_option[0]
@@ -730,6 +818,25 @@ class MultipleChoiceAnswerOptionAttempt(QuestionAttempt):
 
     def get_selected_option_content(self):
         return self.selected_option.get_content()
+
+    def set_is_correct(self, value):
+        self.is_correct = value
+        self.save()
+
+    def get_is_correct(self):
+        return self.is_correct
+
+
+class TextQuestionAttemptSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TextQuestionAttempt
+        fields = '__all__'
+
+
+class MultipleChoiceAnswerOptionAttemptSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MultipleChoiceAnswerOptionAttempt
+        fields = '__all__'
 
 
 class ResponseTestAttempt(ToolAttempt):
