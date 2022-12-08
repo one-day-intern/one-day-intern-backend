@@ -38,6 +38,7 @@ from .services.grading import (
     grade_assessment_tool,
     get_assignment_attempt_data,
     get_assignment_attempt_file,
+    get_response_test_attempt_data,
     grade_interactive_quiz_individual_question,
     grade_interactive_quiz,
     get_interactive_quiz_attempt_data
@@ -580,4 +581,7 @@ def serve_review_response_test_attempt_data(request):
     Format:
     assessment/review/response-test/?tool-attempt-id=<ToolAttemptId>
     """
-    return Response(data=None, status=200)
+    request_data = request.GET
+    response_test_attempt = get_response_test_attempt_data(request_data, user=request.user)
+    response_data = GradedResponseTestAttemptSerializer(response_test_attempt).data
+    return Response(data=response_data, status=200)

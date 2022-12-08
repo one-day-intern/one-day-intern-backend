@@ -257,3 +257,13 @@ def validate_tool_attempt_is_for_response_test(tool_attempt):
     if not isinstance(tool_attempt, ResponseTestAttempt):
         raise InvalidRequestException(f'Attempt with id {tool_attempt.tool_attempt_id} is not a response test')
 
+
+@catch_exception_and_convert_to_invalid_request_decorator(exception_types=ObjectDoesNotExist)
+def get_response_test_attempt_data(request_data, user):
+    tool_attempt = utils.get_tool_attempt_from_id(request_data.get('tool-attempt-id'))
+    validate_tool_attempt_is_for_response_test(tool_attempt)
+    assessor = get_assessor_or_raise_exception(user)
+    event = tool_attempt.get_event_of_attempt()
+    assessee = tool_attempt.get_user_of_attempt()
+    validate_assessor_responsibility(event, assessor, assessee)
+    return tool_attempt
