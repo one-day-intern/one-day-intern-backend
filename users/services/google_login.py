@@ -50,6 +50,10 @@ def google_get_profile_from_id_token(identity_token):
     return identity_info
 
 
+def get_assessee_user_with_google_matching_data(user_data):
+    return Exception
+
+
 def get_assessee_assessor_user_with_google_matching_data(user_data):
     user_email = user_data.get('email')
     found_assessor_with_google = Assessor.objects.filter(email=user_email,

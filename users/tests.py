@@ -1248,6 +1248,42 @@ class GoogleAuthTest(TestCase):
         self.assertEqual(created_assessee.first_name, self.dummy_user_data['given_name'])
         self.assertEqual(created_assessee.last_name, self.dummy_user_data['family_name'])
 
+    def test_get_assessee_user_with_google_matching_data_when_assessee_exists(self):
+        expected_assessee = Assessee(
+            email=self.dummy_user_data['email'],
+            first_name=self.dummy_user_data['given_name'],
+            last_name=self.dummy_user_data['family_name'],
+            authentication_service=AuthenticationService.GOOGLE.value
+        )
+        expected_assessee.save()
+
+        retrieved_assessee = google_login.get_assessee_user_with_google_matching_data(self.dummy_user_data)
+        self.assertEqual(retrieved_assessee.email, expected_assessee.email)
+        self.assertEqual(retrieved_assessee.first_name, expected_assessee.first_name)
+        self.assertEqual(retrieved_assessee.last_name, expected_assessee.last_name)
+
+        expected_assessee.delete()
+
+    def test_get_assessee_user_with_google_matching_data_when_assessee_does_not_exist(self):
+        expected_assessee = Assessee(
+            email=self.dummy_user_data['email'],
+            first_name=self.dummy_user_data['given_name'],
+            last_name=self.dummy_user_data['family_name'],
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+        expected_assessee.save()
+
+        try:
+            google_login.get_assessee_user_with_google_matching_data(self.dummy_user_data)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except EmailNotFoundException as exception:
+            self.assertEqual(
+                str(exception),
+                f'Assessee registering with google login with {expected_assessee.email} email is not found'
+            )
+
+        expected_assessee.delete()
+
     def test_get_assessee_assessor_user_with_google_matching_data_when_assessor_exists(self):
         assessor_company = Company.objects.create_user(email='company@company.com', password='Password123')
         expected_assessor = Assessor(
