@@ -565,3 +565,19 @@ def serve_get_interactive_quiz_attempt_data(request):
     request_data = request.GET
     response_data = get_interactive_quiz_attempt_data(request_data, user=request.user)
     return Response(data=response_data, status=200)
+
+
+@require_GET
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def serve_review_response_test_attempt_data(request):
+    """
+    This view will serve as the end-point for assessor to view the assessee submitted response-test
+    attempt data.
+    ----------------------------------------------------------
+    request-data must contain:
+    tool-attempt-id: string
+    Format:
+    assessment/review/response-test/?tool-attempt-id=<ToolAttemptId>
+    """
+    return Response(data=None, status=200)

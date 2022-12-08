@@ -27,7 +27,8 @@ from .views import (
     serve_save_graded_attempt,
     serve_get_interactive_quiz_attempt_data,
     serve_create_video_conference_notification,
-    serve_get_submitted_response_test
+    serve_get_submitted_response_test,
+    serve_review_response_test_attempt_data
 )
 
 urlpatterns = [
@@ -58,5 +59,6 @@ urlpatterns = [
     path('grade/interactive-quiz/', serve_save_graded_attempt, name='grade-interactive-quiz'),
     path('review/interactive-quiz/', serve_get_interactive_quiz_attempt_data, name='review-interactive-quiz'),
     path('review/assignment/data/', serve_get_assignment_attempt_data, name='get-assignment-attempt-data'),
-    path('review/assignment/file/', serve_get_assignment_attempt_file, name='get-assignment-attempt-file')
+    path('review/assignment/file/', serve_get_assignment_attempt_file, name='get-assignment-attempt-file'),
+    path('assessment/review/response-test/', serve_review_response_test_attempt_data, name='review-response-test')
 ]
