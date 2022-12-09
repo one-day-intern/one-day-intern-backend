@@ -120,6 +120,7 @@ SUBMIT_INTERACTIVE_QUIZ_ANSWERS_URL = reverse('submit-interactive-quiz-answers')
 SUBMIT_INTERACTIVE_QUIZ_URL = reverse('submit-interactive-quiz')
 GET_RELEASED_ASSIGNMENTS = reverse('event-active-assignments') + ASSESSMENT_EVENT_ID_PARAM_NAME
 GET_RELEASED_RESPONSE_TESTS = reverse('event-active-response-tests') + ASSESSMENT_EVENT_ID_PARAM_NAME
+GET_RELEASED_INTERACTIVE_QUIZZES = reverse('event-active-interactive-quizzes') + ASSESSMENT_EVENT_ID_PARAM_NAME
 GET_EVENT_DATA = reverse('get-event-data') + ASSESSMENT_EVENT_ID_PARAM_NAME
 GET_AND_DOWNLOAD_ATTEMPT_URL = reverse('get-submitted-assignment')
 CREATE_RESPONSE_TEST_URL = '/assessment/create/response-test/'
@@ -143,35 +144,35 @@ APPLICATION_PDF = 'application/pdf'
 OK_RESPONSE_STATUS_CODE = 200
 
 INTERACTIVE_QUIZ_DATA = {
-            'name': 'Data Cleaning Test',
-            'description': 'This is a data cleaning test',
-            'duration_in_minutes': 55,
-            'total_points': 10,
-            'questions': [
+    'name': 'Data Cleaning Test',
+    'description': 'This is a data cleaning test',
+    'duration_in_minutes': 55,
+    'total_points': 10,
+    'questions': [
+        {
+            'prompt': 'What is data cleaning?',
+            'points': 5,
+            'question_type': 'multiple_choice',
+            'answer_options': [
                 {
-                    'prompt': 'What is data cleaning?',
-                    'points': 5,
-                    'question_type': 'multiple_choice',
-                    'answer_options': [
-                        {
-                            'content': 'Cleaning data',
-                            'correct': True,
-                        },
-                        {
-                            'content': 'Creating new features',
-                            'correct': False,
-                        },
-
-                    ]
+                    'content': 'Cleaning data',
+                    'correct': True,
                 },
                 {
-                    'prompt': 'Have you ever done data cleaning with Pandas?',
-                    'points': 5,
-                    'question_type': 'text',
-                    'answer_key': 'Yes, I have',
-                }
+                    'content': 'Creating new features',
+                    'correct': False,
+                },
+
             ]
+        },
+        {
+            'prompt': 'Have you ever done data cleaning with Pandas?',
+            'points': 5,
+            'question_type': 'text',
+            'answer_key': 'Yes, I have',
         }
+    ]
+}
 
 
 class AssessmentTest(TestCase):
@@ -2812,7 +2813,7 @@ class ResponseTestTest(TestCase):
         self.request_data = {
             'name': 'Communication Task 2',
             'description': 'This is the first assignment',
-            'sender':'Director of Public Relation',
+            'sender': 'Director of Public Relation',
             'subject': 'This is a dummy email',
             'prompt': 'Hi! This is a dummy email'
         }
@@ -2905,6 +2906,7 @@ class ResponseTestTest(TestCase):
         self.assertEqual(response_content.get('owning_company_id'), self.company.id)
         self.assertEqual(response_content.get('owning_company_name'), self.company.company_name)
 
+
 class VideoConferenceNotificationTest(TestCase):
     def setUp(self) -> None:
         self.company = Company.objects.create_user(
@@ -2928,7 +2930,7 @@ class VideoConferenceNotificationTest(TestCase):
         self.request_data = {
             'name': 'Conference Task 2',
             'description': 'Conference call about sales',
-            'subject':'Sales conference',
+            'subject': 'Sales conference',
             'message': 'Hey! our conference on 11:50 is still on ya!',
         }
 
@@ -2940,7 +2942,8 @@ class VideoConferenceNotificationTest(TestCase):
             owning_company=self.assessor.associated_company
         )
 
-        self.expected_video_conference_notification_data = VideoConferenceNotificationSerializer(self.expected_video_conference_notification).data
+        self.expected_video_conference_notification_data = VideoConferenceNotificationSerializer(
+            self.expected_video_conference_notification).data
 
     def test_validate_video_conference_notification_is_valid(self):
         valid_request_data = self.request_data.copy()
@@ -2949,7 +2952,7 @@ class VideoConferenceNotificationTest(TestCase):
             assessment.validate_video_coference_notification(valid_request_data)
         except InvalidVideoConferenceNotificationException as exception:
             self.fail(f'{exception} is raised')
-    
+
     def test_validate_video_conference_notification_when_subject_is_invalid(self):
         request_data_with_no_subject = self.request_data.copy()
         request_data_with_no_subject['subject'] = ''
@@ -2959,7 +2962,7 @@ class VideoConferenceNotificationTest(TestCase):
             self.fail(EXCEPTION_NOT_RAISED)
         except InvalidVideoConferenceNotificationException as exception:
             self.assertEqual(str(exception), expected_message)
-    
+
     def test_validate_video_conference_notification_when_message_is_invalid(self):
         request_data_with_no_message = self.request_data.copy()
         request_data_with_no_message['message'] = ''
@@ -2973,7 +2976,8 @@ class VideoConferenceNotificationTest(TestCase):
     @patch.object(VideoConferenceNotification.objects, 'create')
     def test_save_video_conference_notification_to_database(self, mocked_create):
         mocked_create.return_value = self.expected_video_conference_notification
-        returned_assignment = assessment.save_video_conference_notification_to_database(self.request_data, self.assessor)
+        returned_assignment = assessment.save_video_conference_notification_to_database(self.request_data,
+                                                                                        self.assessor)
         returned_assignment_data = VideoConferenceNotificationSerializer(returned_assignment).data
         mocked_create.assert_called_once()
         self.assertDictEqual(returned_assignment_data, self.expected_video_conference_notification_data)
@@ -2983,7 +2987,7 @@ class VideoConferenceNotificationTest(TestCase):
     @patch.object(assessment, 'validate_assessment_tool')
     @patch.object(assessment, 'get_assessor_or_raise_exception')
     def test_create_assignment(self, mocked_get_assessor, mocked_validate_assessment_tool,
-                            mocked_validate_video_coference_notification, mocked_video_coference_notification):
+                               mocked_validate_video_coference_notification, mocked_video_coference_notification):
         mocked_get_assessor.return_value = self.assessor
         mocked_validate_assessment_tool.return_value = None
         mocked_validate_video_coference_notification.return_value = None
@@ -2996,15 +3000,19 @@ class VideoConferenceNotificationTest(TestCase):
         vidcon_data = json.dumps(self.request_data.copy())
         client = APIClient()
         client.force_authenticate(user=self.assessor)
-        response = client.post(CREATE_VIDEO_CONFERENCE_NOTIFICATION_URL, data=vidcon_data, content_type=REQUEST_CONTENT_TYPE)
+        response = client.post(CREATE_VIDEO_CONFERENCE_NOTIFICATION_URL, data=vidcon_data,
+                               content_type=REQUEST_CONTENT_TYPE)
         response_content = json.loads(response.content)
         self.assertEqual(response.status_code, OK_RESPONSE_STATUS_CODE)
         self.assertTrue(len(response_content) > 0)
         self.assertIsNotNone(response_content.get('assessment_id'))
         self.assertEqual(response_content.get('name'), self.expected_video_conference_notification_data.get('name'))
-        self.assertEqual(response_content.get('description'), self.expected_video_conference_notification_data.get('description'))
-        self.assertEqual(response_content.get('subject'), self.expected_video_conference_notification_data.get('subject'))
-        self.assertEqual(response_content.get('message'), self.expected_video_conference_notification_data.get('message'))
+        self.assertEqual(response_content.get('description'),
+                         self.expected_video_conference_notification_data.get('description'))
+        self.assertEqual(response_content.get('subject'),
+                         self.expected_video_conference_notification_data.get('subject'))
+        self.assertEqual(response_content.get('message'),
+                         self.expected_video_conference_notification_data.get('message'))
         self.assertEqual(response_content.get('owning_company_id'), self.company.id)
         self.assertEqual(response_content.get('owning_company_name'), self.company.company_name)
 
@@ -3579,7 +3587,8 @@ class AssignmentSubmissionTest(TestCase):
 
     @freeze_time('2022-11-25 11:49:59')
     @patch.object(google_storage, 'upload_file_to_google_bucket')
-    def test_serve_submit_assignment_when_assignment_has_not_been_released_and_deadline_has_not_passed(self,                                                                                              mock_upload):
+    def test_serve_submit_assignment_when_assignment_has_not_been_released_and_deadline_has_not_passed(self,
+                                                                                                       mock_upload):
         response = submit_file_and_get_request(self.request_data, authenticated_user=self.assessee)
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
@@ -3925,6 +3934,183 @@ class AssessmentToolDeadlineTest(TestCase):
             mocked_check.assert_called_with(self.assignment)
 
 
+class ActiveInteractiveQuizzes(TestCase):
+
+    def setUp(self) -> None:
+        self.assessee = Assessee.objects.create_user(
+            email='assessee5151@gmail.com',
+            password='Password0090',
+            first_name='Assessee Mister',
+            last_name='Assessee 909',
+            phone_number='+62823190905155',
+            date_of_birth=datetime.datetime(2001, 12, 2),
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.company = Company.objects.create_user(
+            email='company511@gmail.com',
+            password='Password162',
+            company_name='Companys 516',
+            description='Descriptions 164',
+            address='Addresss 565'
+        )
+
+        self.assessor = Assessor.objects.create_user(
+            email='assessor5691@gmail.com',
+            password='Password5701',
+            first_name='Assessor 5711',
+            last_name='Assessor 5721',
+            phone_number='+628231135113',
+            associated_company=self.company,
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.interactive_quiz: InteractiveQuiz = InteractiveQuiz.objects.create(
+            name='InteractiveQuiz 5179',
+            description='InteractiveQuiz 5180',
+            owning_company=self.company,
+            sender='sassessee5182@gmail.com',
+            subject='[Urgent] SUBMIT IT IN 1 HOUR 5183',
+            prompt='Please submit your test now.'
+        )
+
+        self.test_flow = TestFlow.objects.create(
+            name='TestFlow 5008',
+            owning_company=self.company
+        )
+
+        self.test_flow.add_tool(
+            assessment_tool=self.interactive_quiz,
+            release_time=datetime.time(10, 0),
+            start_working_time=datetime.time(10, 0)
+        )
+
+        self.assessment_event = AssessmentEvent.objects.create(
+            name='Assessment Event 52199',
+            start_date_time=datetime.datetime(2022, 12, 5),
+            owning_company=self.company,
+            test_flow_used=self.test_flow
+        )
+
+        self.assessment_event.add_participant(
+            assessee=self.assessee,
+            assessor=self.assessor
+        )
+
+        self.non_participating_assessee = Assessee.objects.create_user(
+            email='assessee1001@gmail.com',
+            password='Password1001',
+            first_name='Assessee 1001',
+            last_name='Assessee 1001',
+            phone_number='+628210015217',
+            date_of_birth=datetime.datetime(2001, 11, 2),
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.expected_tool_data = {
+            'name': self.interactive_quiz.name,
+            'description': self.interactive_quiz.description,
+            'type': 'interactivequiz',
+            'additional_info': {
+                'sender': self.interactive_quiz.sender,
+                'subject': self.interactive_quiz.subject,
+                'prompt': self.interactive_quiz.prompt
+            },
+            'id': str(self.interactive_quiz.assessment_id),
+            'released_time': '2022-12-05T10:00:00'
+        }
+
+    @freeze_time('2022-12-05 09:00:00')
+    def test_get_released_interactive_quizzes_when_its_event_day_but_no_response_test_is_released(self):
+        released_interactive_quizzes = self.assessment_event.get_released_interactive_quizzes()
+        self.assertEqual(len(released_interactive_quizzes), 0)
+
+    @freeze_time('2022-12-05 10:00:00')
+    def test_get_released_interactive_quiz_when_its_event_day_and_interactive_quiz_has_been_released(self):
+        released_interactive_quizzes = self.assessment_event.get_released_interactive_quizzes()
+        self.assertEqual(len(released_interactive_quizzes), 1)
+
+        released_tool = released_interactive_quizzes[0]
+        self.assertEqual(released_tool.get('type'), 'interactivequiz')
+        self.assertEqual(released_tool.get('name'), self.interactive_quiz.name)
+        self.assertEqual(released_tool.get('description'), self.interactive_quiz.description)
+        self.assertEqual(released_tool.get('released_time'), '2022-12-05T10:00:00')
+
+        response_test_data = released_tool.get('additional_info')
+        self.assertEqual(response_test_data.get('prompt'), self.interactive_quiz.prompt)
+        self.assertEqual(response_test_data.get('sender'), self.interactive_quiz.sender)
+        self.assertEqual(response_test_data.get('subject'), self.interactive_quiz.subject)
+
+    @freeze_time('2022-12-06 10:00:00')
+    def test_get_interactive_quiz_when_its_not_event_day_but_time_has_passed(self):
+        released_interactive_quizzes = self.assessment_event.released_interactive_quizzes()
+        self.assertEqual(len(released_interactive_quizzes), 0)
+
+    @freeze_time('2022-12-06 09:00:00')
+    def test_get_released_interactive_quiz_when_its_not_event_day_and_time_has_not_passed(self):
+        released_interactive_quizzes = self.assessment_event.released_interactive_quizzes()
+        self.assertEqual(len(released_interactive_quizzes), 0)
+
+    @freeze_time('2022-12-05 10:00:00')
+    def test_serve_get_all_active_interactive_quiz_when_event_with_id_does_not_exist(self):
+        invalid_id = str(uuid.uuid4())
+        response = get_fetch_and_get_response(
+            GET_RELEASED_INTERACTIVE_QUIZZES,
+            request_param=invalid_id,
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), EVENT_DOES_NOT_EXIST.format(invalid_id))
+
+    @freeze_time('2022-12-05 10:00:00')
+    def test_serve_get_all_active_interactive_quiz_when_user_is_not_an_assessee(self):
+        response = get_fetch_and_get_response(
+            GET_RELEASED_INTERACTIVE_QUIZZES,
+            request_param=str(self.assessment_event.event_id),
+            authenticated_user=self.assessor
+        )
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), USER_IS_NOT_ASSESSEE.format(self.assessor))
+
+    @freeze_time('2022-12-05 10:00:00')
+    def test_serve_get_all_active_interactive_quiz_when_assessee_does_not_participate_in_event(self):
+        response = get_fetch_and_get_response(
+            GET_RELEASED_INTERACTIVE_QUIZZES,
+            request_param=str(self.assessment_event.event_id),
+            authenticated_user=self.non_participating_assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            NOT_PART_OF_EVENT.format(self.non_participating_assessee, self.assessment_event.event_id)
+        )
+
+    @freeze_time('2022-12-05 09:00:00')
+    def test_serve_get_all_active_interactive_quiz_when_response_test_has_not_been_released(self):
+        response = get_fetch_and_get_response(
+            GET_RELEASED_INTERACTIVE_QUIZZES,
+            request_param=str(self.assessment_event.event_id),
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertEqual(len(response_content), 0)
+
+    @freeze_time('2022-12-05 10:00:00')
+    def test_serve_get_all_active_interactive_quiz_when_response_test_has_been_released(self):
+        response = get_fetch_and_get_response(
+            GET_RELEASED_INTERACTIVE_QUIZZES,
+            request_param=str(self.assessment_event.event_id),
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertEqual(len(response_content), 1)
+        self.assertEqual(response_content, [self.expected_tool_data])
+
 def submit_answers_and_get_request(request_data, authenticated_user):
     client = APIClient()
     client.force_authenticate(user=authenticated_user)
@@ -4260,7 +4446,6 @@ class InteractiveQuizSubmissionTest(TestCase):
 
         created_attempt = self.event_participation.get_interactive_quiz_attempt(self.interactive_quiz)
         self.assertEqual(created_attempt.submitted_time, datetime.datetime.now(tz=pytz.utc))
-
 
 
 def fetch_progress_data_of_assessee(event_id, assessee_email, authenticated_user):
@@ -4761,7 +4946,8 @@ class GradingTest(TestCase):
     def test_grade_assessment_tool_when_id_is_none(self):
         request_data = self.base_request_data.copy()
         del request_data['tool-attempt-id']
-        response = fetch_and_get_response(SUBMIT_GRADE_AND_NOTE_URL, request_data, authenticated_user=self.assessor_responsible_for_1)
+        response = fetch_and_get_response(SUBMIT_GRADE_AND_NOTE_URL, request_data,
+                                          authenticated_user=self.assessor_responsible_for_1)
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
         self.assertEqual(response_content.get('message'), TOOL_ATTEMPT_ID_MUST_EXIST)
@@ -4769,7 +4955,8 @@ class GradingTest(TestCase):
     def test_grade_assessment_tool_when_grade_is_not_a_number(self):
         request_data = self.base_request_data.copy()
         request_data['grade'] = 'A'
-        response = fetch_and_get_response(SUBMIT_GRADE_AND_NOTE_URL, request_data, authenticated_user=self.assessor_responsible_for_1)
+        response = fetch_and_get_response(SUBMIT_GRADE_AND_NOTE_URL, request_data,
+                                          authenticated_user=self.assessor_responsible_for_1)
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
         self.assertEqual(response_content.get('message'), GRADE_MUST_BE_A_NUMBER)
@@ -4777,7 +4964,8 @@ class GradingTest(TestCase):
     def test_grade_assessment_tool_when_note_is_not_a_text(self):
         request_data = self.base_request_data.copy()
         request_data['note'] = 190
-        response = fetch_and_get_response(SUBMIT_GRADE_AND_NOTE_URL, request_data, authenticated_user=self.assessor_responsible_for_1)
+        response = fetch_and_get_response(SUBMIT_GRADE_AND_NOTE_URL, request_data,
+                                          authenticated_user=self.assessor_responsible_for_1)
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
         self.assertEqual(response_content.get('message'), NOTE_MUST_BE_A_STRING)
@@ -4785,7 +4973,8 @@ class GradingTest(TestCase):
     def test_grade_assessment_tool_when_tool_with_attempt_id_does_not_exist(self):
         request_data = self.base_request_data.copy()
         request_data['tool-attempt-id'] = str(uuid.uuid4())
-        response = fetch_and_get_response(SUBMIT_GRADE_AND_NOTE_URL, request_data, authenticated_user=self.assessor_responsible_for_1)
+        response = fetch_and_get_response(SUBMIT_GRADE_AND_NOTE_URL, request_data,
+                                          authenticated_user=self.assessor_responsible_for_1)
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
         self.assertEqual(
@@ -5004,8 +5193,6 @@ class GradingTest(TestCase):
         self.assertEqual(response.status_code, HTTPStatus.OK)
         self.assertEqual(response.headers.get('Content-Length'), str(dummy_file.size))
         self.assertEqual(response.headers.get('Content-Disposition'), f'attachment; filename="{dummy_file.name}"')
-
-
 
 
 def get_response_for_quiz_attempt_data(attempt_id, authenticated_user):
@@ -5423,7 +5610,7 @@ class InteractiveQuizGradingTest(TestCase):
     def test_grade_quiz_attempt_when_request_is_valid(self):
         request_data = {'tool-attempt-id': str(self.quiz_attempt.tool_attempt_id),
                         'note': 'You missed something'
-        }
+                        }
         response = fetch_and_get_response(
             SUBMIT_INTERACTIVE_QUIZ_GRADE_AND_NOTE_URL,
             request_data,
@@ -5882,7 +6069,8 @@ class ResponseTestSubmissionTest(TestCase):
 
     @freeze_time('2022-12-03')
     def test_submit_response_test_when_event_with_id_is_not_active(self):
-        response = fetch_and_get_response(SUBMIT_RESPONSE_TEST_URL, self.submit_request_data, authenticated_user=self.assessee)
+        response = fetch_and_get_response(SUBMIT_RESPONSE_TEST_URL, self.submit_request_data,
+                                          authenticated_user=self.assessee)
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
         self.assertEqual(response_content.get('message'), EVENT_IS_NOT_ACTIVE.format(self.assessment_event.event_id))
@@ -6129,7 +6317,8 @@ class ResponseTestSubmissionTest(TestCase):
             grading.validate_tool_attempt_is_for_response_test(self.assignment_attempt)
             self.fail(EXCEPTION_NOT_RAISED)
         except InvalidRequestException as exception:
-            self.assertEqual(str(exception), ATTEMPT_IS_NOT_A_RESPONSE_TEST.format(self.assignment_attempt.tool_attempt_id))
+            self.assertEqual(str(exception),
+                             ATTEMPT_IS_NOT_A_RESPONSE_TEST.format(self.assignment_attempt.tool_attempt_id))
 
     def test_get_response_test_attempt_when_tool_with_id_does_not_exist(self):
         invalid_id = str(uuid.uuid4())
