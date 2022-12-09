@@ -36,6 +36,7 @@ PASSWORD_MUST_NOT_BE_NULL = 'Password must not be null'
 PASSWORD_INVALID_NO_UPPER = 'Password length must contain at least 1 uppercase character'
 EXCEPTION_NOT_RAISED = 'Exception not raised'
 ASSESSOR_WITH_EMAIL_NOT_EXIST = 'Assessor with email {} not found'
+ASSESSEE_WITH_EMAIL_NOT_EXIST = 'Assessee with email {} not found'
 COMPANY_WITH_EMAIL_NOT_EXIST = 'Company with email {} not found'
 ASSESSOR_COMPANY_WITH_EMAIL_NOT_FOUND = 'Assessor or Company with email {} not found'
 PASSWORD_IS_INVALID = 'Password for {} is invalid'
@@ -46,6 +47,7 @@ REGISTER_ASSESSOR_URL = '/users/register-assessor/'
 GENERATE_ONE_TIME_CODE_URL = '/users/generate-code/'
 GET_USER_INFO_URL = '/users/get-info/'
 LOGIN_ASSESSOR_AND_COMPANY_URL = reverse('login-assessor-company')
+LOGIN_ASSESSEE_URL = reverse('login-assessee')
 
 
 class OdiUserTestCase(TestCase):
@@ -1560,6 +1562,15 @@ class SeparateLoginTest(TestCase):
             authentication_service=AuthenticationService.DEFAULT.value
         )
 
+        self.assessee = Assessee.objects.create_user(
+            email= 'assessee461@gmail.com',
+            password='testPassword1234',
+            first_name='Anastasia',
+            last_name='Yuliana',
+            phone_number='+628127572466',
+            date_of_birth='1994-09-30'
+        )
+
         self.assessor_request_data = {
             'email': self.assessor.email,
             'password': 'Password1542'
@@ -1568,6 +1579,11 @@ class SeparateLoginTest(TestCase):
         self.company_request_data = {
             'email': self.company.email,
             'password': 'Password1536'
+        }
+
+        self.assessee_request_data = {
+            'email':self.assessee.email,
+            'password':'testPassword1234'
         }
 
     def test_get_assessor_from_email_when_exist(self):
@@ -1707,6 +1723,93 @@ class SeparateLoginTest(TestCase):
 
         self.assertEqual(response.status_code, HTTPStatus.UNAUTHORIZED)
 
+
+    def test_get_assessee_from_email_when_exist(self):
+        try:
+            user = utils.get_assessee_from_email(email=self.assessee.email)
+            self.assertEquals(user, self.assessee)
+        except Exception as exception:
+            self.fail(f'{exception} is raised')
+
+    def test_get_assessee_from_email_when_not_exist(self):
+        invalid_email = 'invalidemail1568@gmail.com'
+        try:
+            utils.get_assessee_from_email(email=invalid_email)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except ObjectDoesNotExist as exception:
+            self.assertEqual(str(exception), ASSESSEE_WITH_EMAIL_NOT_EXIST.format(invalid_email))
+
+
+    def test_utils_get_assessee_from_email_when_no_user_exist(self):
+        invalid_email = 'anjaybisadongplis@gmail.com'
+        try:
+            utils.get_assessee_from_email(email=invalid_email)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except ObjectDoesNotExist as exception:
+            self.assertEqual(str(exception), ASSESSEE_WITH_EMAIL_NOT_EXIST.format(invalid_email))
+
+    def assert_expected_assessee_is_returned_when_exist(self, expected_user, mock_get_assessee):
+        try:
+            user = utils.get_assessee_from_email(expected_user.email)
+            mock_get_assessee.assert_called_with(expected_user.email)
+            self.assertEquals(user, expected_user)
+        except Exception as exception:
+            self.fail(f'{exception} is raised')
+
+    @patch.object(utils, 'get_assessee_from_email')
+    def test_utils_get_assessee_from_email_when_assessee_exist(self, mock_get_assessee):
+        mock_get_assessee.return_value = self.assessee
+        self.assert_expected_assessee_is_returned_when_exist(self.assessee, mock_get_assessee)
+
+
+    @patch.object(User, 'check_password')
+    def test_verify_assessee_password_when_password_matches(self, mock_check_pass):
+        assessee_password = 'testPassword1234'
+        mock_check_pass.return_value = True
+        try:
+            verify_password(self.assessee, assessee_password)
+        except Exception as exception:
+            self.fail(f'{exception} is raised')
+
+    @patch.object(User, 'check_password')
+    def test_verify_assessee_password_when_password_does_not_match(self, mock_check_pass):
+        assessee_invalid_password = 'Password1543'
+        mock_check_pass.return_value = False
+        try:
+            verify_password(self.assessee, assessee_invalid_password)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidLoginCredentialsException as exception:
+            self.assertEqual(str(exception), PASSWORD_IS_INVALID.format(self.assessee.email))
+
+    def test_login_assessee_when_user_does_not_exist(self):
+        request_data = self.assessee_request_data.copy()
+        request_data['email'] = 'invalidemail11@1684.com'
+
+        client = APIClient()
+        response = client.post(
+            LOGIN_ASSESSEE_URL,
+            data=json.dumps(request_data),
+            content_type=REQUEST_CONTENT_TYPE
+        )
+        self.assertEqual(response.status_code, HTTPStatus.UNAUTHORIZED)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'), ASSESSEE_WITH_EMAIL_NOT_EXIST.format(request_data.get('email'))
+        )
+
+    def test_login_assessee_when_password_does_not_match(self):
+        request_data = self.assessee_request_data.copy()
+        request_data['password'] = 'NonMatchingPassword1700'
+
+        client = APIClient()
+        response = client.post(
+            LOGIN_ASSESSEE_URL,
+            data=json.dumps(request_data),
+            content_type=REQUEST_CONTENT_TYPE
+        )
+
+        self.assertEqual(response.status_code, HTTPStatus.UNAUTHORIZED)
+
     def fetch_and_get_response_no_authentication(self, url, request_data):
         client = APIClient()
         response = client.post(
@@ -1730,4 +1833,9 @@ class SeparateLoginTest(TestCase):
     def test_login_assessor_or_company_when_assessor_exist(self):
         request_data = self.assessor_request_data.copy()
         response = self.fetch_and_get_response_no_authentication(LOGIN_ASSESSOR_AND_COMPANY_URL, request_data)
+        self.assert_fetched_token_when_request_valid(response)
+    
+    def test_login_assessee_when_assessee_exist(self):
+        request_data = self.assessee_request_data.copy()
+        response = self.fetch_and_get_response_no_authentication(LOGIN_ASSESSEE_URL, request_data)
         self.assert_fetched_token_when_request_valid(response)
