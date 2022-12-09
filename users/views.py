@@ -3,6 +3,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from django.views.decorators.http import require_POST, require_GET
 from django.shortcuts import redirect
+from one_day_intern.exceptions import InvalidGoogleLoginException
 from .services.registration import (
     register_company,
     register_assessor,
@@ -20,10 +21,8 @@ from .services.google_login import (
 from .services.user_info import get_user_info
 from .services.login import login_assessee, login_assessor_company
 from one_day_intern.settings import (
-    GOOGLE_AUTH_LOGIN_REDIRECT_URI,
-    GOOGLE_AUTH_LOGIN_ASSESSEE_REDIRECT_URI,
+    GOOGLE_AUTH_LOGIN_REGISTER_ASSESSEE_REDIRECT_URI,
     GOOGLE_AUTH_LOGIN_ASSESSOR_REDIRECT_URI,
-    GOOGLE_AUTH_REGISTER_ASSESSEE_REDIRECT_URI,
     GOOGLE_AUTH_REGISTER_ASSESSOR_REDIRECT_URI,
     GOOGLE_AUTH_CLIENT_ASSESSEE_CALLBACK_URL,
     GOOGLE_AUTH_CLIENT_ASSESSOR_CALLBACK_URL
@@ -86,7 +85,7 @@ def serve_google_login_register_assessee(request):
     auth_code = request.GET.get('code')
     response = redirect(GOOGLE_AUTH_CLIENT_ASSESSEE_CALLBACK_URL)
     try:
-        id_token = google_get_id_token_from_auth_code(auth_code, GOOGLE_AUTH_REGISTER_ASSESSEE_REDIRECT_URI)
+        id_token = google_get_id_token_from_auth_code(auth_code, GOOGLE_AUTH_LOGIN_REGISTER_ASSESSEE_REDIRECT_URI)
         user_profile = google_get_profile_from_id_token(id_token)
         user = login_or_register_assessee_with_google_data(user_profile)
         tokens = get_tokens_for_user(user)
@@ -94,7 +93,7 @@ def serve_google_login_register_assessee(request):
         response.set_cookie('accessToken', tokens.get('access'))
         response.set_cookie('refreshToken', tokens.get('refresh'))
 
-    except Exception as exception:
+    except InvalidGoogleLoginException as exception:
         response.delete_cookie('accessToken', None)
         response.delete_cookie('refreshToken', None)
         response.set_cookie('googleErrorMessage', str(exception))
