@@ -104,6 +104,7 @@ ASSESSOR_NOT_RESPONSIBLE_FOR_ASSESSEE = '{} is not responsible for {} on event w
 TOOL_ATTEMPT_DOES_NOT_EXIST = 'Tool attempt with id {} does not exist'
 ATTEMPT_IS_NOT_AN_ASSIGNMENT = 'Attempt with id {} is not an assignment'
 ATTEMPT_IS_NOT_AN_INTERACTIVE_QUIZ = 'Attempt with id {} is not an interactive quiz'
+ATTEMPT_IS_NOT_A_RESPONSE_TEST = 'Attempt with id {} is not a response test'
 EVENT_DATE_HAS_PASSED = 'The event has passed. It cannot be edited without changing the event date'
 MUST_NOT_BEGIN_ON_PREVIOUS_DATE = 'The assessment event must not begin on a previous date.'
 EVENT_NOT_DELETABLE = 'Assessment event with {} is not deletable'
@@ -134,6 +135,7 @@ DELETE_ASSESSMENT_EVENT_URL = reverse('assessment-event-delete')
 CREATE_VIDEO_CONFERENCE_NOTIFICATION_URL = reverse('create-video-conference-notification')
 SUBMIT_RESPONSE_TEST_URL = reverse('submit-response-test')
 GET_SUBMITTED_RESPONSE_TEST = reverse('get-submitted-response')
+REVIEW_RESPONSE_TEST_ATTEMPT_DATA_URL = reverse('review-response-test') + '?tool-attempt-id='
 
 GET_TOOLS_URL = "/assessment/tools/"
 REQUEST_CONTENT_TYPE = 'application/json'
@@ -5530,7 +5532,6 @@ class InteractiveQuizGradingTest(TestCase):
         self.assertEqual(text_question.get('is_graded'), self.tq_attempt.is_graded)
 
 
-
 class ActiveResponseTest(TestCase):
     def setUp(self) -> None:
         self.assessee = Assessee.objects.create_user(
@@ -5728,6 +5729,16 @@ class ResponseTestSubmissionTest(TestCase):
             authentication_service=AuthenticationService.DEFAULT.value
         )
 
+        self.non_responsible_assessor = Assessor.objects.create_user(
+            email='assessor_5733@email.com',
+            password='Password5734',
+            first_name='Assessor 5735',
+            last_name='Assessor 5736',
+            phone_number='+11235737',
+            associated_company=self.company_1,
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
         self.assessee = Assessee.objects.create_user(
             email='assessee4933@email.com',
             password='Password4934',
@@ -5794,6 +5805,7 @@ class ResponseTestSubmissionTest(TestCase):
             assessee=self.assessee
         )
         self.event_participation = self.assessment_event.get_assessment_event_participation_by_assessee(self.assessee)
+        self.assignment_attempt = self.event_participation.create_assignment_attempt(self.assignment)
 
         self.submit_request_data = {
             'assessment-event-id': str(self.assessment_event.event_id),
@@ -6095,4 +6107,119 @@ class ResponseTestSubmissionTest(TestCase):
         self.assertEqual(response_content.get('subject'), response_test_attempt.subject)
         self.assertEqual(response_content.get('response'), response_test_attempt.response)
 
+        response_test_attempt.delete()
+
+    def test_validate_tool_attempt_is_for_response_test_when_tool_is_a_response_test_attempt(self):
+        response_test_attempt = ResponseTestAttempt.objects.create(
+            test_flow_attempt=self.event_participation.attempt,
+            assessment_tool_attempted=self.response_test,
+            submitted_time=datetime.datetime.now(),
+            subject='Subject 6117',
+            response='Response 6118'
+        )
+        try:
+            grading.validate_tool_attempt_is_for_response_test(response_test_attempt)
+        except Exception as exception:
+            self.fail(f'{exception} is raised')
+        finally:
+            response_test_attempt.delete()
+
+    def test_validate_tool_attempt_is_for_response_test_when_tool_is_not_a_response_test(self):
+        try:
+            grading.validate_tool_attempt_is_for_response_test(self.assignment_attempt)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidRequestException as exception:
+            self.assertEqual(str(exception), ATTEMPT_IS_NOT_A_RESPONSE_TEST.format(self.assignment_attempt.tool_attempt_id))
+
+    def test_get_response_test_attempt_when_tool_with_id_does_not_exist(self):
+        invalid_id = str(uuid.uuid4())
+        response = get_fetch_and_get_response(
+            REVIEW_RESPONSE_TEST_ATTEMPT_DATA_URL,
+            request_param=invalid_id,
+            authenticated_user=self.assessor_responsible_for_1
+        )
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), TOOL_ATTEMPT_DOES_NOT_EXIST.format(invalid_id))
+
+    def test_get_response_test_attempt_when_tool_attempt_is_not_for_response_test(self):
+        response = get_fetch_and_get_response(
+            REVIEW_RESPONSE_TEST_ATTEMPT_DATA_URL,
+            request_param=str(self.assignment_attempt.tool_attempt_id),
+            authenticated_user=self.assessor_responsible_for_1
+        )
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            ATTEMPT_IS_NOT_A_RESPONSE_TEST.format(self.assignment_attempt.tool_attempt_id)
+        )
+
+    def test_get_response_test_attempt_when_user_is_not_an_assessor(self):
+        response_test_attempt = ResponseTestAttempt.objects.create(
+            test_flow_attempt=self.event_participation.attempt,
+            assessment_tool_attempted=self.response_test,
+            submitted_time=datetime.datetime.now(),
+            subject='Subject 6131',
+            response='Response 6132'
+        )
+
+        response = get_fetch_and_get_response(
+            REVIEW_RESPONSE_TEST_ATTEMPT_DATA_URL,
+            request_param=str(response_test_attempt.tool_attempt_id),
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), ASSESSOR_NOT_FOUND.format(self.assessee))
+        response_test_attempt.delete()
+
+    def test_get_response_test_attempt_when_assessor_is_not_responsible_for_assessee(self):
+        response_test_attempt = ResponseTestAttempt.objects.create(
+            test_flow_attempt=self.event_participation.attempt,
+            assessment_tool_attempted=self.response_test,
+            submitted_time=datetime.datetime.now(),
+            subject='Subject 6131',
+            response='Response 6132'
+        )
+
+        response = get_fetch_and_get_response(
+            REVIEW_RESPONSE_TEST_ATTEMPT_DATA_URL,
+            request_param=str(response_test_attempt.tool_attempt_id),
+            authenticated_user=self.non_responsible_assessor
+        )
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            ASSESSOR_NOT_RESPONSIBLE_FOR_ASSESSEE.format(
+                self.non_responsible_assessor,
+                self.assessee,
+                self.assessment_event.event_id
+            )
+        )
+        response_test_attempt.delete()
+
+    @freeze_time('2022-08-12 01:00:00')
+    def test_get_response_test_attempt_when_request_is_valid(self):
+        response_test_attempt = ResponseTestAttempt.objects.create(
+            test_flow_attempt=self.event_participation.attempt,
+            assessment_tool_attempted=self.response_test,
+            submitted_time=datetime.datetime.now(),
+            subject='Subject 6182',
+            response='Response 6183'
+        )
+
+        response = get_fetch_and_get_response(
+            REVIEW_RESPONSE_TEST_ATTEMPT_DATA_URL,
+            request_param=str(response_test_attempt.tool_attempt_id),
+            authenticated_user=self.assessor_responsible_for_1
+        )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('submitted_time'), '2022-08-12T01:00:00+00:00')
+        self.assertEqual(response_content.get('subject'), response_test_attempt.subject)
+        self.assertEqual(response_content.get('response'), response_test_attempt.response)
+        self.assertEqual(response_content.get('grade'), response_test_attempt.grade)
+        self.assertEqual(response_content.get('note'), response_test_attempt.note)
         response_test_attempt.delete()

@@ -38,6 +38,7 @@ from .services.grading import (
     grade_assessment_tool,
     get_assignment_attempt_data,
     get_assignment_attempt_file,
+    get_response_test_attempt_data,
     grade_interactive_quiz_individual_question,
     grade_interactive_quiz,
     get_interactive_quiz_attempt_data
@@ -51,7 +52,8 @@ from .models import (
     ToolAttemptSerializer,
     AssignmentAttemptSerializer,
     VideoConferenceNotificationSerializer,
-    ResponseTestAttemptSerializer
+    ResponseTestAttemptSerializer,
+    GradedResponseTestAttemptSerializer
 )
 import json
 
@@ -529,6 +531,7 @@ def serve_grade_individual_question_attempts(request):
         'note': note}, status=200
     )
 
+
 @require_POST
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -562,4 +565,23 @@ def serve_get_interactive_quiz_attempt_data(request):
     """
     request_data = request.GET
     response_data = get_interactive_quiz_attempt_data(request_data, user=request.user)
+    return Response(data=response_data, status=200)
+
+
+@require_GET
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def serve_review_response_test_attempt_data(request):
+    """
+    This view will serve as the end-point for assessor to view the assessee submitted response-test
+    attempt data.
+    ----------------------------------------------------------
+    request-data must contain:
+    tool-attempt-id: string
+    Format:
+    assessment/review/response-test/?tool-attempt-id=<ToolAttemptId>
+    """
+    request_data = request.GET
+    response_test_attempt = get_response_test_attempt_data(request_data, user=request.user)
+    response_data = GradedResponseTestAttemptSerializer(response_test_attempt).data
     return Response(data=response_data, status=200)

@@ -3,16 +3,19 @@ from one_day_intern.decorators import catch_exception_and_convert_to_invalid_req
 from one_day_intern.exceptions import InvalidRequestException, RestrictedAccessException
 from one_day_intern.settings import GOOGLE_STORAGE_BUCKET_NAME
 from users.services import utils as user_utils
-from ..models import (AssignmentAttempt,
-                      InteractiveQuizAttempt,
-                      MultipleChoiceAnswerOptionAttempt,
-                      TextQuestionAttempt,
-                      TextQuestionAttemptSerializer,
-                      QuestionAttempt,
-                      ToolAttemptSerializer,
-                      MultipleChoiceAnswerOptionAttemptSerializer,
-                      MultipleChoiceAnswerOptionSerializer,
-                      MultipleChoiceQuestion)
+from ..models import (
+    AssignmentAttempt,
+    InteractiveQuizAttempt,
+    MultipleChoiceAnswerOptionAttempt,
+    TextQuestionAttempt,
+    TextQuestionAttemptSerializer,
+    QuestionAttempt,
+    ToolAttemptSerializer,
+    MultipleChoiceAnswerOptionAttemptSerializer,
+    MultipleChoiceAnswerOptionSerializer,
+    MultipleChoiceQuestion,
+    ResponseTestAttempt
+)
 from .participation_validators import validate_assessor_participation
 from . import utils, google_storage
 import mimetypes
@@ -248,3 +251,19 @@ def get_interactive_quiz_attempt_data(request_data, user):
     validate_assessor_responsibility(event, assessor, assessee)
     combined_data = combine_tool_data(tool_attempt)
     return combined_data
+
+
+def validate_tool_attempt_is_for_response_test(tool_attempt):
+    if not isinstance(tool_attempt, ResponseTestAttempt):
+        raise InvalidRequestException(f'Attempt with id {tool_attempt.tool_attempt_id} is not a response test')
+
+
+@catch_exception_and_convert_to_invalid_request_decorator(exception_types=ObjectDoesNotExist)
+def get_response_test_attempt_data(request_data, user):
+    tool_attempt = utils.get_tool_attempt_from_id(request_data.get('tool-attempt-id'))
+    validate_tool_attempt_is_for_response_test(tool_attempt)
+    assessor = get_assessor_or_raise_exception(user)
+    event = tool_attempt.get_event_of_attempt()
+    assessee = tool_attempt.get_user_of_attempt()
+    validate_assessor_responsibility(event, assessor, assessee)
+    return tool_attempt
