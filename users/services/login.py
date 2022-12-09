@@ -21,3 +21,17 @@ def login_assessor_company(request_data):
     verify_password(user, request_data.get('password'))
     token = utils.generate_token_for_user(user)
     return token
+
+
+def get_assessee_from_request_data(request_data):
+    try:
+        return utils.get_assessee_from_email(request_data.get('email'))
+    except ObjectDoesNotExist as exception:
+        raise InvalidLoginCredentialsException(exception)
+
+
+def login_assessee(request_data):
+    user = get_assessee_from_request_data(request_data)
+    verify_password(user, request_data.get('password'))
+    token = utils.generate_token_for_user(user)
+    return token
