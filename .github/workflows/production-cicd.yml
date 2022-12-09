@@ -23,7 +23,7 @@ jobs:
       - name: Run Test
         run: coverage run manage.py test --no-input
         env:
-          DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
           GOOGLE_AUTH_CLIENT_ID: ${{ secrets.GOOGLE_AUTH_CLIENT_ID }}
           GOOGLE_AUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_AUTH_CLIENT_SECRET }}
           GOOGLE_AUTH_LOGIN_REDIRECT_URI: ${{ secrets.GOOGLE_AUTH_LOGIN_REDIRECT_URI }}
