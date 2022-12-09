@@ -5870,6 +5870,37 @@ class ResponseTestSubmissionTest(TestCase):
         mocked_set_subject.assert_called_with(self.submit_request_data.get('subject'))
         mocked_set_response.assert_called_with(self.submit_request_data.get('response'))
 
+    def test_validate_response_test_request_is_valid_when_response_does_not_exist(self):
+        request_data = self.submit_request_data.copy()
+        del request_data['response']
+        try:
+            assessment_event_attempt.validate_response_test_request_is_valid(request_data)
+        except InvalidRequestException as exception:
+            self.assertEqual(str(exception), 'The response body should not be empty')
+
+    def test_validate_response_test_request_is_valid_when_response_is_not_a_string(self):
+        request_data = self.submit_request_data.copy()
+        request_data['response'] = 5883
+        try:
+            assessment_event_attempt.validate_response_test_request_is_valid(request_data)
+        except InvalidRequestException as exception:
+            self.assertEqual(str(exception), 'The response body should be a string')
+
+    def test_validate_response_test_request_is_valid_when_subject_exists_but_is_not_a_string(self):
+        request_data = self.submit_request_data.copy()
+        request_data['subject'] = 5891
+        try:
+            assessment_event_attempt.validate_response_test_request_is_valid(request_data)
+        except InvalidRequestException as exception:
+            self.assertEqual(str(exception), 'The response subject should be a string')
+
+    def test_validate_response_test_request_is_valid_when_request_is_valid(self):
+        request_data = self.submit_request_data.copy()
+        try:
+            assessment_event_attempt.validate_response_test_request_is_valid(request_data)
+        except Exception as exception:
+            self.fail(f'{exception} is raised')
+
     @freeze_time('2022-12-04')
     def test_submit_response_test_when_event_with_id_does_not_exist(self):
         invalid_id = str(uuid.uuid4())

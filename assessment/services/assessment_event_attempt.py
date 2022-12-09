@@ -63,6 +63,10 @@ def validate_response_test_has_not_been_attempted(event: AssessmentEvent, respon
         raise InvalidRequestException(f'Response test with id {response_test.assessment_id} has been attempted')
 
 
+def validate_response_test_request_is_valid(request_data):
+    raise InvalidRequestException
+
+
 def save_response_test_response(event: AssessmentEvent, response_test: ResponseTest, assessee: Assessee, request_data):
     event_participation = event.get_assessment_event_participation_by_assessee(assessee)
     response_test_attempt = event_participation.create_response_test_attempt(response_test)
