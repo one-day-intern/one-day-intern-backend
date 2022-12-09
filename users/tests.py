@@ -1580,11 +1580,13 @@ class GoogleLoginViewTest(TestCase):
         self.setup_google_mocks(mocked_post, mocked_json, mocked_verify_oauth2_token)
         self.create_and_save_assessee_data(AuthenticationService.DEFAULT.value)
         response = self.client.get(GOOGLE_REGISTER_ASSESSEE_URL)
-        response_content = json.loads(response.content)
-        self.assertIsNotNone(response_content.get('message'))
-        self.assertEqual(
-            response_content['message'], ALREADY_REGISTERED_THROUGH_DEFAULT_LOGIN
-        )
+        response_cookies = response.client.cookies
+        access_token = response_cookies.get('accessToken').value
+        refresh_token = response_cookies.get('refreshToken').value
+        error_message = response_cookies.get('googleErrorMessage').value
+        self.assertEqual(access_token, '')
+        self.assertEqual(refresh_token, '')
+        self.assertEqual(error_message, ALREADY_REGISTERED_THROUGH_DEFAULT_LOGIN)
 
     @patch.object(id_token, 'verify_oauth2_token')
     @patch.object(requests.Response, 'json')
@@ -1607,12 +1609,13 @@ class GoogleLoginViewTest(TestCase):
         self.setup_google_mocks(mocked_post, mocked_json, mocked_verify_oauth2_token)
         assessee = self.create_and_save_assessee_data(AuthenticationService.DEFAULT.value)
         response = self.client.get(GOOGLE_LOGIN_ASSESSEE_URL)
-        response_content = json.loads(response.content)
-        self.assertIsNotNone(response_content.get('message'))
-        self.assertEqual(
-            response_content['message'],
-            ALREADY_REGISTERED_THROUGH_DEFAULT_LOGIN
-        )
+        response_cookies = response.client.cookies
+        access_token = response_cookies.get('accessToken').value
+        self.assertEqual(access_token, '')
+        refresh_token = response_cookies.get('refreshToken').value
+        self.assertEqual(refresh_token, '')
+        error_message = response_cookies.get('googleErrorMessage').value
+        self.assertEqual(error_message, ALREADY_REGISTERED_THROUGH_DEFAULT_LOGIN)
         assessee.delete()
 
     @patch.object(id_token, 'verify_oauth2_token')
@@ -1662,11 +1665,12 @@ class GoogleLoginViewTest(TestCase):
         self.setup_google_mocks(mocked_post, mocked_json, mocked_verify_oauth2_token)
         assessor = self.create_and_save_assessor_data(AuthenticationService.DEFAULT.value)
         response = self.client.get(GOOGLE_LOGIN_ASSESSOR_URL)
-        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
-        response_content = json.loads(response.content)
-        self.assertIsNotNone(response_content.get('message'))
+        response_cookies = response.client.cookies
+        self.assertFalse(response_cookies.get('accessToken').value)
+        self.assertFalse(response_cookies.get('refreshToken').value)
+        error_message = response_cookies.get('googleErrorMessage').value
         self.assertEqual(
-            response_content['message'],
+            error_message,
             f'Assessor registering with google login with {self.dummy_response_user_profile_data_from_id_token["email"]} email is not found'
         )
         assessor.delete()

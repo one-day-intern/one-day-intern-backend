@@ -89,7 +89,6 @@ def serve_google_login_register_assessee(request):
     return response
 
 
-
 @require_POST
 @api_view(['POST'])
 def serve_register_company(request):
