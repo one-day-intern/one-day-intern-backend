@@ -477,6 +477,9 @@ class AssessmentEvent(models.Model):
     def get_released_assignments(self):
         return self.get_released_tools(tool_type=Assignment)
 
+    def get_released_interactive_quizzes(self):
+        return self.get_released_tools(tool_type=InteractiveQuiz)
+
     def get_released_response_tests(self):
         return self.get_released_tools(tool_type=ResponseTest)
 
