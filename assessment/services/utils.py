@@ -1,9 +1,13 @@
+import mimetypes
+
 from django.core.exceptions import ObjectDoesNotExist
 from django.contrib.auth.models import User
 from datetime import time, datetime
+
+from django.http import HttpResponse
 from users.models import Company, Assessor, Assessee
 from one_day_intern.exceptions import RestrictedAccessException
-from ..models import TestFlow, AssessmentEvent
+from ..models import TestFlow, AssessmentEvent, ToolAttempt
 from ..exceptions.exceptions import AssessmentToolDoesNotExist, TestFlowDoesNotExist, EventDoesNotExist
 
 
@@ -127,3 +131,20 @@ def get_prefix_from_file_name(file_name):
         return prefix
     except IndexError:
         raise ValueError(f'{file_name} is not a proper file name')
+
+
+def get_tool_attempt_from_id(tool_attempt_id) -> ToolAttempt:
+    try:
+        tool_attempt = ToolAttempt.objects.get(tool_attempt_id=tool_attempt_id)
+        return tool_attempt
+    except ObjectDoesNotExist:
+        raise ObjectDoesNotExist(f'Tool attempt with id {tool_attempt_id} does not exist')
+
+
+def generate_file_response(response_file):
+    content_type = mimetypes.guess_type(response_file.name)[0]
+    response = HttpResponse(response_file, content_type=content_type)
+    response['Content-Length'] = response_file.size
+    response['Content-Disposition'] = f'attachment; filename="{response_file.name}"'
+    response['Access-Control-Expose-Headers'] = 'Content-Disposition'
+    return response

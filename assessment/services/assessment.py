@@ -3,11 +3,12 @@ from one_day_intern.exceptions import (
     RestrictedAccessException,
     InvalidAssignmentRegistration,
     InvalidInteractiveQuizRegistration,
-    InvalidResponseTestRegistration
+    InvalidResponseTestRegistration,
+    InvalidVideoConferenceNotificationException
 )
 from users.models import Assessor, Company
 from . import utils
-from ..models import Assignment, MultipleChoiceQuestion, InteractiveQuiz, TextQuestion, ResponseTest
+from ..models import Assignment, MultipleChoiceQuestion, InteractiveQuiz, TextQuestion, ResponseTest, VideoConferenceNotification
 
 
 def get_assessor_or_raise_exception(user: User):
@@ -80,6 +81,8 @@ def validate_response_test(request_data):
         raise InvalidResponseTestRegistration('Prompt Should Not Be Empty')
     if len(request_data.get('subject').split()) == 0:
         raise InvalidResponseTestRegistration('Subject Should Not Be Empty')
+    if len(request_data.get('sender').split()) == 0:
+        raise InvalidResponseTestRegistration('Sender Should Not Be Empty')
 
 
 def save_response_test_to_database(request_data: dict, assessor: Assessor):
@@ -88,7 +91,7 @@ def save_response_test_to_database(request_data: dict, assessor: Assessor):
     owning_company = assessor.associated_company
     prompt = request_data.get('prompt')
     subject = request_data.get('subject')
-    sender = assessor
+    sender = request_data.get('sender')
     assignment = ResponseTest.objects.create(
         name=name,
         description=description,
@@ -106,6 +109,40 @@ def create_response_test(request_data, user):
     validate_response_test(request_data)
     response_test = save_response_test_to_database(request_data, assessor)
     return response_test
+
+
+def validate_video_coference_notification(request_data):
+    """
+    Video Conference Notification Must Have Subject, Message, Time Release
+    """
+    if len(request_data.get('subject').split()) == 0:
+        raise InvalidVideoConferenceNotificationException('Subject Should Not Be Empty')
+    if len(request_data.get('message').split()) == 0:
+        raise InvalidVideoConferenceNotificationException('Message Should Not Be Empty')
+
+
+def save_video_conference_notification_to_database(request_data: dict, assessor: Assessor):
+    name = request_data.get('name')
+    description = request_data.get('description')
+    owning_company = assessor.associated_company
+    subject = request_data.get('subject')
+    message = request_data.get('message')
+    assignment = VideoConferenceNotification.objects.create(
+        name=name,
+        description=description,
+        owning_company=owning_company,
+        subject=subject,
+        message=message,
+    )
+    return assignment
+
+
+def create_video_conference_notification(request_data, user):
+    assessor = get_assessor_or_raise_exception(user)
+    validate_assessment_tool(request_data)
+    validate_video_coference_notification(request_data)
+    video_conference_notification = save_video_conference_notification_to_database(request_data, assessor)
+    return video_conference_notification
 
 
 def validate_interactive_quiz(request_data):
