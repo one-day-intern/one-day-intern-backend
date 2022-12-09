@@ -1659,9 +1659,9 @@ class GoogleLoginViewTest(TestCase):
         self.setup_google_mocks(mocked_post, mocked_json, mocked_verify_oauth2_token)
         assessor = self.create_and_save_assessor_data(AuthenticationService.GOOGLE.value)
         response = self.client.get(GOOGLE_LOGIN_ASSESSOR_URL)
-        response_cookies = response.client.cookies
-        self.assertIsNotNone(response_cookies.get('accessToken'))
-        self.assertIsNotNone(response_cookies.get('refreshToken'))
+        param_arguments = self.get_param_arguments_of_redirect_response(response)
+        self.assertIsNotNone(param_arguments.get('accessToken'))
+        self.assertIsNotNone(param_arguments.get('refreshToken'))
         assessor.delete()
 
     @patch.object(id_token, 'verify_oauth2_token')
@@ -1672,10 +1672,10 @@ class GoogleLoginViewTest(TestCase):
         self.setup_google_mocks(mocked_post, mocked_json, mocked_verify_oauth2_token)
         assessor = self.create_and_save_assessor_data(AuthenticationService.DEFAULT.value)
         response = self.client.get(GOOGLE_LOGIN_ASSESSOR_URL)
-        response_cookies = response.client.cookies
-        self.assertFalse(response_cookies.get('accessToken').value)
-        self.assertFalse(response_cookies.get('refreshToken').value)
-        error_message = response_cookies.get('googleErrorMessage').value
+        param_arguments = self.get_param_arguments_of_redirect_response(response)
+        self.assertIsNone(param_arguments.get('accessToken'))
+        self.assertIsNone(param_arguments.get('refreshToken'))
+        error_message = param_arguments.get('errorMessage')
         self.assertEqual(
             error_message,
             f'Assessor registering with google login with {self.dummy_response_user_profile_data_from_id_token["email"]} email is not found'
