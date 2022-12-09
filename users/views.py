@@ -3,6 +3,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from django.views.decorators.http import require_POST, require_GET
 from django.shortcuts import redirect
+from one_day_intern.exceptions import InvalidGoogleLoginException
 from .services.registration import (
     register_company,
     register_assessor,
@@ -94,7 +95,7 @@ def serve_google_login_register_assessee(request):
         response.set_cookie('accessToken', tokens.get('access'))
         response.set_cookie('refreshToken', tokens.get('refresh'))
 
-    except Exception as exception:
+    except InvalidGoogleLoginException as exception:
         response.delete_cookie('accessToken', None)
         response.delete_cookie('refreshToken', None)
         response.set_cookie('googleErrorMessage', str(exception))
