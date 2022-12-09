@@ -64,7 +64,12 @@ def validate_response_test_has_not_been_attempted(event: AssessmentEvent, respon
 
 
 def validate_response_test_request_is_valid(request_data):
-    raise InvalidRequestException
+    if not request_data.get('response'):
+        raise InvalidRequestException('The response body should not be empty')
+    if not isinstance(request_data.get('response'), str):
+        raise InvalidRequestException('The response body should be a string')
+    if request_data.get('subject') and not isinstance(request_data.get('subject'), str):
+        raise InvalidRequestException('The response subject should be a string')
 
 
 def save_response_test_response(event: AssessmentEvent, response_test: ResponseTest, assessee: Assessee, request_data):
