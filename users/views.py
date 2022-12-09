@@ -17,7 +17,7 @@ from .services.google_login import (
     register_assessee_with_google_data, register_assessor_with_google_data
 )
 from .services.user_info import get_user_info
-from .services.login import login_assessor_company
+from .services.login import login_assessee, login_assessor_company
 from one_day_intern.settings import (
     GOOGLE_AUTH_LOGIN_REDIRECT_URI,
     GOOGLE_AUTH_REGISTER_ASSESSEE_REDIRECT_URI,
@@ -132,24 +132,6 @@ def serve_register_assessee(request):
     response_data = AssesseeSerializer(assessee).data
     return Response(data=response_data)
 
-@require_POST
-@api_view(['POST'])
-def serve_register_assessee(request):
-    """
-        request_data must contain
-        email,
-        password,
-        confirmed_password,
-        first_name,
-        last_name,
-        phone_number,
-        date_of_birth,
-    """
-    request_data = json.loads(request.body.decode('utf-8'))
-    assessee = register_assessee(request_data)
-    response_data = AssesseeSerializer(assessee).data
-    return Response(data=response_data)
-
 
 @require_POST
 @api_view(['POST'])
@@ -180,4 +162,19 @@ def serve_login_assessor_company(request):
     """
     request_data = json.loads(request.body.decode('utf-8'))
     token = login_assessor_company(request_data)
+    return Response(data=token, status=200)
+
+
+@require_POST
+@api_view(['POST'])
+def serve_login_assessee(request):
+    """
+    This view will return the refresh and access token for an assessee.
+    ----------------------------------------------------------
+    request-data must contain:
+    email: string
+    password: string
+    """
+    request_data = json.loads(request.body.decode('utf-8'))
+    token = login_assessee(request_data)
     return Response(data=token, status=200)

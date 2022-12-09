@@ -1,5 +1,6 @@
 from django.urls import path
 from .views import (
+    serve_login_assessee,
     serve_register_company,
     serve_google_login_callback,
     serve_register_assessee,
@@ -25,4 +26,5 @@ urlpatterns = [
     path('generate-code/', generate_assessor_one_time_code),
     path('get-info/', serve_get_user_info),
     path('login/assessor-company/', serve_login_assessor_company, name='login-assessor-company'),
+    path('login/assessee/', serve_login_assessee, name='login-assessee'),
 ]

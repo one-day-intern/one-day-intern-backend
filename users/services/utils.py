@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Optional, Match
 
 
-from ..models import Assessor, Company
+from ..models import Assessor, Company, Assessee
 import phonenumbers
 import re
 
@@ -98,6 +98,13 @@ def get_company_from_email(email):
         return Company.objects.get(email=email)
     except ObjectDoesNotExist:
         raise ObjectDoesNotExist(f'Company with email {email} not found')
+
+
+def get_assessee_from_email(email):
+    try:
+        return Assessee.objects.get(email=email)
+    except ObjectDoesNotExist:
+        raise ObjectDoesNotExist(f'Assessee with email {email} not found')
 
 
 def get_assessor_or_company_from_email(email):
