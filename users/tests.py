@@ -1634,9 +1634,9 @@ class GoogleLoginViewTest(TestCase):
                                                                             mocked_json, mocked_verify_oauth2_token):
         self.setup_google_mocks(mocked_post, mocked_json, mocked_verify_oauth2_token)
         response = self.client.get(GOOGLE_REGISTER_ASSESSOR_URL + f'&state={self.one_time_code}')
-        response_cookies = response.client.cookies
-        self.assertIsNotNone(response_cookies.get('accessToken'))
-        self.assertIsNotNone(response_cookies.get('refreshToken'))
+        param_arguments = self.get_param_arguments_of_redirect_response(response)
+        self.assertIsNotNone(param_arguments.get('accessToken'))
+        self.assertIsNotNone(param_arguments.get('refreshToken'))
 
     @patch.object(id_token, 'verify_oauth2_token')
     @patch.object(requests.Response, 'json')
@@ -1647,11 +1647,9 @@ class GoogleLoginViewTest(TestCase):
         self.setup_google_mocks(mocked_post, mocked_json, mocked_verify_oauth2_token)
         self.create_and_save_assessor_data(AuthenticationService.DEFAULT.value)
         response = self.client.get(GOOGLE_REGISTER_ASSESSOR_URL + f'&state={self.one_time_code}')
-        response_content = json.loads(response.content)
-        self.assertIsNotNone(response_content.get('message'))
-        self.assertEqual(
-            response_content['message'], ALREADY_REGISTERED_THROUGH_DEFAULT_LOGIN
-        )
+        response_content = self.get_param_arguments_of_redirect_response(response)
+        self.assertIsNotNone(response_content.get('errorMessage'))
+        self.assertEqual(response_content['errorMessage'], ALREADY_REGISTERED_THROUGH_DEFAULT_LOGIN)
 
     @patch.object(id_token, 'verify_oauth2_token')
     @patch.object(requests.Response, 'json')
