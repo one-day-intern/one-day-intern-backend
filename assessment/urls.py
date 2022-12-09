@@ -28,7 +28,8 @@ from .views import (
     serve_get_interactive_quiz_attempt_data,
     serve_create_video_conference_notification,
     serve_get_submitted_response_test,
-    serve_review_response_test_attempt_data
+    serve_review_response_test_attempt_data,
+    serve_get_all_active_interactive_quizzes
 )
 
 urlpatterns = [
@@ -51,7 +52,7 @@ urlpatterns = [
     path('assessment-event/get-data/', serve_get_assessment_event_data, name='get-event-data'),
     path('assessment-event/submit-assignments/', serve_submit_assignment, name='submit-assignments'),
     path('assessment-event/get-submitted-assignment/', serve_get_submitted_assignment, name='get-submitted-assignment'),
-    path('assessment-event/released-interactive-quizzes/', serve_get_all_active_response_test, name='event-active-interactive-quizzes'),
+    path('assessment-event/released-interactive-quizzes/', serve_get_all_active_interactive_quizzes, name='event-active-interactive-quizzes'),
     path('assessment-event/submit-answers/', serve_submit_answer, name='submit-interactive-quiz-answers'),
     path('assessment-event/submit-interactive-quiz/', serve_submit_interactive_quiz, name='submit-interactive-quiz'),
     path('assessment-event/progress/', serve_get_assessee_progress_on_event, name='get-assessee-progress'),

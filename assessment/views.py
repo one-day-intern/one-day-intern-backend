@@ -31,7 +31,8 @@ from .services.assessment_event_attempt import (
     submit_assignment,
     get_submitted_assignment,
     submit_interactive_quiz,
-    submit_interactive_quiz_answers
+    submit_interactive_quiz_answers,
+    get_all_active_interactive_quiz
 )
 from .services.progress_review import get_assessee_progress_on_assessment_event
 from .services.grading import (
@@ -303,7 +304,6 @@ def serve_get_all_active_assignment(request):
     """
     request_data = request.GET
     active_assignments = get_all_active_assignment(request_data, user=request.user)
-    print(active_assignments)
     return Response(data=active_assignments)
 
 
@@ -375,7 +375,6 @@ def serve_get_all_active_interactive_quizzes(request):
     """
     request_data = request.GET
     active_quizzes = get_all_active_interactive_quiz(request_data, user=request.user)
-    print(active_quizzes)
     return Response(data=active_quizzes)
 
 @require_POST

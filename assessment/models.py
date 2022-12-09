@@ -88,6 +88,14 @@ class InteractiveQuiz(AssessmentTool):
     duration_in_minutes = models.IntegerField(null=False)
     total_points = models.IntegerField(null=False)
 
+    def get_tool_data(self) -> dict:
+        tool_base_data = super().get_tool_data()
+        tool_base_data['additional_info'] = {
+            'duration_in_minutes': self.duration_in_minutes,
+            'total_points': self.total_points
+        }
+        return tool_base_data
+
     def get_end_working_time_if_executed_on_event_date(self, start_time: datetime.time, event_date):
         end_working_time = datetime.datetime(
             event_date.year,
@@ -340,7 +348,7 @@ class TestFlowTool(models.Model):
         released_data = self.assessment_tool.get_tool_data()
         released_data['id'] = str(self.assessment_tool.assessment_id)
 
-        if isinstance(self.assessment_tool, Assignment):
+        if isinstance(self.assessment_tool, Assignment) or isinstance(self.assessment_tool, InteractiveQuiz):
             released_data['released_time'] = self.get_iso_release_time_on_event_date(execution_date)
             released_data['end_working_time'] = self.assessment_tool.get_end_working_time_if_executed_on_event_date(
                 start_time=self.release_time,
