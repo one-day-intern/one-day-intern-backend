@@ -5998,6 +5998,45 @@ class ResponseTestSubmissionTest(TestCase):
         response_test_attempt.delete()
 
     @freeze_time('2022-12-04')
+    def test_submit_response_test_when_response_is_empty(self):
+        request_data = self.submit_request_data.copy()
+        request_data['response'] = ''
+        response = fetch_and_get_response(
+            SUBMIT_RESPONSE_TEST_URL,
+            request_data,
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), 'The response body should not be empty')
+
+    @freeze_time('2022-12-04')
+    def test_submit_response_test_when_response_is_not_a_string(self):
+        request_data = self.submit_request_data.copy()
+        request_data['response'] = 120
+        response = fetch_and_get_response(
+            SUBMIT_RESPONSE_TEST_URL,
+            request_data,
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), 'The response body should be a string')
+
+    @freeze_time('2022-12-04')
+    def test_submit_response_test_when_subject_is_not_a_string(self):
+        request_data = self.submit_request_data.copy()
+        request_data['subject'] = 6029
+        response = fetch_and_get_response(
+            SUBMIT_RESPONSE_TEST_URL,
+            request_data,
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), 'The response subject should be a string')
+
+    @freeze_time('2022-12-04')
     def test_submit_response_test_when_request_is_valid(self):
         response = fetch_and_get_response(
             SUBMIT_RESPONSE_TEST_URL,
