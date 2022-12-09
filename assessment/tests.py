@@ -3934,48 +3934,46 @@ class AssessmentToolDeadlineTest(TestCase):
             mocked_check.assert_called_with(self.assignment)
 
 
-class ActiveInteractiveQuizzes(TestCase):
-
+class ActiveInteractiveQuizTest(TestCase):
     def setUp(self) -> None:
         self.assessee = Assessee.objects.create_user(
             email='assessee5151@gmail.com',
-            password='Password0090',
-            first_name='Assessee Mister',
-            last_name='Assessee 909',
-            phone_number='+62823190905155',
-            date_of_birth=datetime.datetime(2001, 12, 2),
+            password='Password5152',
+            first_name='Assessee 5153',
+            last_name='Assessee 5154',
+            phone_number='+628231235155',
+            date_of_birth=datetime.datetime(2002, 12, 2),
             authentication_service=AuthenticationService.DEFAULT.value
         )
 
         self.company = Company.objects.create_user(
-            email='company511@gmail.com',
-            password='Password162',
-            company_name='Companys 516',
-            description='Descriptions 164',
-            address='Addresss 565'
+            email='company5161@gmail.com',
+            password='Password5162',
+            company_name='Company 5163',
+            description='Description 5164',
+            address='Address 5165'
         )
 
         self.assessor = Assessor.objects.create_user(
-            email='assessor5691@gmail.com',
-            password='Password5701',
-            first_name='Assessor 5711',
-            last_name='Assessor 5721',
-            phone_number='+628231135113',
+            email='assessor5169@gmail.com',
+            password='Password5170',
+            first_name='Assessor 5171',
+            last_name='Assessor 5172',
+            phone_number='+628231235173',
             associated_company=self.company,
             authentication_service=AuthenticationService.DEFAULT.value
         )
 
         self.interactive_quiz: InteractiveQuiz = InteractiveQuiz.objects.create(
             name='InteractiveQuiz 5179',
-            description='InteractiveQuiz 5180',
+            description='InteractiveQuiz Description 5180',
             owning_company=self.company,
-            sender='sassessee5182@gmail.com',
-            subject='[Urgent] SUBMIT IT IN 1 HOUR 5183',
-            prompt='Please submit your test now.'
+            duration_in_minutes=20,
+            total_points=20,
         )
 
         self.test_flow = TestFlow.objects.create(
-            name='TestFlow 5008',
+            name='TestFlow 5188',
             owning_company=self.company
         )
 
@@ -3986,7 +3984,7 @@ class ActiveInteractiveQuizzes(TestCase):
         )
 
         self.assessment_event = AssessmentEvent.objects.create(
-            name='Assessment Event 52199',
+            name='Assessment Event 5199',
             start_date_time=datetime.datetime(2022, 12, 5),
             owning_company=self.company,
             test_flow_used=self.test_flow
@@ -3998,23 +3996,22 @@ class ActiveInteractiveQuizzes(TestCase):
         )
 
         self.non_participating_assessee = Assessee.objects.create_user(
-            email='assessee1001@gmail.com',
-            password='Password1001',
-            first_name='Assessee 1001',
-            last_name='Assessee 1001',
-            phone_number='+628210015217',
-            date_of_birth=datetime.datetime(2001, 11, 2),
+            email='assessee5213@gmail.com',
+            password='Password5214',
+            first_name='Assessee 5215',
+            last_name='Assessee 5216',
+            phone_number='+628231235217',
+            date_of_birth=datetime.datetime(2002, 12, 2),
             authentication_service=AuthenticationService.DEFAULT.value
         )
 
         self.expected_tool_data = {
             'name': self.interactive_quiz.name,
             'description': self.interactive_quiz.description,
-            'type': 'interactivequiz',
+            'type': 'responsetest',
             'additional_info': {
-                'sender': self.interactive_quiz.sender,
-                'subject': self.interactive_quiz.subject,
-                'prompt': self.interactive_quiz.prompt
+                'duration_in_minutes': self.interactive_quiz.duration_in_minutes,
+                'total_points': self.interactive_quiz.total_points,
             },
             'id': str(self.interactive_quiz.assessment_id),
             'released_time': '2022-12-05T10:00:00'
@@ -4025,7 +4022,7 @@ class ActiveInteractiveQuizzes(TestCase):
         released_interactive_quizzes = self.assessment_event.get_released_interactive_quizzes()
         self.assertEqual(len(released_interactive_quizzes), 0)
 
-    @freeze_time('2022-12-05 10:00:00')
+    @freeze_time('2022-12-05 10:00:01')
     def test_get_released_interactive_quiz_when_its_event_day_and_interactive_quiz_has_been_released(self):
         released_interactive_quizzes = self.assessment_event.get_released_interactive_quizzes()
         self.assertEqual(len(released_interactive_quizzes), 1)
@@ -4037,18 +4034,17 @@ class ActiveInteractiveQuizzes(TestCase):
         self.assertEqual(released_tool.get('released_time'), '2022-12-05T10:00:00')
 
         response_test_data = released_tool.get('additional_info')
-        self.assertEqual(response_test_data.get('prompt'), self.interactive_quiz.prompt)
-        self.assertEqual(response_test_data.get('sender'), self.interactive_quiz.sender)
-        self.assertEqual(response_test_data.get('subject'), self.interactive_quiz.subject)
+        self.assertEqual(response_test_data.get('duration_in_minutes'), self.interactive_quiz.duration_in_minutes)
+        self.assertEqual(response_test_data.get('total_points'), self.interactive_quiz.total_points)
 
     @freeze_time('2022-12-06 10:00:00')
-    def test_get_interactive_quiz_when_its_not_event_day_but_time_has_passed(self):
-        released_interactive_quizzes = self.assessment_event.released_interactive_quizzes()
+    def test_get_released_interactive_quiz_when_its_not_event_day_but_time_has_passed(self):
+        released_interactive_quizzes = self.assessment_event.get_released_interactive_quizzes()
         self.assertEqual(len(released_interactive_quizzes), 0)
 
     @freeze_time('2022-12-06 09:00:00')
     def test_get_released_interactive_quiz_when_its_not_event_day_and_time_has_not_passed(self):
-        released_interactive_quizzes = self.assessment_event.released_interactive_quizzes()
+        released_interactive_quizzes = self.assessment_event.get_released_interactive_quizzes()
         self.assertEqual(len(released_interactive_quizzes), 0)
 
     @freeze_time('2022-12-05 10:00:00')
@@ -4100,7 +4096,7 @@ class ActiveInteractiveQuizzes(TestCase):
         self.assertEqual(len(response_content), 0)
 
     @freeze_time('2022-12-05 10:00:00')
-    def test_serve_get_all_active_interactive_quiz_when_response_test_has_been_released(self):
+    def test_serve_get_all_active_interactive_quiz_when_interactive_quiz_has_been_released(self):
         response = get_fetch_and_get_response(
             GET_RELEASED_INTERACTIVE_QUIZZES,
             request_param=str(self.assessment_event.event_id),
@@ -4110,6 +4106,7 @@ class ActiveInteractiveQuizzes(TestCase):
         response_content = json.loads(response.content)
         self.assertEqual(len(response_content), 1)
         self.assertEqual(response_content, [self.expected_tool_data])
+
 
 def submit_answers_and_get_request(request_data, authenticated_user):
     client = APIClient()

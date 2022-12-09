@@ -303,6 +303,7 @@ def serve_get_all_active_assignment(request):
     """
     request_data = request.GET
     active_assignments = get_all_active_assignment(request_data, user=request.user)
+    print(active_assignments)
     return Response(data=active_assignments)
 
 
@@ -374,6 +375,7 @@ def serve_get_all_active_interactive_quizzes(request):
     """
     request_data = request.GET
     active_quizzes = get_all_active_interactive_quiz(request_data, user=request.user)
+    print(active_quizzes)
     return Response(data=active_quizzes)
 
 @require_POST
