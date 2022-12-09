@@ -3,7 +3,19 @@ from one_day_intern.decorators import catch_exception_and_convert_to_invalid_req
 from one_day_intern.exceptions import InvalidRequestException, RestrictedAccessException
 from one_day_intern.settings import GOOGLE_STORAGE_BUCKET_NAME
 from users.services import utils as user_utils
-from ..models import AssignmentAttempt
+from ..models import (
+    AssignmentAttempt,
+    InteractiveQuizAttempt,
+    MultipleChoiceAnswerOptionAttempt,
+    TextQuestionAttempt,
+    TextQuestionAttemptSerializer,
+    QuestionAttempt,
+    ToolAttemptSerializer,
+    MultipleChoiceAnswerOptionAttemptSerializer,
+    MultipleChoiceAnswerOptionSerializer,
+    MultipleChoiceQuestion,
+    ResponseTestAttempt
+)
 from .participation_validators import validate_assessor_participation
 from . import utils, google_storage
 import mimetypes
@@ -20,7 +32,8 @@ def validate_grade_assessment_tool_request(request_data):
 
 def validate_assessor_responsibility(event, assessor, assessee):
     if not event.check_assessee_and_assessor_pair(assessee, assessor):
-        raise RestrictedAccessException(f'{assessor} is not responsible for {assessee} on event with id {event.event_id}')
+        raise RestrictedAccessException(
+            f'{assessor} is not responsible for {assessee} on event with id {event.event_id}')
 
 
 def validate_tool_attempt_is_for_assignment(tool_attempt):
@@ -91,3 +104,166 @@ def get_assignment_attempt_file(request_data, user):
     validate_assessor_responsibility(event, assessor, assessee)
     downloaded_file = download_assignment_attempt(tool_attempt)
     return downloaded_file
+
+
+def validate_tool_attempt_is_for_interactive_quiz(tool_attempt):
+    if not isinstance(tool_attempt, InteractiveQuizAttempt):
+        raise InvalidRequestException(f'Attempt with id {tool_attempt.tool_attempt_id} is not an interactive quiz')
+
+
+def set_multiple_choice_question_attempt_grade(mcq_attempt, request_data):
+    if isinstance(request_data.get('is_correct'), bool):
+        mcq_attempt.set_is_correct(request_data.get('is_correct'))
+
+    if request_data.get('note'):
+        mcq_attempt.set_note(request_data.get('note'))
+
+
+def set_text_question_attempt_grade(tool_attempt, question_attempt, request_data):
+    if request_data.get('grade'):
+        question_attempt.set_point(request_data.get('grade'))
+        tool_attempt.set_grade(request_data.get('grade'))
+
+    if request_data.get('note'):
+        question_attempt.set_note(request_data.get('note'))
+
+
+def set_question_attempt_grade(tool_attempt, request_data):
+    question = Question.objects.get(question_id=request_data['question-id'])
+
+    if question.get_question_type() == 'multiple_choice':
+        mcq_attempt = MultipleChoiceAnswerOptionAttempt.objects.get(
+            question_attempt_id=request_data.get('question-attempt-id'),
+            selected_option_id=request_data.get('selected-option-id'))
+        set_multiple_choice_question_attempt_grade(mcq_attempt, request_data)
+
+    else:
+        question_attempt = TextQuestionAttempt.objects.get(question_attempt_id=request_data.get('question-attempt-id'))
+        set_text_question_attempt_grade(tool_attempt, question_attempt, request_data)
+
+
+@catch_exception_and_convert_to_invalid_request_decorator(exception_types=ObjectDoesNotExist)
+def grade_interactive_quiz_individual_question(request_data, user):
+    validate_grade_assessment_tool_request(request_data)
+    tool_attempt = utils.get_tool_attempt_from_id(request_data.get('tool-attempt-id'))
+    validate_tool_attempt_is_for_interactive_quiz(tool_attempt)
+    assessor = get_assessor_or_raise_exception(user)
+    event = tool_attempt.get_event_of_attempt()
+    validate_assessor_participation(event, assessor)
+    assessee = tool_attempt.get_user_of_attempt()
+    validate_assessor_responsibility(event, assessor, assessee)
+    set_grade_and_note_of_tool_attempt(tool_attempt, request_data)
+    return request_data.get('grade'), request_data.get('note')
+
+
+def set_interactive_quiz_grade_and_note(tool_attempt, request_data):
+    tool_attempt.calculate_total_points()
+    if request_data.get('note'):
+        tool_attempt.set_note(request_data.get('note'))
+    return tool_attempt.get_grade(), tool_attempt.note
+
+
+@catch_exception_and_convert_to_invalid_request_decorator(exception_types=ObjectDoesNotExist)
+def grade_interactive_quiz(request_data, user):
+    validate_grade_assessment_tool_request(request_data)
+    tool_attempt = utils.get_tool_attempt_from_id(request_data.get('tool-attempt-id'))
+    validate_tool_attempt_is_for_interactive_quiz(tool_attempt)
+    assessor = get_assessor_or_raise_exception(user)
+    event = tool_attempt.get_event_of_attempt()
+    validate_assessor_participation(event, assessor)
+    assessee = tool_attempt.get_user_of_attempt()
+    validate_assessor_responsibility(event, assessor, assessee)
+    grade, note = set_interactive_quiz_grade_and_note(tool_attempt, request_data)
+    return grade, note
+
+
+def get_answer_options_data(question):
+    mc_question = MultipleChoiceQuestion.objects.get(question_id=question.question_id)
+    answer_options = mc_question.get_answer_options()
+    data = []
+
+    for ao in answer_options:
+        data.append(MultipleChoiceAnswerOptionSerializer(ao).data)
+
+    return data
+
+
+def combine_tool_data(tool_attempt):
+    tool_attempt_data = ToolAttemptSerializer(tool_attempt).data
+
+    combined_data = dict()
+    combined_data['tool_attempt_id'] = tool_attempt_data.get('tool_attempt_id')
+    combined_data['assessment_tool_attempted'] = tool_attempt_data.get('assessment_tool_attempted')
+    combined_data['grade'] = tool_attempt_data.get('grade')
+    combined_data['note'] = tool_attempt_data.get('note')
+    combined_data['answer_attempts'] = list()
+
+    question_attempts = tool_attempt.get_all_question_attempts()
+    for qa in question_attempts:
+        question = qa.get_question()
+
+        question_type = question.get_question_type()
+        if question_type == 'multiple_choice':
+            mc_answer_option = MultipleChoiceAnswerOptionAttempt.objects.get(question_attempt_id=qa.question_attempt_id)
+            mc_answer_option_data = MultipleChoiceAnswerOptionAttemptSerializer(mc_answer_option).data
+            mcq_dict = dict()
+
+            mcq_dict['question_attempt_id'] = mc_answer_option_data.get('question_attempt_id')
+            mcq_dict['is_answered'] = mc_answer_option_data.get('is_answered')
+            mcq_dict['prompt'] = question.get_prompt()
+            mcq_dict['note'] = qa.get_note()
+            mcq_dict['grade'] = str(mc_answer_option_data.get('point'))
+            mcq_dict['question_points'] = str(question.get_points())
+            mcq_dict['question_type'] = question_type
+            mcq_dict['answer_options'] = get_answer_options_data(question)
+            mcq_dict['selected_answer_option_id'] = str(mc_answer_option_data.get('selected_option'))
+            mcq_dict['is_correct'] = mc_answer_option_data.get('is_correct')
+
+            combined_data['answer_attempts'].append(mcq_dict)
+
+        else:
+            text_question_attempt = TextQuestionAttempt.objects.get(question_attempt_id=qa.question_attempt_id)
+            tq_dict = dict()
+
+            text_question_attempt_data = TextQuestionAttemptSerializer(text_question_attempt).data
+            tq_dict['question_attempt_id'] = text_question_attempt_data.get('question_attempt_id')
+            tq_dict['is_answered'] = text_question_attempt_data.get('is_answered')
+            tq_dict['prompt'] = question.get_prompt()
+            tq_dict['grade'] = str(text_question_attempt.get_point())
+            tq_dict['question_points'] = str(question.get_points())
+            tq_dict['note'] = qa.get_note()
+            tq_dict['question_type'] = question_type
+            tq_dict['answer'] = text_question_attempt_data.get('answer')
+            tq_dict['is_graded'] = text_question_attempt_data.get('is_graded')
+
+            combined_data['answer_attempts'].append(tq_dict)
+
+    return combined_data
+
+
+@catch_exception_and_convert_to_invalid_request_decorator(exception_types=ObjectDoesNotExist)
+def get_interactive_quiz_attempt_data(request_data, user):
+    tool_attempt = utils.get_tool_attempt_from_id(request_data.get('tool-attempt-id'))
+    validate_tool_attempt_is_for_interactive_quiz(tool_attempt)
+    assessor = get_assessor_or_raise_exception(user)
+    event = tool_attempt.get_event_of_attempt()
+    assessee = tool_attempt.get_user_of_attempt()
+    validate_assessor_responsibility(event, assessor, assessee)
+    combined_data = combine_tool_data(tool_attempt)
+    return combined_data
+
+
+def validate_tool_attempt_is_for_response_test(tool_attempt):
+    if not isinstance(tool_attempt, ResponseTestAttempt):
+        raise InvalidRequestException(f'Attempt with id {tool_attempt.tool_attempt_id} is not a response test')
+
+
+@catch_exception_and_convert_to_invalid_request_decorator(exception_types=ObjectDoesNotExist)
+def get_response_test_attempt_data(request_data, user):
+    tool_attempt = utils.get_tool_attempt_from_id(request_data.get('tool-attempt-id'))
+    validate_tool_attempt_is_for_response_test(tool_attempt)
+    assessor = get_assessor_or_raise_exception(user)
+    event = tool_attempt.get_event_of_attempt()
+    assessee = tool_attempt.get_user_of_attempt()
+    validate_assessor_responsibility(event, assessor, assessee)
+    return tool_attempt
