@@ -88,6 +88,7 @@ def submit_response_test(request_data, user):
     validate_attempt_is_submittable(assessment_tool, event)
     validate_tool_is_response_test(assessment_tool)
     validate_response_test_has_not_been_attempted(event, assessment_tool, assessee)
+    validate_response_test_request_is_valid(request_data)
     save_response_test_response(event, assessment_tool, assessee, request_data)
 
 
