@@ -63,6 +63,15 @@ def validate_response_test_has_not_been_attempted(event: AssessmentEvent, respon
         raise InvalidRequestException(f'Response test with id {response_test.assessment_id} has been attempted')
 
 
+def validate_response_test_request_is_valid(request_data):
+    if not request_data.get('response'):
+        raise InvalidRequestException('The response body should not be empty')
+    if not isinstance(request_data.get('response'), str):
+        raise InvalidRequestException('The response body should be a string')
+    if request_data.get('subject') and not isinstance(request_data.get('subject'), str):
+        raise InvalidRequestException('The response subject should be a string')
+
+
 def save_response_test_response(event: AssessmentEvent, response_test: ResponseTest, assessee: Assessee, request_data):
     event_participation = event.get_assessment_event_participation_by_assessee(assessee)
     response_test_attempt = event_participation.create_response_test_attempt(response_test)
@@ -79,6 +88,7 @@ def submit_response_test(request_data, user):
     validate_attempt_is_submittable(assessment_tool, event)
     validate_tool_is_response_test(assessment_tool)
     validate_response_test_has_not_been_attempted(event, assessment_tool, assessee)
+    validate_response_test_request_is_valid(request_data)
     save_response_test_response(event, assessment_tool, assessee, request_data)
 
 
