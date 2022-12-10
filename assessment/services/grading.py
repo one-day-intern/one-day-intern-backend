@@ -122,9 +122,14 @@ def set_multiple_choice_question_attempt_grade(mcq_attempt, request_data):
 
 def set_text_question_attempt_grade(tool_attempt, question_attempt, request_data):
     if request_data.get('grade'):
+        previous_points = question_attempt.get_point()
         question_attempt.set_point(request_data.get('grade'))
-        tool_attempt.set_grade(request_data.get('grade'))
-        question_attempt.set_is_graded()
+
+        if question_attempt.get_is_graded():
+            tool_attempt.update_points(previous_points, request_data.get('grade'))
+        else:
+            tool_attempt.accumulate_points(request_data.get('grade'))
+            question_attempt.set_is_graded()
 
     if request_data.get('note'):
         question_attempt.set_note(request_data.get('note'))

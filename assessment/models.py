@@ -748,6 +748,11 @@ class InteractiveQuizAttempt(ToolAttempt):
         self.grade += points
         self.save()
 
+    def update_points(self, old, new):
+        self.grade -= old
+        self.save()
+        self.accumulate_points(new)
+
     def calculate_total_points(self):
         for question_attempt in self.questionattempt_set.all():
             question_type = question_attempt.get_question().get_question_type()
@@ -812,6 +817,9 @@ class TextQuestionAttempt(QuestionAttempt):
     def set_is_graded(self):
         self.is_graded = True
         self.save()
+
+    def get_is_graded(self):
+        return self.is_graded
 
     def get_answer(self):
         return self.answer
