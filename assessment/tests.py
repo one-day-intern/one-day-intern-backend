@@ -5429,6 +5429,21 @@ class InteractiveQuizGradingTest(TestCase):
         self.assertEqual(self.tq_attempt.point, self.tq_request_data.get('grade'))
         self.assertEqual(self.tq_attempt.question_note, self.tq_request_data.get('note'))
 
+    def test_update_grade(self):
+        grading.set_text_question_attempt_grade(self.quiz_attempt, self.tq_attempt, self.tq_request_data)
+
+        self.assertEqual(self.quiz_attempt.grade, self.tq_request_data.get('grade'))
+        self.assertEqual(self.tq_attempt.point, self.tq_request_data.get('grade'))
+        self.assertEqual(self.tq_attempt.question_note, self.tq_request_data.get('note'))
+
+        request_data = self.tq_request_data.copy()
+        request_data['grade'] = 2
+        grading.set_text_question_attempt_grade(self.quiz_attempt, self.tq_attempt, request_data)
+
+        self.assertEqual(self.quiz_attempt.grade, request_data.get('grade'))
+        self.assertEqual(self.tq_attempt.point, request_data.get('grade'))
+        self.assertEqual(self.tq_attempt.question_note, self.tq_request_data.get('note'))
+
     def test_grade_question_attempt_when_id_is_none(self):
         request_data = self.mcq_request_data.copy()
         del request_data['tool-attempt-id']
