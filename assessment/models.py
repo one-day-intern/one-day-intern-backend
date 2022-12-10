@@ -809,6 +809,10 @@ class TextQuestionAttempt(QuestionAttempt):
         self.answer = answer
         self.save()
 
+    def set_is_graded(self):
+        self.is_graded = True
+        self.save()
+
     def get_answer(self):
         return self.answer
 

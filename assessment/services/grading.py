@@ -14,7 +14,8 @@ from ..models import (
     MultipleChoiceAnswerOptionAttemptSerializer,
     MultipleChoiceAnswerOptionSerializer,
     MultipleChoiceQuestion,
-    ResponseTestAttempt
+    ResponseTestAttempt,
+    Question
 )
 from .participation_validators import validate_assessor_participation
 from . import utils, google_storage
@@ -123,15 +124,16 @@ def set_text_question_attempt_grade(tool_attempt, question_attempt, request_data
     if request_data.get('grade'):
         question_attempt.set_point(request_data.get('grade'))
         tool_attempt.set_grade(request_data.get('grade'))
+        question_attempt.set_is_graded()
 
     if request_data.get('note'):
         question_attempt.set_note(request_data.get('note'))
 
 
 def set_question_attempt_grade(tool_attempt, request_data):
-    question = Question.objects.get(question_id=request_data['question-id'])
+    qtype = QuestionAttempt.objects.get(question_attempt_id=request_data.get('question-attempt-id')).get_question_type()
 
-    if question.get_question_type() == 'multiple_choice':
+    if qtype == 'multiple_choice':
         mcq_attempt = MultipleChoiceAnswerOptionAttempt.objects.get(
             question_attempt_id=request_data.get('question-attempt-id'),
             selected_option_id=request_data.get('selected-option-id'))
@@ -152,7 +154,7 @@ def grade_interactive_quiz_individual_question(request_data, user):
     validate_assessor_participation(event, assessor)
     assessee = tool_attempt.get_user_of_attempt()
     validate_assessor_responsibility(event, assessor, assessee)
-    set_grade_and_note_of_tool_attempt(tool_attempt, request_data)
+    set_question_attempt_grade(tool_attempt, request_data)
     return request_data.get('grade'), request_data.get('note')
 
 
