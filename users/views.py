@@ -50,11 +50,11 @@ def serve_google_register_assessor(request):
             'accessToken': tokens.get('access'),
             'refreshToken': tokens.get('refresh')
         }
-        parameterized_url = utils.parameterize_url(GOOGLE_AUTH_CLIENT_ASSESSEE_CALLBACK_URL + '/?', param_argument)
+        parameterized_url = utils.parameterize_url(GOOGLE_AUTH_CLIENT_ASSESSOR_CALLBACK_URL + '/?', param_argument)
         response = redirect(parameterized_url)
     except Exception as exception:
         param_argument = {'errorMessage': str(exception)}
-        parameterized_url = utils.parameterize_url(GOOGLE_AUTH_CLIENT_ASSESSEE_CALLBACK_URL + '/?', param_argument)
+        parameterized_url = utils.parameterize_url(GOOGLE_AUTH_CLIENT_ASSESSOR_CALLBACK_URL + '/?', param_argument)
         response = redirect(parameterized_url)
 
     return response
@@ -80,11 +80,11 @@ def serve_google_login_callback_for_assessor(request):
             'accessToken': tokens.get('access'),
             'refreshToken': tokens.get('refresh')
         }
-        parameterized_url = utils.parameterize_url(GOOGLE_AUTH_CLIENT_ASSESSEE_CALLBACK_URL + '/?', param_argument)
+        parameterized_url = utils.parameterize_url(GOOGLE_AUTH_CLIENT_ASSESSOR_CALLBACK_URL + '/?', param_argument)
         response = redirect(parameterized_url)
     except Exception as exception:
         param_argument = {'errorMessage': str(exception)}
-        parameterized_url = utils.parameterize_url(GOOGLE_AUTH_CLIENT_ASSESSEE_CALLBACK_URL + '/?', param_argument)
+        parameterized_url = utils.parameterize_url(GOOGLE_AUTH_CLIENT_ASSESSOR_CALLBACK_URL + '/?', param_argument)
         response = redirect(parameterized_url)
 
     return response
