@@ -50,6 +50,14 @@ def get_all_active_assignment(request_data: dict, user: User):
     return event.get_released_assignments()
 
 
+@catch_exception_and_convert_to_invalid_request_decorator(exception_types=EventDoesNotExist)
+def get_all_active_interactive_quiz(request_data: dict, user: User):
+    event = utils.get_active_assessment_event_from_id(request_data.get('assessment-event-id'))
+    assessee = utils.get_assessee_from_user(user)
+    validate_user_participation(event, assessee)
+    return event.get_released_interactive_quizzes()
+
+
 def get_response_test_attempt(event: AssessmentEvent, response_test: ResponseTest, assessee: Assessee):
     assessee_participation = event.get_assessment_event_participation_by_assessee(assessee)
     found_attempt = assessee_participation.get_response_test_attempt(response_test)
