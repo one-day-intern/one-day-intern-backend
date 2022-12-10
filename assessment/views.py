@@ -31,7 +31,8 @@ from .services.assessment_event_attempt import (
     submit_assignment,
     get_submitted_assignment,
     submit_interactive_quiz,
-    submit_interactive_quiz_answers
+    submit_interactive_quiz_answers,
+    get_all_active_interactive_quiz
 )
 from .services.progress_review import get_assessee_progress_on_assessment_event
 from .services.grading import (
@@ -363,6 +364,18 @@ def serve_get_submitted_assignment(request):
     else:
         return Response(data={'message': 'No attempt found'}, status=200)
 
+@require_GET
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def serve_get_all_active_interactive_quizzes(request):
+    """
+    Endpoint that can only be accessed by assessee.
+    Assessee authentication-related information should be present through the JWT.
+    URL structure /active-interactive-quizzes/?assessment-event-id=<assessment-event-id>
+    """
+    request_data = request.GET
+    active_quizzes = get_all_active_interactive_quiz(request_data, user=request.user)
+    return Response(data=active_quizzes)
 
 @require_POST
 @api_view(['POST'])
