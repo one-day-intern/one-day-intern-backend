@@ -5524,6 +5524,11 @@ class InteractiveQuizGradingTest(TestCase):
         changed_attempt = ToolAttempt.objects.get(tool_attempt_id=self.quiz_attempt.tool_attempt_id)
         self.assertEqual(changed_attempt.grade, request_data.get('grade'))
 
+        changed_text_question = TextQuestionAttempt.objects.get(question_id=self.text_question.question_id)
+        self.assertEqual(changed_text_question.point, self.tq_request_data.get('grade'))
+        self.assertEqual(changed_text_question.question_note, self.tq_request_data.get('note'))
+        self.assertEqual(changed_text_question.is_graded, True)
+
     def test_grade_quiz_attempt_when_id_is_none(self):
         request_data = self.mcq_request_data.copy()
         del request_data['tool-attempt-id']
@@ -5680,7 +5685,7 @@ class InteractiveQuizGradingTest(TestCase):
         self.assertEqual(response.status_code, HTTPStatus.OK)
 
         response_content = json.loads(response.content)
-        # self.assertEqual(response_content.get('assessment_tool_attempted'), str(self.quiz_attempt.tool_attempt_id))
+        self.assertEqual(response_content.get('assessment_tool_attempted'), str(self.interactive_quiz.assessment_id))
         self.assertEqual(response_content.get('grade'), self.quiz_attempt.grade)
         self.assertEqual(response_content.get('note'), self.quiz_attempt.note)
 
