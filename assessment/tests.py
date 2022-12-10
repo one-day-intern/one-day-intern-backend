@@ -4012,7 +4012,6 @@ class ActiveInteractiveQuizTest(TestCase):
             'type': 'interactivequiz',
             'additional_info': {
                 'duration_in_minutes': self.interactive_quiz.duration_in_minutes,
-                'total_points': self.interactive_quiz.total_points,
             },
             'id': str(self.interactive_quiz.assessment_id),
             'released_time': '2022-12-05T10:00:00'
@@ -4036,7 +4035,6 @@ class ActiveInteractiveQuizTest(TestCase):
 
         response_test_data = released_tool.get('additional_info')
         self.assertEqual(response_test_data.get('duration_in_minutes'), self.interactive_quiz.duration_in_minutes)
-        self.assertEqual(response_test_data.get('total_points'), self.interactive_quiz.total_points)
 
     @freeze_time('2022-12-06 10:00:00')
     def test_get_released_interactive_quiz_when_its_not_event_day_but_time_has_passed(self):

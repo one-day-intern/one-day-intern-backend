@@ -92,7 +92,6 @@ class InteractiveQuiz(AssessmentTool):
         tool_base_data = super().get_tool_data()
         tool_base_data['additional_info'] = {
             'duration_in_minutes': self.duration_in_minutes,
-            'total_points': self.total_points
         }
         return tool_base_data
 
