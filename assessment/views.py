@@ -34,7 +34,10 @@ from .services.assessment_event_attempt import (
     submit_interactive_quiz_answers,
     get_all_active_interactive_quiz
 )
-from .services.progress_review import get_assessee_progress_on_assessment_event
+from .services.progress_review import (
+    get_assessee_progress_on_assessment_event,
+    get_assessee_report_on_assessment_event
+)
 from .services.grading import (
     grade_assessment_tool,
     get_assignment_attempt_data,
@@ -614,4 +617,6 @@ def serve_get_assessee_report_on_assessment_event(request):
     Format:
     assessment/review/response-test/?assessment-event-id=<AssessmentEventId>&assessee-email=<AssesseeEmail>
     """
-    return Response(data=None, status=200)
+    request_data = request.GET
+    assessee_report = get_assessee_report_on_assessment_event(request_data, user=request.user)
+    return Response(data=assessee_report, status=200)
