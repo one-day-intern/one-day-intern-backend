@@ -4815,8 +4815,6 @@ class InteractiveQuizSubmissionTest(TestCase):
     def test_serve_submit_interactive_quiz_answers_when_request_is_valid(self):
         response = submit_answers_and_get_request(self.request_data,
                                                   authenticated_user=self.assessee)
-        response_content = json.loads(response.content)
-        print(response_content.get('message'))
         self.assertEqual(response.status_code, HTTPStatus.OK)
         response_content = json.loads(response.content)
         self.assertEqual(response_content.get('message'), 'Answers saved successfully')
