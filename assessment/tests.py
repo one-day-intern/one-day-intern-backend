@@ -2906,6 +2906,109 @@ class ResponseTestTest(TestCase):
         self.assertEqual(response_content.get('owning_company_id'), self.company.id)
         self.assertEqual(response_content.get('owning_company_name'), self.company.company_name)
 
+class VideoConferenceNotificationTest(TestCase):
+    def setUp(self) -> None:
+        self.company = Company.objects.create_user(
+            email='company123@company.com',
+            password='password123',
+            company_name='Company123',
+            description='Company123 Description',
+            address='JL. Company Levinson Durbin 123'
+        )
+
+        self.assessor = Assessor.objects.create_user(
+            email='vandermonde@assessor.com',
+            password='password',
+            first_name='VanDer',
+            last_name='Monde',
+            phone_number='+6282312345673',
+            employee_id='A&EX4NDER3',
+            associated_company=self.company,
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+        self.request_data = {
+            'name': 'Conference Task 2',
+            'description': 'Conference call about sales',
+            'subject':'Sales conference',
+            'message': 'Hey! our conference on 11:50 is still on ya!',
+        }
+
+        self.expected_video_conference_notification = VideoConferenceNotification(
+            name=self.request_data.get('name'),
+            description=self.request_data.get('description'),
+            subject=self.request_data.get('subject'),
+            message=self.request_data.get('message'),
+            owning_company=self.assessor.associated_company
+        )
+
+        self.expected_video_conference_notification_data = VideoConferenceNotificationSerializer(self.expected_video_conference_notification).data
+
+    def test_validate_video_conference_notification_is_valid(self):
+        valid_request_data = self.request_data.copy()
+        try:
+            self.assertEqual(type(valid_request_data), dict)
+            assessment.validate_video_coference_notification(valid_request_data)
+        except InvalidVideoConferenceNotificationException as exception:
+            self.fail(f'{exception} is raised')
+    
+    def test_validate_video_conference_notification_when_subject_is_invalid(self):
+        request_data_with_no_subject = self.request_data.copy()
+        request_data_with_no_subject['subject'] = ''
+        expected_message = 'Subject Should Not Be Empty'
+        try:
+            assessment.validate_video_coference_notification(request_data_with_no_subject)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidVideoConferenceNotificationException as exception:
+            self.assertEqual(str(exception), expected_message)
+    
+    def test_validate_video_conference_notification_when_message_is_invalid(self):
+        request_data_with_no_message = self.request_data.copy()
+        request_data_with_no_message['message'] = ''
+        expected_message = 'Message Should Not Be Empty'
+        try:
+            assessment.validate_video_coference_notification(request_data_with_no_message)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidVideoConferenceNotificationException as exception:
+            self.assertEqual(str(exception), expected_message)
+
+    @patch.object(VideoConferenceNotification.objects, 'create')
+    def test_save_video_conference_notification_to_database(self, mocked_create):
+        mocked_create.return_value = self.expected_video_conference_notification
+        returned_assignment = assessment.save_video_conference_notification_to_database(self.request_data, self.assessor)
+        returned_assignment_data = VideoConferenceNotificationSerializer(returned_assignment).data
+        mocked_create.assert_called_once()
+        self.assertDictEqual(returned_assignment_data, self.expected_video_conference_notification_data)
+
+    @patch.object(assessment, 'save_video_conference_notification_to_database')
+    @patch.object(assessment, 'validate_video_coference_notification')
+    @patch.object(assessment, 'validate_assessment_tool')
+    @patch.object(assessment, 'get_assessor_or_raise_exception')
+    def test_create_assignment(self, mocked_get_assessor, mocked_validate_assessment_tool,
+                            mocked_validate_video_coference_notification, mocked_video_coference_notification):
+        mocked_get_assessor.return_value = self.assessor
+        mocked_validate_assessment_tool.return_value = None
+        mocked_validate_video_coference_notification.return_value = None
+        mocked_video_coference_notification.return_value = self.expected_video_conference_notification
+        returned_assignment = assessment.create_video_conference_notification(self.request_data, self.assessor)
+        returned_assignment_data = VideoConferenceNotificationSerializer(returned_assignment).data
+        self.assertDictEqual(returned_assignment_data, self.expected_video_conference_notification_data)
+
+    def test_create_video_conference_notification_when_complete_status_200(self):
+        vidcon_data = json.dumps(self.request_data.copy())
+        client = APIClient()
+        client.force_authenticate(user=self.assessor)
+        response = client.post(CREATE_VIDEO_CONFERENCE_NOTIFICATION_URL, data=vidcon_data, content_type=REQUEST_CONTENT_TYPE)
+        response_content = json.loads(response.content)
+        self.assertEqual(response.status_code, OK_RESPONSE_STATUS_CODE)
+        self.assertTrue(len(response_content) > 0)
+        self.assertIsNotNone(response_content.get('assessment_id'))
+        self.assertEqual(response_content.get('name'), self.expected_video_conference_notification_data.get('name'))
+        self.assertEqual(response_content.get('description'), self.expected_video_conference_notification_data.get('description'))
+        self.assertEqual(response_content.get('subject'), self.expected_video_conference_notification_data.get('subject'))
+        self.assertEqual(response_content.get('message'), self.expected_video_conference_notification_data.get('message'))
+        self.assertEqual(response_content.get('owning_company_id'), self.company.id)
+        self.assertEqual(response_content.get('owning_company_name'), self.company.company_name)
+
 
 class VideoConferenceNotificationTest(TestCase):
     def setUp(self) -> None:
