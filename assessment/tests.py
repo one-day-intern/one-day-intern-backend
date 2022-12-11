@@ -142,6 +142,7 @@ GET_SUBMITTED_RESPONSE_TEST = reverse('get-submitted-response')
 REVIEW_RESPONSE_TEST_ATTEMPT_DATA_URL = reverse('review-response-test') + TOOL_ATTEMPT_ID_PARAM_NAME
 GET_QUIZ_SUBMISSION_DATA_URL = reverse('get-submitted-quiz') + ASSESSMENT_EVENT_ID_PARAM_NAME
 GET_QUESTION_SUBMISSION_DATA_URL = reverse('get-submitted-question') + ASSESSMENT_EVENT_ID_PARAM_NAME
+GET_ASSESSEE_REPORT_URL = reverse('get-asseessee-report')
 
 GET_TOOLS_URL = "/assessment/tools/"
 REQUEST_CONTENT_TYPE = 'application/json'
@@ -4973,6 +4974,41 @@ class ViewEventProgressTest(TestCase):
         assignment_attempt.delete()
 
     @patch.object(AssessmentEventParticipation, 'get_assessment_tool_attempt')
+    def test_generate_assessee_report_when_no_attempt_has_been_submitted(self, mock_get_attempt):
+        mock_get_attempt.return_value = None
+        assessee_report = self.assessment_event_participation.generate_assessee_report()
+        mock_get_attempt.assert_called_with(self.assignment_1)
+        self.assertEqual(len(assessee_report), 1)
+        tool_report = assessee_report[0]
+        self.assertEqual(tool_report['tool_name'], self.assignment_1.name)
+        self.assertEqual(tool_report['tool_description'], self.assignment_1.description)
+        self.assertEqual(tool_report['type'], 'assignment')
+        self.assertFalse(tool_report['is_attempted'])
+        self.assertEqual(tool_report['grade'], 0)
+        self.assertIsNone(tool_report['note'])
+
+    @patch.object(AssessmentEventParticipation, 'get_assessment_tool_attempt')
+    def test_generate_assessee_report_when_an_attempt_has_been_submitted(self, mock_get_attempt):
+        temporary_attempt = AssignmentAttempt.objects.create(
+            test_flow_attempt=self.assessment_event_participation.attempt,
+            assessment_tool_attempted=self.assignment_1,
+            grade=98,
+            note='Need a little bit more explanation'
+        )
+        mock_get_attempt.return_value = temporary_attempt
+        assessee_report = self.assessment_event_participation.generate_assessee_report()
+        mock_get_attempt.assert_called_with(self.assignment_1)
+        self.assertEqual(len(assessee_report), 1)
+        tool_report = assessee_report[0]
+        self.assertEqual(tool_report['tool_name'], self.assignment_1.name)
+        self.assertEqual(tool_report['tool_description'], self.assignment_1.description)
+        self.assertEqual(tool_report['type'], 'assignment')
+        self.assertTrue(tool_report['is_attempted'])
+        self.assertEqual(tool_report['grade'], 98)
+        self.assertEqual(tool_report['note'], temporary_attempt.note)
+        temporary_attempt.delete()
+
+    @patch.object(AssessmentEventParticipation, 'get_assessment_tool_attempt')
     def test_get_event_progress_when_no_attempt_has_been_submitted(self, mock_get_attempt):
         mock_get_attempt.return_value = None
         progress_data = self.assessment_event_participation.get_event_progress()
@@ -5102,6 +5138,92 @@ class ViewEventProgressTest(TestCase):
         self.assertEqual(response.status_code, HTTPStatus.OK)
         response_content = json.loads(response.content)
         self.assertEqual(response_content, [attempt_data])
+        temporary_attempt.delete()
+
+    def test_get_assessee_report_on_assessment_event_when_user_is_not_assessor(self):
+        response = get_fetch_and_get_response(
+            GET_ASSESSEE_REPORT_URL,
+            request_param=f'?assessment-event-id={self.assessment_event.event_id}&assessee-email={self.assessee.email}',
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), ASSESSOR_NOT_FOUND.format(self.assessee))
+
+    def test_get_assessee_report_on_assessment_event_when_event_with_id_does_not_exist(self):
+        invalid_id = str(uuid.uuid4())
+        response = get_fetch_and_get_response(
+            GET_ASSESSEE_REPORT_URL,
+            request_param=f'?assessment-event-id={invalid_id}&assessee-email={self.assessee.email}',
+            authenticated_user=self.assessor
+        )
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), EVENT_DOES_NOT_EXIST.format(invalid_id))
+
+    def test_get_assessee_report_on_assessment_event_when_assessee_with_email_does_not_exist(self):
+        invalid_email = 'invalidemail4881@gmail.com'
+        response = get_fetch_and_get_response(
+            GET_ASSESSEE_REPORT_URL,
+            request_param=f'?assessment-event-id={self.assessment_event.event_id}&assessee-email={invalid_email}',
+            authenticated_user=self.assessor
+        )
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), ASSESSEE_NOT_FOUND.format(invalid_email))
+
+    def test_get_assessee_report_on_assessment_event_when_assessor_is_not_responsible_for_assessee(self):
+        response = get_fetch_and_get_response(
+            GET_ASSESSEE_REPORT_URL,
+            request_param=f'?assessment-event-id={self.assessment_event.event_id}&assessee-email={self.assessee_2}',
+            authenticated_user=self.assessor
+        )
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            ASSESSOR_NOT_RESPONSIBLE_FOR_ASSESSEE.format(self.assessor, self.assessee_2, self.assessment_event.event_id)
+        )
+
+    def test_get_assessee_report_on_assessment_event_when_no_attempt_has_been_submitted(self):
+        response = get_fetch_and_get_response(
+            GET_ASSESSEE_REPORT_URL,
+            request_param=f'?assessment-event-id={self.assessment_event.event_id}&assessee-email={self.assessee}',
+            authenticated_user=self.assessor
+        )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertEqual(len(response_content), 1)
+        tool_report = response_content[0]
+        self.assertEqual(tool_report['tool_name'], self.assignment_1.name)
+        self.assertEqual(tool_report['tool_description'], self.assignment_1.description)
+        self.assertEqual(tool_report['type'], 'assignment')
+        self.assertFalse(tool_report['is_attempted'])
+        self.assertEqual(tool_report['grade'], 0)
+        self.assertIsNone(tool_report['note'])
+
+    def test_get_assessee_report_on_assessment_event_when_attempt_has_been_submitted_and_graded(self):
+        temporary_attempt = AssignmentAttempt.objects.create(
+            test_flow_attempt=self.assessment_event_participation.attempt,
+            assessment_tool_attempted=self.assignment_1,
+            grade=98,
+            note='Need a little bit more explanation'
+        )
+        response = get_fetch_and_get_response(
+            GET_ASSESSEE_REPORT_URL,
+            request_param=f'?assessment-event-id={self.assessment_event.event_id}&assessee-email={self.assessee}',
+            authenticated_user=self.assessor
+        )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertEqual(len(response_content), 1)
+        tool_report = response_content[0]
+        self.assertEqual(tool_report['tool_name'], self.assignment_1.name)
+        self.assertEqual(tool_report['tool_description'], self.assignment_1.description)
+        self.assertEqual(tool_report['type'], 'assignment')
+        self.assertTrue(tool_report['is_attempted'])
+        self.assertEqual(tool_report['grade'],98)
+        self.assertEqual(tool_report['note'], temporary_attempt.note)
         temporary_attempt.delete()
 
 
