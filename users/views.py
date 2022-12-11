@@ -18,15 +18,15 @@ from .services.google_login import (
     get_assessor_user_with_google_matching_data
 )
 from .services.user_info import get_user_info
+from .services import utils
 from .services.login import login_assessee, login_assessor_company
 from one_day_intern.settings import (
-    GOOGLE_AUTH_LOGIN_REDIRECT_URI,
-    GOOGLE_AUTH_LOGIN_ASSESSEE_REDIRECT_URI,
+    GOOGLE_AUTH_LOGIN_REGISTER_ASSESSEE_REDIRECT_URI,
     GOOGLE_AUTH_LOGIN_ASSESSOR_REDIRECT_URI,
-    GOOGLE_AUTH_REGISTER_ASSESSEE_REDIRECT_URI,
     GOOGLE_AUTH_REGISTER_ASSESSOR_REDIRECT_URI,
     GOOGLE_AUTH_CLIENT_ASSESSEE_CALLBACK_URL,
-    GOOGLE_AUTH_CLIENT_ASSESSOR_CALLBACK_URL
+    GOOGLE_AUTH_CLIENT_ASSESSOR_CALLBACK_URL,
+    GOOGLE_AUTH_CLIENT_ASSESSOR_REGISTER_CALLBACK_URL
 )
 from .models import (
     CompanySerializer,
@@ -42,14 +42,22 @@ import json
 def serve_google_register_assessor(request):
     auth_code = request.GET.get('code')
     otc_data = {'one_time_code': request.GET.get('state')}
-    id_token = google_get_id_token_from_auth_code(auth_code, GOOGLE_AUTH_REGISTER_ASSESSOR_REDIRECT_URI)
-    user_profile = google_get_profile_from_id_token(id_token)
-    user = register_assessor_with_google_data(user_profile, otc_data)
-    tokens = get_tokens_for_user(user)
+    try:
+        id_token = google_get_id_token_from_auth_code(auth_code, GOOGLE_AUTH_REGISTER_ASSESSOR_REDIRECT_URI)
+        user_profile = google_get_profile_from_id_token(id_token)
+        user = register_assessor_with_google_data(user_profile, otc_data)
+        tokens = get_tokens_for_user(user)
+        param_argument = {
+            'accessToken': tokens.get('access'),
+            'refreshToken': tokens.get('refresh')
+        }
+        parameterized_url = utils.parameterize_url(GOOGLE_AUTH_CLIENT_ASSESSOR_REGISTER_CALLBACK_URL + '/?', param_argument)
+        response = redirect(parameterized_url)
+    except Exception as exception:
+        param_argument = {'errorMessage': str(exception), 'code': otc_data['one_time_code']}
+        parameterized_url = utils.parameterize_url(GOOGLE_AUTH_CLIENT_ASSESSOR_REGISTER_CALLBACK_URL + '/?', param_argument)
+        response = redirect(parameterized_url)
 
-    response = redirect(GOOGLE_AUTH_CLIENT_ASSESSOR_CALLBACK_URL)
-    response.set_cookie('accessToken', tokens.get('access'))
-    response.set_cookie('refreshToken', tokens.get('refresh'))
     return response
 
 
@@ -64,19 +72,22 @@ def serve_google_login_callback_for_assessor(request):
     code: string
     """
     auth_code = request.GET.get('code')
-    response = redirect(GOOGLE_AUTH_CLIENT_ASSESSOR_CALLBACK_URL)
     try:
         id_token = google_get_id_token_from_auth_code(auth_code, GOOGLE_AUTH_LOGIN_ASSESSOR_REDIRECT_URI)
         user_profile = google_get_profile_from_id_token(id_token)
         user = get_assessor_user_with_google_matching_data(user_profile)
         tokens = get_tokens_for_user(user)
-
-        response.set_cookie('accessToken', tokens.get('access'))
-        response.set_cookie('refreshToken', tokens.get('refresh'))
+        param_argument = {
+            'accessToken': tokens.get('access'),
+            'refreshToken': tokens.get('refresh')
+        }
+        parameterized_url = utils.parameterize_url(GOOGLE_AUTH_CLIENT_ASSESSOR_CALLBACK_URL + '/?', param_argument)
+        response = redirect(parameterized_url)
     except Exception as exception:
-        response.delete_cookie('accessToken')
-        response.delete_cookie('refreshToken')
-        response.set_cookie('googleErrorMessage', str(exception))
+        param_argument = {'errorMessage': str(exception)}
+        parameterized_url = utils.parameterize_url(GOOGLE_AUTH_CLIENT_ASSESSOR_CALLBACK_URL + '/?', param_argument)
+        response = redirect(parameterized_url)
+
     return response
 
 
@@ -84,20 +95,21 @@ def serve_google_login_callback_for_assessor(request):
 @api_view(['GET'])
 def serve_google_login_register_assessee(request):
     auth_code = request.GET.get('code')
-    response = redirect(GOOGLE_AUTH_CLIENT_ASSESSEE_CALLBACK_URL)
     try:
-        id_token = google_get_id_token_from_auth_code(auth_code, GOOGLE_AUTH_REGISTER_ASSESSEE_REDIRECT_URI)
+        id_token = google_get_id_token_from_auth_code(auth_code, GOOGLE_AUTH_LOGIN_REGISTER_ASSESSEE_REDIRECT_URI)
         user_profile = google_get_profile_from_id_token(id_token)
         user = login_or_register_assessee_with_google_data(user_profile)
         tokens = get_tokens_for_user(user)
-
-        response.set_cookie('accessToken', tokens.get('access'))
-        response.set_cookie('refreshToken', tokens.get('refresh'))
-
+        param_argument = {
+            'accessToken': tokens.get('access'),
+            'refreshToken': tokens.get('refresh')
+        }
+        parameterized_url = utils.parameterize_url(GOOGLE_AUTH_CLIENT_ASSESSEE_CALLBACK_URL + '/?', param_argument)
+        response = redirect(parameterized_url)
     except Exception as exception:
-        response.delete_cookie('accessToken', None)
-        response.delete_cookie('refreshToken', None)
-        response.set_cookie('googleErrorMessage', str(exception))
+        param_argument = {'errorMessage': str(exception)}
+        parameterized_url = utils.parameterize_url(GOOGLE_AUTH_CLIENT_ASSESSEE_CALLBACK_URL + '/?', param_argument)
+        response = redirect(parameterized_url)
 
     return response
 

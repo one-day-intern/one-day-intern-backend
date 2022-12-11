@@ -606,9 +606,19 @@ class ResponseTestSerializer(serializers.ModelSerializer):
             'owning_company_name',
         ]
 
+
 class VideoConferenceNotification(AssessmentTool):
     subject = models.TextField(null=False)
     message = models.TextField(null=False)
+
+    def get_tool_data(self) -> dict:
+        tool_base_data = super().get_tool_data()
+        tool_base_data['additional_info'] = {
+            'subject': self.subject,
+            'message': self.message
+        }
+        return tool_base_data
+
 
 class VideoConferenceNotificationSerializer(serializers.ModelSerializer):
     owning_company_name = serializers.ReadOnlyField(source=OWNING_COMPANY_COMPANY_NAME)
