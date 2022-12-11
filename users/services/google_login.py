@@ -159,11 +159,15 @@ def register_assessor_with_google_data(user_data, otc_data):
 
     if not found_users.exists():
         return create_assessor_from_data_using_google_auth(user_data, otc_data)
-    else:
-        try:
-            return get_assessor_user_with_google_matching_data(user_data)
-        except InvalidRequestException:
-            raise InvalidGoogleLoginException('User is registered through the One Day Intern login service')
+
+    found_assessees = Assessee.objects.filter(email=user_email)
+    if found_assessees:
+        raise InvalidRequestException(f'User with email {user_email} is registered as an assessee')
+
+    try:
+        return get_assessor_user_with_google_matching_data(user_data)
+    except InvalidRequestException:
+        raise InvalidGoogleLoginException('User is registered through the One Day Intern login service')
 
 
 def get_tokens_for_user(user):
