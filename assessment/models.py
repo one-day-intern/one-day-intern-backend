@@ -909,6 +909,9 @@ class AssessmentEventParticipation(models.Model):
     assessor = models.ForeignKey(USERS_ASSESSOR, on_delete=models.RESTRICT)
     attempt = models.OneToOneField('assessment.TestFlowAttempt', on_delete=models.CASCADE, null=True)
 
+    def generate_assessee_report(self):
+        return []
+
     def get_all_response_test_attempts(self):
         return self.attempt.toolattempt_set.instance_of(ResponseTestAttempt)
 

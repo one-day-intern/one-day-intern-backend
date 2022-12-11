@@ -4689,6 +4689,41 @@ class ViewEventProgressTest(TestCase):
         assignment_attempt.delete()
 
     @patch.object(AssessmentEventParticipation, 'get_assessment_tool_attempt')
+    def test_generate_assessee_report_when_no_attempt_has_been_submitted(self, mock_get_attempt):
+        mock_get_attempt.return_value = None
+        assessee_report = self.assessment_event_participation.generate_assessee_report()
+        mock_get_attempt.assert_called_with(self.assignment_1)
+        self.assertEqual(len(assessee_report), 1)
+        tool_report = assessee_report[0]
+        self.assertEqual(tool_report['tool_name'], self.assignment_1.name)
+        self.assertEqual(tool_report['tool_description'], self.assignment_1.description)
+        self.assertEqual(tool_report['type'], 'assignment')
+        self.assertFalse(tool_report['is_attempted'])
+        self.assertEqual(tool_report['grade'], 0)
+        self.assertIsNone(tool_report['note'])
+
+    @patch.object(AssessmentEventParticipation, 'get_assessment_tool_attempt')
+    def test_generate_assessee_report_when_an_attempt_has_been_submitted(self, mock_get_attempt):
+        temporary_attempt = AssignmentAttempt.objects.create(
+            test_flow_attempt=self.assessment_event_participation.attempt,
+            assessment_tool_attempted=self.assignment_1,
+            grade=98,
+            note='Need a little bit more explanation'
+        )
+        mock_get_attempt.return_value = temporary_attempt
+        assessee_report = self.assessment_event_participation.generate_assessee_report()
+        mock_get_attempt.assert_called_with(self.assignment_1)
+        self.assertEqual(len(assessee_report), 1)
+        tool_report = assessee_report[0]
+        self.assertEqual(tool_report['tool_name'], self.assignment_1.name)
+        self.assertEqual(tool_report['tool_description'], self.assignment_1.description)
+        self.assertEqual(tool_report['type'], 'assignment')
+        self.assertTrue(tool_report['is_attempted'])
+        self.assertEqual(tool_report['grade'], 98)
+        self.assertEqual(tool_report['note'], temporary_attempt.note)
+        temporary_attempt.delete()
+
+    @patch.object(AssessmentEventParticipation, 'get_assessment_tool_attempt')
     def test_get_event_progress_when_no_attempt_has_been_submitted(self, mock_get_attempt):
         mock_get_attempt.return_value = None
         progress_data = self.assessment_event_participation.get_event_progress()
