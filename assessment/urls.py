@@ -20,6 +20,7 @@ from .views import (
     serve_submit_interactive_quiz,
     serve_submit_answer,
     serve_get_assessee_progress_on_event,
+    serve_get_assessee_report_on_assessment_event,
     serve_grade_assessment_tool_attempts,
     serve_get_assignment_attempt_data,
     serve_get_assignment_attempt_file,
@@ -68,5 +69,6 @@ urlpatterns = [
     path('review/individual-question/', serve_get_question_grading_data, name='review-individual-question'),
     path('review/assignment/data/', serve_get_assignment_attempt_data, name='get-assignment-attempt-data'),
     path('review/assignment/file/', serve_get_assignment_attempt_file, name='get-assignment-attempt-file'),
+    path('assessment-event/report/', serve_get_assessee_report_on_assessment_event, name='get-asseessee-report'),
     path('assessment/review/response-test/', serve_review_response_test_attempt_data, name='review-response-test')
 ]
