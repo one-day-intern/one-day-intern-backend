@@ -910,7 +910,29 @@ class AssessmentEventParticipation(models.Model):
     attempt = models.OneToOneField('assessment.TestFlowAttempt', on_delete=models.CASCADE, null=True)
 
     def generate_assessee_report(self):
-        return []
+        event_test_flow = self.assessment_event.get_test_flow()
+        event_tools: List[TestFlowTool] = event_test_flow.get_tools()
+        grade_and_note_data = []
+        for event_tool in event_tools:
+            assessment_tool = event_tool.assessment_tool
+            attempt = self.get_assessment_tool_attempt(assessment_tool)
+            data = {
+                'tool_name': assessment_tool.name,
+                'tool_description': assessment_tool.description,
+                'type': assessment_tool.get_type()
+            }
+            if attempt:
+                data['is_attempted'] = True
+                data['grade'] = attempt.grade
+                data['note'] = attempt.note
+            else:
+                data['is_attempted'] = False
+                data['grade'] = 0
+                data['note'] = None
+
+            grade_and_note_data.append(data)
+
+        return grade_and_note_data
 
     def get_all_response_test_attempts(self):
         return self.attempt.toolattempt_set.instance_of(ResponseTestAttempt)
