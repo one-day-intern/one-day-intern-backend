@@ -25,6 +25,8 @@ import json
 import requests
 import uuid
 
+REGISTERED_AS_ASSESSEE = 'User with email {} is registered as an assessee'
+
 REGISTERED_AS_ASSESSOR = 'User with email {} is registered as an assessor'
 
 INVALID_EMAIL = 'email@email'
@@ -1672,6 +1674,21 @@ class GoogleLoginViewTest(TestCase):
         param_arguments = self.get_param_arguments_of_redirect_response(response)
         self.assertIsNotNone(param_arguments.get('accessToken'))
         self.assertIsNotNone(param_arguments.get('refreshToken'))
+
+    @patch.object(id_token, 'verify_oauth2_token')
+    @patch.object(requests.Response, 'json')
+    @patch.object(requests.Session, 'post')
+    def test_serve_google_register_assessor_callback_when_already_registered_as_assessee(self, mocked_post,
+                                                                                         mocked_json,
+                                                                                         mocked_verify_oauth2_token):
+        self.setup_google_mocks(mocked_post, mocked_json, mocked_verify_oauth2_token)
+        assessee = self.create_and_save_assessee_data(AuthenticationService.GOOGLE.value)
+        response = self.client.get(GOOGLE_REGISTER_ASSESSOR_URL + f'&state={self.one_time_code}')
+        param_arguments = self.get_param_arguments_of_redirect_response(response)
+        self.assertIsNone(param_arguments.get('accessToken'))
+        self.assertIsNone(param_arguments.get('refreshToken'))
+        self.assertEqual(param_arguments.get('errorMessage'), REGISTERED_AS_ASSESSEE.format(assessee.email))
+        assessee.delete()
 
     @patch.object(id_token, 'verify_oauth2_token')
     @patch.object(requests.Response, 'json')
