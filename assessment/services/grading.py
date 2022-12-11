@@ -313,7 +313,7 @@ def get_question_grading_data(request_data, user):
     event = tool_attempt.get_event_of_attempt()
     assessee = tool_attempt.get_user_of_attempt()
     validate_assessor_responsibility(event, assessor, assessee)
-    question_attempt = tool_attempt.get_question_attempt(request_data.get('question-attempt-id'))
+    question_attempt = tool_attempt.get_question_attempt_with_attempt_id(request_data.get('question-attempt-id'))
     return get_question_data(question_attempt)
 
 

@@ -739,8 +739,16 @@ class InteractiveQuizAttempt(ToolAttempt):
     def get_all_question_attempts(self):
         return self.questionattempt_set.all()
 
-    def get_question_attempt(self, question_attempt_id):
+    def get_question_attempt_with_attempt_id(self, question_attempt_id):
         matching_question_attempts = self.questionattempt_set.filter(question_attempt_id=question_attempt_id)
+        if matching_question_attempts:
+            return matching_question_attempts[0]
+        else:
+            return None
+
+    def get_question_attempt_with_question_id(self, question_id):
+        question = Question.objects.filter(question_id=question_id)[0]
+        matching_question_attempts = self.questionattempt_set.filter(question=question)
         if matching_question_attempts:
             return matching_question_attempts[0]
         else:

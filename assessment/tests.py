@@ -4740,21 +4740,21 @@ class InteractiveQuizSubmissionTest(TestCase):
 
     def test_validate_interactive_quiz_submission_when_assessment_tool_does_not_exist(self):
         try:
-            assessment_event_attempt.validate_interactive_quiz_submission(None)
+            assessment_event_attempt.validate_is_interactive_quiz(None)
             self.fail(EXCEPTION_NOT_RAISED)
         except InvalidRequestException as exception:
             self.assertEqual(str(exception), 'Assessment tool associated with event does not exist')
 
     def test_validate_submission_when_assessment_tool_is_not_an_interactive_quiz(self):
         try:
-            assessment_event_attempt.validate_interactive_quiz_submission(self.assessment_tool)
+            assessment_event_attempt.validate_is_interactive_quiz(self.assessment_tool)
             self.fail(EXCEPTION_NOT_RAISED)
         except InvalidRequestException as exception:
             self.assertEqual(str(exception), TOOL_IS_NOT_INTERACTIVE_QUIZ.format(self.assessment_tool.assessment_id))
 
     def test_validate_submission_when_valid(self):
         try:
-            assessment_event_attempt.validate_interactive_quiz_submission(self.interactive_quiz)
+            assessment_event_attempt.validate_is_interactive_quiz(self.interactive_quiz)
         except Exception as exception:
             self.fail(f'{exception} is raised')
 
@@ -4815,6 +4815,8 @@ class InteractiveQuizSubmissionTest(TestCase):
     def test_serve_submit_interactive_quiz_answers_when_request_is_valid(self):
         response = submit_answers_and_get_request(self.request_data,
                                                   authenticated_user=self.assessee)
+        response_content = json.loads(response.content)
+        print(response_content.get('message'))
         self.assertEqual(response.status_code, HTTPStatus.OK)
         response_content = json.loads(response.content)
         self.assertEqual(response_content.get('message'), 'Answers saved successfully')

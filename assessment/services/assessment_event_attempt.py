@@ -183,7 +183,7 @@ def get_submitted_individual_question(request_data, user):
     assessment_tool = event.get_assessment_tool_from_assessment_id(assessment_id=request_data.get('assessment-tool-id'))
     validate_is_interactive_quiz(assessment_tool)
     quiz_attempt = get_interactive_quiz_attempt(event, quiz=assessment_tool, assessee=assessee)
-    question_attempt = quiz_attempt.get_question_attempt(request_data.get('question-attempt-id'))
+    question_attempt = quiz_attempt.get_question_attempt_with_attempt_id(request_data.get('question-attempt-id'))
     return get_question_attempt_data(question_attempt)
 
 
@@ -403,7 +403,7 @@ def create_question_attempt(question, answer, interactive_quiz_attempt):
 def save_answer_attempts(interactive_quiz_attempt, attempt):
     answer_attempts = attempt['answers']
     for answer in answer_attempts:
-        question_attempt = interactive_quiz_attempt.get_question_attempt(answer['question-attempt-id'])
+        question_attempt = interactive_quiz_attempt.get_question_attempt_with_question_id(answer['question-id'])
         if question_attempt:
             question = Question.objects.get(question_id=answer['question-id'])
             update_question_attempt(question, answer)
