@@ -4,7 +4,7 @@ from assessment.models import (
     AssessmentEventParticipation,
     AssessmentEvent
 )
-from assessment.services.utils import get_active_assessment_event_from_id
+from assessment.services.utils import get_assessment_event_from_id
 from assessment.services.participation_validators import validate_assessor_participation
 from assessor.services import utils
 from django.contrib.auth.models import User
@@ -14,7 +14,7 @@ from users.models import AssesseeSerializer, Assessor, Assessee
 
 def get_assessment_event_participations(request_data: dict, user: User):
     try:
-        event = get_active_assessment_event_from_id(request_data.get('assessment-event-id'))
+        event = get_assessment_event_from_id(request_data.get('assessment-event-id'))
         assessor = utils.get_assessor_or_company_from_user(user)
         validate_assessor_participation(event, assessor)
         event_participations = event.assessmenteventparticipation_set.filter(assessor=user)
@@ -46,7 +46,7 @@ def get_assessor_assessment_events(user: User):
     return serialized_events
 
 
-def get_all_active_assessees(request_data: dict, user: User):
+def get_all_assessees(request_data: dict, user: User):
     event_participations = get_assessment_event_participations(request_data, user)
 
     serialized_assessee_list = []
