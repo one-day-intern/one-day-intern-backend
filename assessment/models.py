@@ -729,9 +729,8 @@ class InteractiveQuizAttempt(ToolAttempt):
     def get_all_question_attempts(self):
         return self.questionattempt_set.all()
 
-    def get_question_attempt(self, question_id):
-        question = Question.objects.get(question_id=question_id)
-        matching_question_attempts = self.questionattempt_set.filter(question=question)
+    def get_question_attempt(self, question_attempt_id):
+        matching_question_attempts = self.questionattempt_set.filter(question_attempt_id=question_attempt_id)
         if matching_question_attempts:
             return matching_question_attempts[0]
         else:
@@ -826,7 +825,10 @@ class TextQuestionAttempt(QuestionAttempt):
 
 
 class MultipleChoiceAnswerOptionAttempt(QuestionAttempt):
-    selected_option = models.ForeignKey('MultipleChoiceAnswerOption', related_name='selected_option', on_delete=models.CASCADE)
+    selected_option = models.ForeignKey('MultipleChoiceAnswerOption',
+                                        related_name='selected_option',
+                                        on_delete=models.CASCADE,
+                                        null=True)
 
     @property
     def is_correct(self):

@@ -19,6 +19,7 @@ from ..models import (
 )
 from .participation_validators import validate_assessor_participation
 from . import utils, google_storage
+from . import assessment_event_attempt
 import mimetypes
 
 
@@ -195,15 +196,15 @@ def get_answer_options_data(question):
     return data
 
 
-def combine_tool_data(tool_attempt):
+def combine_tool_grading_data(tool_attempt):
     tool_attempt_data = ToolAttemptSerializer(tool_attempt).data
 
     combined_data = dict()
-    combined_data['tool_attempt_id'] = tool_attempt_data.get('tool_attempt_id')
-    combined_data['assessment_tool_attempted'] = tool_attempt_data.get('assessment_tool_attempted')
+    combined_data['tool-attempt-id'] = tool_attempt_data.get('tool_attempt_id')
+    combined_data['assessment-tool-attempted'] = tool_attempt_data.get('assessment_tool_attempted')
     combined_data['grade'] = tool_attempt_data.get('grade')
     combined_data['note'] = tool_attempt_data.get('note')
-    combined_data['answer_attempts'] = list()
+    combined_data['answer-attempts'] = list()
 
     question_attempts = tool_attempt.get_all_question_attempts()
     for qa in question_attempts:
@@ -215,49 +216,105 @@ def combine_tool_data(tool_attempt):
             mc_answer_option_data = MultipleChoiceAnswerOptionAttemptSerializer(mc_answer_option).data
             mcq_dict = dict()
 
-            mcq_dict['question_attempt_id'] = mc_answer_option_data.get('question_attempt_id')
-            mcq_dict['is_answered'] = mc_answer_option_data.get('is_answered')
+            mcq_dict['question-attempt-id'] = mc_answer_option_data.get('question_attempt_id')
+            mcq_dict['is-answered'] = mc_answer_option_data.get('is_answered')
             mcq_dict['prompt'] = question.get_prompt()
             mcq_dict['note'] = qa.get_note()
             mcq_dict['grade'] = str(mc_answer_option_data.get('point'))
-            mcq_dict['question_points'] = str(question.get_points())
-            mcq_dict['question_type'] = question_type
-            mcq_dict['answer_options'] = get_answer_options_data(question)
-            mcq_dict['selected_answer_option_id'] = str(mc_answer_option_data.get('selected_option'))
-            mcq_dict['is_correct'] = mc_answer_option_data.get('is_correct')
+            mcq_dict['question-points'] = str(question.get_points())
+            mcq_dict['question-type'] = question_type
+            mcq_dict['answer-options'] = get_answer_options_data(question)
+            mcq_dict['selected-answer-option-id'] = str(mc_answer_option_data.get('selected_option'))
+            mcq_dict['is-correct'] = mc_answer_option_data.get('is_correct')
 
-            combined_data['answer_attempts'].append(mcq_dict)
+            combined_data['answer-attempts'].append(mcq_dict)
 
         else:
             text_question_attempt = TextQuestionAttempt.objects.get(question_attempt_id=qa.question_attempt_id)
             tq_dict = dict()
 
             text_question_attempt_data = TextQuestionAttemptSerializer(text_question_attempt).data
-            tq_dict['question_attempt_id'] = text_question_attempt_data.get('question_attempt_id')
-            tq_dict['is_answered'] = text_question_attempt_data.get('is_answered')
+            tq_dict['question-attempt-id'] = text_question_attempt_data.get('question_attempt_id')
+            tq_dict['is-answered'] = text_question_attempt_data.get('is_answered')
             tq_dict['prompt'] = question.get_prompt()
             tq_dict['grade'] = str(text_question_attempt.get_point())
-            tq_dict['question_points'] = str(question.get_points())
+            tq_dict['question-points'] = str(question.get_points())
             tq_dict['note'] = qa.get_note()
-            tq_dict['question_type'] = question_type
+            tq_dict['question-type'] = question_type
             tq_dict['answer'] = text_question_attempt_data.get('answer')
-            tq_dict['is_graded'] = text_question_attempt_data.get('is_graded')
+            tq_dict['is-graded'] = text_question_attempt_data.get('is_graded')
 
-            combined_data['answer_attempts'].append(tq_dict)
+            combined_data['answer-attempts'].append(tq_dict)
 
     return combined_data
 
 
 @catch_exception_and_convert_to_invalid_request_decorator(exception_types=ObjectDoesNotExist)
-def get_interactive_quiz_attempt_data(request_data, user):
+def get_interactive_quiz_grading_data(request_data, user):
     tool_attempt = utils.get_tool_attempt_from_id(request_data.get('tool-attempt-id'))
     validate_tool_attempt_is_for_interactive_quiz(tool_attempt)
     assessor = get_assessor_or_raise_exception(user)
     event = tool_attempt.get_event_of_attempt()
     assessee = tool_attempt.get_user_of_attempt()
     validate_assessor_responsibility(event, assessor, assessee)
-    combined_data = combine_tool_data(tool_attempt)
+    combined_data = combine_tool_grading_data(tool_attempt)
     return combined_data
+
+
+@catch_exception_and_convert_to_invalid_request_decorator(
+    exception_types=ObjectDoesNotExist)
+def get_question_data(qa):
+    question = qa.get_question()
+
+    question_type = question.get_question_type()
+    if question_type == 'multiple_choice':
+        mc_answer_option = MultipleChoiceAnswerOptionAttempt.objects.get(question_attempt_id=qa.question_attempt_id)
+        mc_answer_option_data = MultipleChoiceAnswerOptionAttemptSerializer(mc_answer_option).data
+        mcq_dict = dict()
+
+        mcq_dict['question-attempt-id'] = mc_answer_option_data.get('question_attempt_id')
+        mcq_dict['is-answered'] = mc_answer_option_data.get('is_answered')
+        mcq_dict['prompt'] = question.get_prompt()
+        mcq_dict['note'] = qa.get_note()
+        mcq_dict['grade'] = str(mc_answer_option_data.get('point'))
+        mcq_dict['question-points'] = str(question.get_points())
+        mcq_dict['question-type'] = question_type
+        mcq_dict['answer-options'] = get_answer_options_data(question)
+        mcq_dict['selected-answer-option-id'] = str(mc_answer_option_data.get('selected_option'))
+        mcq_dict['is-correct'] = mc_answer_option_data.get('is_correct')
+
+        question_data = mcq_dict
+
+    else:
+        text_question_attempt = TextQuestionAttempt.objects.get(question_attempt_id=qa.question_attempt_id)
+        tq_dict = dict()
+
+        text_question_attempt_data = TextQuestionAttemptSerializer(text_question_attempt).data
+        tq_dict['question-attempt-id'] = text_question_attempt_data.get('question_attempt_id')
+        tq_dict['is-answered'] = text_question_attempt_data.get('is_answered')
+        tq_dict['prompt'] = question.get_prompt()
+        tq_dict['note'] = qa.get_note()
+        tq_dict['grade'] = str(text_question_attempt.get_point())
+        tq_dict['question-points'] = str(question.get_points())
+        tq_dict['question-type'] = question_type
+        tq_dict['answer'] = text_question_attempt_data.get('answer')
+        tq_dict['is-graded'] = text_question_attempt_data.get('is_graded')
+
+        question_data = tq_dict
+
+    return question_data
+
+
+@catch_exception_and_convert_to_invalid_request_decorator(exception_types=ObjectDoesNotExist)
+def get_question_grading_data(request_data, user):
+    tool_attempt = utils.get_tool_attempt_from_id(request_data.get('tool-attempt-id'))
+    validate_tool_attempt_is_for_interactive_quiz(tool_attempt)
+    assessor = get_assessor_or_raise_exception(user)
+    event = tool_attempt.get_event_of_attempt()
+    assessee = tool_attempt.get_user_of_attempt()
+    validate_assessor_responsibility(event, assessor, assessee)
+    question_attempt = tool_attempt.get_question_attempt(request_data.get('question-attempt-id'))
+    return get_question_data(question_attempt)
 
 
 def validate_tool_attempt_is_for_response_test(tool_attempt):

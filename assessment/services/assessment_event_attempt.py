@@ -5,7 +5,12 @@ from one_day_intern.exceptions import RestrictedAccessException, InvalidRequestE
 from one_day_intern.settings import GOOGLE_BUCKET_BASE_DIRECTORY, GOOGLE_STORAGE_BUCKET_NAME
 from users.models import Assessee, Assessor
 from .participation_validators import validate_user_participation
-from ..exceptions.exceptions import EventDoesNotExist, AssessmentToolDoesNotExist
+from ..exceptions.exceptions import (
+    EventDoesNotExist,
+    AssessmentToolDoesNotExist,
+    QuestionAttemptDoesNotExist,
+    QuestionDoesNotExist
+)
 from ..models import (
     AssessmentEvent,
     AssignmentAttempt,
@@ -14,13 +19,17 @@ from ..models import (
     InteractiveQuiz,
     InteractiveQuizAttempt,
     Question,
+    QuestionAttempt,
     MultipleChoiceAnswerOptionAttempt,
     MultipleChoiceAnswerOption,
     TextQuestionAttempt,
-    ResponseTest
+    ResponseTest,
+    ToolAttemptSerializer,
+    MultipleChoiceAnswerOptionAttemptSerializer,
+    TextQuestionAttemptSerializer
 )
 from .TaskGenerator import TaskGenerator
-from . import utils, google_storage
+from . import utils, google_storage, grading
 import mimetypes
 
 ASSOCIATED_TOOL_NOT_FOUND = 'Assessment tool associated with event does not exist'
@@ -56,6 +65,126 @@ def get_all_active_interactive_quiz(request_data: dict, user: User):
     assessee = utils.get_assessee_from_user(user)
     validate_user_participation(event, assessee)
     return event.get_released_interactive_quizzes()
+
+
+def validate_is_interactive_quiz(assessment_tool):
+    if assessment_tool is None:
+        raise InvalidRequestException(ASSOCIATED_TOOL_NOT_FOUND)
+
+    if not isinstance(assessment_tool, InteractiveQuiz):
+        raise InvalidRequestException(f'Assessment tool with id {assessment_tool.assessment_id} '
+                                      f'is not an interactive quiz')
+
+
+@catch_exception_and_convert_to_invalid_request_decorator(exception_types=EventDoesNotExist)
+def get_interactive_quiz_attempt(event: AssessmentEvent, quiz: InteractiveQuiz, assessee: Assessee):
+    assessee_participation = event.get_assessment_event_participation_by_assessee(assessee)
+    found_attempt = assessee_participation.get_interactive_quiz_attempt(quiz)
+    return found_attempt
+
+
+def combine_tool_attempt_data(tool_attempt):
+    tool_attempt_data = ToolAttemptSerializer(tool_attempt).data
+
+    combined_data = dict()
+    combined_data['tool-attempt-id'] = tool_attempt_data.get('tool_attempt_id')
+    combined_data['assessment-tool-attempted'] = tool_attempt_data.get('assessment_tool_attempted')
+    combined_data['answer-attempts'] = list()
+
+    question_attempts = tool_attempt.get_all_question_attempts()
+    for qa in question_attempts:
+        question = qa.get_question()
+
+        question_type = question.get_question_type()
+        if question_type == 'multiple_choice':
+            mc_answer_option = MultipleChoiceAnswerOptionAttempt.objects.get(question_attempt_id=qa.question_attempt_id)
+            mc_answer_option_data = MultipleChoiceAnswerOptionAttemptSerializer(mc_answer_option).data
+            mcq_dict = dict()
+
+            mcq_dict['question-attempt-id'] = mc_answer_option_data.get('question_attempt_id')
+            mcq_dict['is-answered'] = mc_answer_option_data.get('is_answered')
+            mcq_dict['prompt'] = question.get_prompt()
+            mcq_dict['question-type'] = question_type
+            mcq_dict['answer-options'] = grading.get_answer_options_data(question)
+            mcq_dict['selected-answer-option-id'] = str(mc_answer_option_data.get('selected_option'))
+
+            combined_data['answer-attempts'].append(mcq_dict)
+
+        else:
+            text_question_attempt = TextQuestionAttempt.objects.get(question_attempt_id=qa.question_attempt_id)
+            tq_dict = dict()
+
+            text_question_attempt_data = TextQuestionAttemptSerializer(text_question_attempt).data
+            tq_dict['question-attempt-id'] = text_question_attempt_data.get('question_attempt_id')
+            tq_dict['is-answered'] = text_question_attempt_data.get('is_answered')
+            tq_dict['prompt'] = question.get_prompt()
+            tq_dict['question-type'] = question_type
+            tq_dict['answer'] = text_question_attempt_data.get('answer')
+
+            combined_data['answer-attempts'].append(tq_dict)
+
+    return combined_data
+
+
+@catch_exception_and_convert_to_invalid_request_decorator(
+    exception_types=(EventDoesNotExist, AssessmentToolDoesNotExist))
+def get_submitted_interactive_quiz(request_data, user):
+    event = utils.get_active_assessment_event_from_id(request_data.get('assessment-event-id'))
+    assessee = utils.get_assessee_from_user(user)
+    validate_user_participation(event, assessee)
+    assessment_tool = event.get_assessment_tool_from_assessment_id(assessment_id=request_data.get('assessment-tool-id'))
+    validate_is_interactive_quiz(assessment_tool)
+    quiz_attempt = get_interactive_quiz_attempt(event, quiz=assessment_tool, assessee=assessee)
+    return combine_tool_attempt_data(quiz_attempt)
+
+
+@catch_exception_and_convert_to_invalid_request_decorator(
+    exception_types=QuestionDoesNotExist)
+def get_question_attempt_data(qa):
+    question = qa.get_question()
+
+    question_type = question.get_question_type()
+    if question_type == 'multiple_choice':
+        mc_answer_option = MultipleChoiceAnswerOptionAttempt.objects.get(question_attempt_id=qa.question_attempt_id)
+        mc_answer_option_data = MultipleChoiceAnswerOptionAttemptSerializer(mc_answer_option).data
+        mcq_dict = dict()
+
+        mcq_dict['question-attempt-id'] = mc_answer_option_data.get('question_attempt_id')
+        mcq_dict['is-answered'] = mc_answer_option_data.get('is_answered')
+        mcq_dict['prompt'] = question.get_prompt()
+        mcq_dict['question-type'] = question_type
+        mcq_dict['answer-options'] = grading.get_answer_options_data(question)
+        mcq_dict['selected-answer-option-id'] = str(mc_answer_option_data.get('selected_option'))
+
+        question_data = mcq_dict
+
+    else:
+        text_question_attempt = TextQuestionAttempt.objects.get(question_attempt_id=qa.question_attempt_id)
+        tq_dict = dict()
+
+        text_question_attempt_data = TextQuestionAttemptSerializer(text_question_attempt).data
+        tq_dict['question-attempt-id'] = text_question_attempt_data.get('question_attempt_id')
+        tq_dict['is-answered'] = text_question_attempt_data.get('is_answered')
+        tq_dict['prompt'] = question.get_prompt()
+        tq_dict['question-type'] = question_type
+        tq_dict['answer'] = text_question_attempt_data.get('answer')
+
+        question_data = tq_dict
+
+    return question_data
+
+
+@catch_exception_and_convert_to_invalid_request_decorator(
+    exception_types=(EventDoesNotExist, AssessmentToolDoesNotExist, QuestionAttemptDoesNotExist))
+def get_submitted_individual_question(request_data, user):
+    event = utils.get_active_assessment_event_from_id(request_data.get('assessment-event-id'))
+    assessee = utils.get_assessee_from_user(user)
+    validate_user_participation(event, assessee)
+    assessment_tool = event.get_assessment_tool_from_assessment_id(assessment_id=request_data.get('assessment-tool-id'))
+    validate_is_interactive_quiz(assessment_tool)
+    quiz_attempt = get_interactive_quiz_attempt(event, quiz=assessment_tool, assessee=assessee)
+    question_attempt = quiz_attempt.get_question_attempt(request_data.get('question-attempt-id'))
+    return get_question_attempt_data(question_attempt)
 
 
 def get_response_test_attempt(event: AssessmentEvent, response_test: ResponseTest, assessee: Assessee):
@@ -238,15 +367,6 @@ def get_or_create_interactive_quiz_attempt(event: AssessmentEvent, interactive_q
         return assessee_participation.create_interactive_quiz_attempt(interactive_quiz)
 
 
-def validate_interactive_quiz_submission(assessment_tool):
-    if assessment_tool is None:
-        raise InvalidRequestException(ASSOCIATED_TOOL_NOT_FOUND)
-
-    if not isinstance(assessment_tool, InteractiveQuiz):
-        raise InvalidRequestException(f'Assessment tool with id {assessment_tool.assessment_id} '
-                                      f'is not an interactive quiz')
-
-
 def update_question_attempt(question, answer):
     question_type = question.question_type
     if question_type == "multiple_choice":
@@ -283,7 +403,7 @@ def create_question_attempt(question, answer, interactive_quiz_attempt):
 def save_answer_attempts(interactive_quiz_attempt, attempt):
     answer_attempts = attempt['answers']
     for answer in answer_attempts:
-        question_attempt = interactive_quiz_attempt.get_question_attempt(answer['question-id'])
+        question_attempt = interactive_quiz_attempt.get_question_attempt(answer['question-attempt-id'])
         if question_attempt:
             question = Question.objects.get(question_id=answer['question-id'])
             update_question_attempt(question, answer)
@@ -307,7 +427,7 @@ def submit_interactive_quiz_answers(request_data, user):
         validate_user_participation(event, assessee)
         assessment_tool = \
             event.get_assessment_tool_from_assessment_id(assessment_id=request_data.get('assessment-tool-id'))
-        validate_interactive_quiz_submission(assessment_tool)
+        validate_is_interactive_quiz(assessment_tool)
         validate_attempt_is_submittable(assessment_tool, event)
         save_interactive_quiz_attempt(event, assessment_tool, assessee, request_data)
 
