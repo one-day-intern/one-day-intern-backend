@@ -598,3 +598,20 @@ def serve_review_response_test_attempt_data(request):
     response_test_attempt = get_response_test_attempt_data(request_data, user=request.user)
     response_data = GradedResponseTestAttemptSerializer(response_test_attempt).data
     return Response(data=response_data, status=200)
+
+
+@require_GET
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def serve_get_assessee_report_on_assessment_event(request):
+    """
+    This view will serve as the end-point for assessor to view the assessee report
+    on assessment event.
+    ----------------------------------------------------------
+    request-data must contain:
+    assessment-event-id: string
+    assessee-email: string
+    Format:
+    assessment/review/response-test/?assessment-event-id=<AssessmentEventId>&assessee-email=<AssesseeEmail>
+    """
+    return Response(data=None, status=200)
