@@ -493,6 +493,10 @@ class AssessmentEvent(models.Model):
     def get_assessment_event_participation_by_assessee(self, assessee):
         return self.assessmenteventparticipation_set.get(assessee=assessee)
 
+    def get_event_report_of_assessee(self, assessee):
+        event_participation: AssessmentEventParticipation = self.get_assessment_event_participation_by_assessee(assessee)
+        return event_participation.generate_assessee_report()
+
     def get_assessment_tool_from_assessment_id(self, assessment_id):
         found_assessment_tools = self.test_flow_used.tools.filter(
             assessment_id=assessment_id
@@ -908,6 +912,31 @@ class AssessmentEventParticipation(models.Model):
     assessee = models.ForeignKey('users.Assessee', on_delete=models.CASCADE)
     assessor = models.ForeignKey(USERS_ASSESSOR, on_delete=models.RESTRICT)
     attempt = models.OneToOneField('assessment.TestFlowAttempt', on_delete=models.CASCADE, null=True)
+
+    def generate_assessee_report(self):
+        event_test_flow = self.assessment_event.get_test_flow()
+        event_tools: List[TestFlowTool] = event_test_flow.get_tools()
+        grade_and_note_data = []
+        for event_tool in event_tools:
+            assessment_tool = event_tool.assessment_tool
+            attempt = self.get_assessment_tool_attempt(assessment_tool)
+            data = {
+                'tool_name': assessment_tool.name,
+                'tool_description': assessment_tool.description,
+                'type': assessment_tool.get_type()
+            }
+            if attempt:
+                data['is_attempted'] = True
+                data['grade'] = attempt.grade
+                data['note'] = attempt.note
+            else:
+                data['is_attempted'] = False
+                data['grade'] = 0
+                data['note'] = None
+
+            grade_and_note_data.append(data)
+
+        return grade_and_note_data
 
     def get_all_response_test_attempts(self):
         return self.attempt.toolattempt_set.instance_of(ResponseTestAttempt)
