@@ -4447,7 +4447,7 @@ class ActiveInteractiveQuizTest(TestCase):
         self.assertEqual(response.status_code, HTTPStatus.OK)
 
         response_content = json.loads(response.content)
-        self.assertEqual(response_content.get('assessment-tool-attempted'), str(self.interactive_quiz_no_attempt.assessment_id))
+        self.assertEqual(response_content.get('assessment-tool-id'), str(self.interactive_quiz_no_attempt.assessment_id))
 
         self.assertEqual(len(response_content.get('answer-attempts')), 1)
         text_question = response_content.get('answer-attempts')[0]
@@ -4479,8 +4479,7 @@ class ActiveInteractiveQuizTest(TestCase):
         self.assertEqual(response.status_code, HTTPStatus.OK)
 
         response_content = json.loads(response.content)
-        self.assertEqual(response_content.get('tool-attempt-id'), str(self.interactive_quiz_attempt.tool_attempt_id))
-        self.assertEqual(response_content.get('assessment-tool-attempted'), str(self.interactive_quiz.assessment_id))
+        self.assertEqual(response_content.get('assessment-tool-id'), str(self.interactive_quiz.assessment_id))
 
         self.assertEqual(len(response_content.get('answer-attempts')), 2)
         mc_question = response_content.get('answer-attempts')[0]

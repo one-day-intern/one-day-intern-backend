@@ -271,7 +271,7 @@ def serve_get_all_active_response_test(request):
 def serve_submit_response_test(request):
     """
     This view will serve as the end-point for assessees to submit their response test
-    attempt to an interactive quiz tool that they currently undergo in an assessment event.
+    attempt to an response test tool that they currently undergo in an assessment event.
     ----------------------------------------------------------
     request-data must contain:
     assessment-event-id: string
@@ -444,7 +444,7 @@ def serve_submit_answer(request):
     request-data must contain:
     assessment-event-id: string
     assessment-tool-id: string
-    file: file
+    question-attempt-id: string
     """
     request_data = json.loads(request.body.decode('utf-8'))
     submit_interactive_quiz_answers(request_data, user=request.user)

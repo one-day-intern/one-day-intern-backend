@@ -204,7 +204,7 @@ def get_submitted_individual_question(request_data, user):
     assessment_tool = event.get_assessment_tool_from_assessment_id(assessment_id=request_data.get('assessment-tool-id'))
     validate_is_interactive_quiz(assessment_tool)
     quiz_attempt = get_or_create_interactive_quiz_attempt(event, assessment_tool, assessee=assessee)
-    question_attempt = quiz_attempt.get_question_attempt_with_attempt_id(request_data.get('question-attempt-id'))
+    question_attempt = quiz_attempt.get_question_attempt(request_data.get('question-attempt-id'))
     return get_question_attempt_data(question_attempt,
                                      request_data.get('assessment-event-id'),
                                      request_data.get('assessment-tool-id')
