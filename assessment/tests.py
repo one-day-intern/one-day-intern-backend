@@ -6476,7 +6476,7 @@ class InteractiveQuizGradingTest(TestCase):
         self.assertEqual(int(tq_data.get('question-points')), self.text_question.points)
         self.assertEqual(tq_data.get('question-type'), self.tq_attempt.get_question_type())
         self.assertEqual(tq_data.get('answer'), self.tq_attempt.answer)
-        self.assertEqual(text_question.get('answer-key'), self.text_question.answer_key)
+        self.assertEqual(tq_data.get('answer-key'), self.text_question.answer_key)
         self.assertEqual(tq_data.get('is-graded'), self.tq_attempt.is_graded)
 
 

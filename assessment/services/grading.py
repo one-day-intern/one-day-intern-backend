@@ -299,7 +299,7 @@ def get_question_data(qa):
         tq_dict['question-points'] = str(question.get_points())
         tq_dict['question-type'] = question_type
         tq_dict['answer'] = text_question_attempt_data.get('answer')
-        tq_dict['answer-key'] = text_question_attempt_data.get_answer_key()
+        tq_dict['answer-key'] = text_question_attempt.get_answer_key()
         tq_dict['is-graded'] = text_question_attempt_data.get('is_graded')
 
         question_data = tq_dict
