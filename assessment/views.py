@@ -462,7 +462,6 @@ def serve_submit_interactive_quiz(request):
     request-data must contain:
     assessment-event-id: string
     assessment-tool-id: string
-    file: file
     """
     request_data = json.loads(request.body.decode('utf-8'))
     submit_interactive_quiz(request_data, user=request.user)
