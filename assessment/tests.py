@@ -2609,6 +2609,7 @@ def get_fetch_and_get_response(base_url, request_param, authenticated_user):
     return response
 
 
+
 class GetEventDataTest(TestCase):
     def setUp(self) -> None:
         self.assessee = Assessee.objects.create_user(
@@ -4198,18 +4199,13 @@ class ActiveInteractiveQuizTest(TestCase):
         )
 
         self.interactive_quiz_attempt = self.event_participation.create_interactive_quiz_attempt(self.interactive_quiz)
-        self.mcq_attempt = MultipleChoiceAnswerOptionAttempt.objects.create(
-            question=self.mc_question,
-            interactive_quiz_attempt=self.interactive_quiz_attempt,
-            is_answered=False,
-            selected_option=None
-        )
 
-        self.tq_attempt = TextQuestionAttempt.objects.create(
-            question=self.text_question,
-            interactive_quiz_attempt=self.interactive_quiz_attempt,
-            is_answered=False,
-            answer=None
+        question_attempts = self.interactive_quiz_attempt.get_all_question_attempts()
+        self.mcq_attempt = MultipleChoiceAnswerOptionAttempt.objects.get(
+            question_attempt_id=question_attempts[0].question_attempt_id
+        )
+        self.tq_attempt = TextQuestionAttempt.objects.get(
+            question_attempt_id=question_attempts[1].question_attempt_id
         )
 
         self.assignment = Assignment.objects.create(
@@ -4219,6 +4215,48 @@ class ActiveInteractiveQuizTest(TestCase):
             expected_file_format='ppt',
             duration_in_minutes=180
         )
+
+        self.interactive_quiz_no_attempt: InteractiveQuiz = InteractiveQuiz.objects.create(
+            name='InteractiveQuiz no attempt',
+            description='InteractiveQuiz no attempt',
+            owning_company=self.company,
+            duration_in_minutes=20,
+            total_points=20,
+        )
+
+        self.text_question_no_attempt = TextQuestion.objects.create(
+            interactive_quiz=self.interactive_quiz_no_attempt,
+            prompt="test text question",
+            points=10,
+            question_type='text',
+            answer_key='yes'
+        )
+
+        self.test_flow_no_attempt = TestFlow.objects.create(
+            name='TestFlow 5188',
+            owning_company=self.company
+        )
+
+        self.test_flow_no_attempt.add_tool(
+            assessment_tool=self.interactive_quiz_no_attempt,
+            release_time=datetime.time(10, 0),
+            start_working_time=datetime.time(10, 0)
+        )
+
+        self.assessment_event_no_attempt = AssessmentEvent.objects.create(
+            name='Assessment Event 5199',
+            start_date_time=datetime.datetime(2022, 12, 5),
+            owning_company=self.company,
+            test_flow_used=self.test_flow_no_attempt
+        )
+
+        self.assessment_event_no_attempt.add_participant(
+            assessee=self.assessee,
+            assessor=self.assessor
+        )
+
+        self.event_participation_no_attempt = AssessmentEventParticipation.objects.get(assessee=self.assessee,
+                                                                            assessment_event=self.assessment_event_no_attempt)
 
     @freeze_time('2022-12-05 09:00:00')
     def test_get_released_interactive_quizzes_when_its_event_day_but_no_interactive_quiz_is_released(self):
@@ -4398,6 +4436,26 @@ class ActiveInteractiveQuizTest(TestCase):
         self.assertEqual(len(response_content), 1)
         self.assertEqual(response_content, [self.expected_tool_data])
 
+    @freeze_time('2022-12-05 10:00:00')
+    def test_get_interactive_quiz_attempt_data_when_request_is_valid_no_attempt(self):
+        response = get_response_for_all_quiz_attempt_data(
+            event_id=str(self.assessment_event_no_attempt.event_id),
+            tool_id=str(self.interactive_quiz_no_attempt.assessment_id),
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('assessment-tool-attempted'), str(self.interactive_quiz_no_attempt.assessment_id))
+
+        self.assertEqual(len(response_content.get('answer-attempts')), 1)
+        text_question = response_content.get('answer-attempts')[0]
+
+        self.assertEqual(text_question.get('is-answered'), False)
+        self.assertEqual(text_question.get('prompt'), self.text_question_no_attempt.prompt)
+        self.assertEqual(text_question.get('question-type'), self.text_question_no_attempt.get_question_type())
+        self.assertEqual(text_question.get('answer'), None)
+
 
     @freeze_time('2022-12-05 10:00:00')
     def test_get_interactive_quiz_attempt_data_when_user_is_not_an_assessee(self):
@@ -4423,7 +4481,9 @@ class ActiveInteractiveQuizTest(TestCase):
         self.assertEqual(response_content.get('tool-attempt-id'), str(self.interactive_quiz_attempt.tool_attempt_id))
         self.assertEqual(response_content.get('assessment-tool-attempted'), str(self.interactive_quiz.assessment_id))
 
+        self.assertEqual(len(response_content.get('answer-attempts')), 2)
         mc_question = response_content.get('answer-attempts')[0]
+
         self.assertEqual(mc_question.get('question-attempt-id'), str(self.mcq_attempt.question_attempt_id))
         self.assertEqual(mc_question.get('selected-answer-option-id'), str(self.mcq_attempt.selected_option_id))
         self.assertEqual(mc_question.get('is-answered'), self.mcq_attempt.is_answered)
@@ -4531,17 +4591,16 @@ class InteractiveQuizSubmissionTest(TestCase):
             authentication_service=AuthenticationService.DEFAULT.value
         )
 
-        self.request_data = INTERACTIVE_QUIZ_DATA
-
+        self.quiz_data = INTERACTIVE_QUIZ_DATA
         self.interactive_quiz = InteractiveQuiz.objects.create(
-            name=self.request_data.get('name'),
-            description=self.request_data.get('description'),
+            name=self.quiz_data.get('name'),
+            description=self.quiz_data.get('description'),
             owning_company=self.assessor.associated_company,
-            total_points=self.request_data.get('total_points'),
-            duration_in_minutes=self.request_data.get('duration_in_minutes')
+            total_points=self.quiz_data.get('total_points'),
+            duration_in_minutes=self.quiz_data.get('duration_in_minutes')
         )
 
-        self.mc_question_data = self.request_data.get('questions')[0]
+        self.mc_question_data = self.quiz_data.get('questions')[0]
         self.mc_question = MultipleChoiceQuestion.objects.create(
             interactive_quiz=self.interactive_quiz,
             prompt=self.mc_question_data.get('prompt'),
@@ -4563,7 +4622,7 @@ class InteractiveQuizSubmissionTest(TestCase):
             correct=self.correct_answer_option_data.get('correct'),
         )
 
-        self.text_question_data = self.request_data.get('questions')[1]
+        self.text_question_data = self.quiz_data.get('questions')[1]
         self.text_question = TextQuestion.objects.create(
             interactive_quiz=self.interactive_quiz,
             prompt=self.text_question_data.get('prompt'),
@@ -4647,20 +4706,41 @@ class InteractiveQuizSubmissionTest(TestCase):
             authentication_service=AuthenticationService.DEFAULT.value
         )
 
-    def test_get_interactive_quiz_attempt_when_no_attempt_exist(self):
-        interactive_quiz_attempt = self.event_participation.get_interactive_quiz_attempt(self.interactive_quiz)
-        self.assertEquals(interactive_quiz_attempt, None)
-
-    def test_get_interactive_quiz_attempt_when_attempt_exists(self):
-        self.expected_attempt = InteractiveQuizAttempt.objects.create(
+        self.quiz_attempt = InteractiveQuizAttempt.objects.create(
             test_flow_attempt=self.event_participation.attempt,
             assessment_tool_attempted=self.interactive_quiz
         )
 
+        self.mcq_attempt = MultipleChoiceAnswerOptionAttempt.objects.create(
+            question=self.mc_question,
+            interactive_quiz_attempt=self.quiz_attempt,
+            is_answered=True,
+            selected_option=self.correct_answer_option
+        )
+
+        self.tq_attempt = TextQuestionAttempt.objects.create(
+            question=self.text_question,
+            interactive_quiz_attempt=self.quiz_attempt,
+            is_answered=True,
+            answer='an answer'
+        )
+
+    def test_get_interactive_quiz_attempt_when_no_attempt_exist(self):
+        self.interactive_quiz_no_attempt = InteractiveQuiz.objects.create(
+            name="name",
+            description="description",
+            owning_company=self.company,
+            total_points=50,
+            duration_in_minutes=15
+        )
+
+        interactive_quiz_attempt = self.event_participation.get_interactive_quiz_attempt(self.interactive_quiz_no_attempt)
+        self.assertEquals(interactive_quiz_attempt, None)
+
+    def test_get_interactive_quiz_attempt_when_attempt_exists(self):
         interactive_quiz_attempt = self.event_participation.get_interactive_quiz_attempt(self.interactive_quiz)
         self.assertIsNotNone(interactive_quiz_attempt)
-        self.assertEquals(interactive_quiz_attempt, self.expected_attempt)
-        del interactive_quiz_attempt
+        self.assertEquals(interactive_quiz_attempt, self.quiz_attempt)
 
     def test_create_interactive_quiz_attempt(self):
         interactive_quiz_attempt = self.event_participation.create_interactive_quiz_attempt(self.interactive_quiz)
@@ -4689,25 +4769,14 @@ class InteractiveQuizSubmissionTest(TestCase):
                          .get_content())
 
     def test_set_text_answer(self):
-        interactive_quiz_attempt = InteractiveQuizAttempt.objects.create(
-            test_flow_attempt=self.event_participation.attempt,
-            assessment_tool_attempted=self.interactive_quiz
-        )
-
-        text_question_attempt = TextQuestionAttempt.objects.create(
-            question=self.text_question,
-            interactive_quiz_attempt=interactive_quiz_attempt,
-            is_answered=True,
-            answer=self.text_question_answer
-        )
         new_answer = "This is the new answer"
-        text_question_attempt.set_answer(new_answer)
+        self.tq_attempt.set_answer(new_answer)
 
         found_question_attempt = TextQuestionAttempt.objects.get(question=self.text_question)
         self.assertEqual(found_question_attempt.get_answer(), new_answer)
 
     @patch.object(assessment_event_attempt, 'save_answer_attempts')
-    @patch.object(assessment_event_attempt, 'get_or_create_interactive_quiz_attempt')
+    @patch.object(assessment_event_attempt, 'get_interactive_quiz_attempt')
     def test_save_assignment_attempt(self, mocked_create_attempt, mocked_save_answer_attempts):
         assessment_event_attempt.save_interactive_quiz_attempt(
             event=self.assessment_event,
@@ -4814,8 +4883,11 @@ class InteractiveQuizSubmissionTest(TestCase):
 
     @freeze_time("2022-11-25 12:00:00")
     def test_serve_submit_interactive_quiz_answers_when_request_is_valid(self):
+
         response = submit_answers_and_get_request(self.request_data,
                                                   authenticated_user=self.assessee)
+
+        response_content = json.loads(response.content)
         self.assertEqual(response.status_code, HTTPStatus.OK)
         response_content = json.loads(response.content)
         self.assertEqual(response_content.get('message'), 'Answers saved successfully')
@@ -5860,20 +5932,11 @@ class InteractiveQuizGradingTest(TestCase):
         self.event_participation = AssessmentEventParticipation.objects.get(assessee=self.assessee_1,
                                                                             assessment_event=self.event)
         self.quiz_attempt = self.event_participation.create_interactive_quiz_attempt(self.interactive_quiz)
-        self.mcq_attempt = MultipleChoiceAnswerOptionAttempt.objects.create(
-            question=self.mc_question,
-            interactive_quiz_attempt=self.quiz_attempt,
-            is_answered=True,
-            selected_option=self.correct_answer_option
-        )
 
-        self.tq_attempt = TextQuestionAttempt.objects.create(
-            question=self.text_question,
-            interactive_quiz_attempt=self.quiz_attempt,
-            is_answered=True,
-            answer='an answer'
+        question_attempts = self.quiz_attempt.get_all_question_attempts()
+        self.mcq_attempt = MultipleChoiceAnswerOptionAttempt.objects.get(
+            question_attempt_id=question_attempts[0].question_attempt_id
         )
-
         self.mcq_request_data = {'tool-attempt-id': str(self.quiz_attempt.tool_attempt_id),
                                  'question-attempt-id': str(self.mcq_attempt.question_attempt_id),
                                  'selected-option-id': str(self.correct_answer_option.answer_option_id),
@@ -5881,6 +5944,12 @@ class InteractiveQuizGradingTest(TestCase):
                                  'grade': 0,
                                  'note': 'You missed something'
                                  }
+
+        self.tq_attempt = TextQuestionAttempt.objects.get(
+            question_attempt_id=question_attempts[1].question_attempt_id
+        )
+        self.tq_attempt.point = 5.0
+        self.tq_attempt.save()
 
         self.tq_request_data = {'tool-attempt-id': str(self.quiz_attempt.tool_attempt_id),
                                 'question-attempt-id': str(self.tq_attempt.question_attempt_id),
@@ -5914,7 +5983,7 @@ class InteractiveQuizGradingTest(TestCase):
         grading.set_text_question_attempt_grade(self.quiz_attempt, self.tq_attempt, request_data)
 
         self.assertEqual(self.quiz_attempt.grade, 0)
-        self.assertEqual(self.tq_attempt.point, 0)
+        self.assertEqual(self.tq_attempt.point, 5.0)
         self.assertEqual(self.tq_attempt.question_note, request_data.get('note'))
 
     def test_set_grade_and_note_of_question_attempts_when_note_does_not_exist(self):
@@ -6039,14 +6108,20 @@ class InteractiveQuizGradingTest(TestCase):
             )
         )
 
-    def test_grade_question_attempt_when_request_is_valid(self):
+    @patch.object(TextQuestionAttempt, 'set_point')
+    @patch.object(TextQuestionAttempt, 'set_note')
+    def test_grade_question_attempt_when_request_is_valid(self, mocked_set_note, mocked_set_point):
         request_data = self.tq_request_data.copy()
         response = fetch_and_get_response(
             SUBMIT_INDIVIDUAL_QUESTION_GRADE_AND_NOTE_URL,
             request_data,
             authenticated_user=self.assessor_responsible_for_1
         )
+
         self.assertEqual(response.status_code, HTTPStatus.OK)
+
+        mocked_set_point.assert_called_with(request_data.get('grade'))
+        mocked_set_note.assert_called_with(request_data.get('note'))
 
         response_content = json.loads(response.content)
         self.assertEqual(response_content.get('grade'), request_data.get('grade'))
@@ -6054,11 +6129,6 @@ class InteractiveQuizGradingTest(TestCase):
 
         changed_attempt = ToolAttempt.objects.get(tool_attempt_id=self.quiz_attempt.tool_attempt_id)
         self.assertEqual(changed_attempt.grade, request_data.get('grade'))
-
-        changed_text_question = TextQuestionAttempt.objects.get(question_id=self.text_question.question_id)
-        self.assertEqual(changed_text_question.point, self.tq_request_data.get('grade'))
-        self.assertEqual(changed_text_question.question_note, self.tq_request_data.get('note'))
-        self.assertEqual(changed_text_question.is_graded, True)
 
     def test_grade_quiz_attempt_when_id_is_none(self):
         request_data = self.mcq_request_data.copy()
@@ -6151,11 +6221,11 @@ class InteractiveQuizGradingTest(TestCase):
         self.assertEqual(response.status_code, HTTPStatus.OK)
 
         response_content = json.loads(response.content)
-        self.assertEqual(float(response_content.get('grade')), 5.0)
+        self.assertEqual(float(response_content.get('grade')), 0.0)
         self.assertEqual(response_content.get('note'), request_data.get('note'))
 
         changed_attempt = ToolAttempt.objects.get(tool_attempt_id=self.quiz_attempt.tool_attempt_id)
-        self.assertEqual(changed_attempt.grade, 5.0)
+        self.assertEqual(changed_attempt.grade, 0.0)
         self.assertEqual(changed_attempt.note, request_data.get('note'))
 
     def test_get_interactive_quiz_attempt_data_when_attempt_with_id_does_not_exist(self):
@@ -6244,7 +6314,7 @@ class InteractiveQuizGradingTest(TestCase):
         self.assertEqual(text_question.get('is-answered'), self.tq_attempt.is_answered)
         self.assertEqual(text_question.get('prompt'), self.text_question.prompt)
         self.assertEqual(text_question.get('note'), self.tq_attempt.question_note)
-        self.assertEqual(float(text_question.get('grade')), 0.0)
+        self.assertEqual(float(text_question.get('grade')), 5.0)
         self.assertEqual(int(text_question.get('question-points')), self.text_question.points)
         self.assertEqual(text_question.get('question-type'), self.tq_attempt.get_question_type())
         self.assertEqual(text_question.get('answer'), self.tq_attempt.answer)
@@ -6343,7 +6413,7 @@ class InteractiveQuizGradingTest(TestCase):
         self.assertEqual(tq_data.get('is-answered'), self.tq_attempt.is_answered)
         self.assertEqual(tq_data.get('prompt'), self.text_question.prompt)
         self.assertEqual(tq_data.get('note'), self.tq_attempt.question_note)
-        self.assertEqual(float(tq_data.get('grade')), 0.0)
+        self.assertEqual(float(tq_data.get('grade')), self.tq_attempt.point)
         self.assertEqual(int(tq_data.get('question-points')), self.text_question.points)
         self.assertEqual(tq_data.get('question-type'), self.tq_attempt.get_question_type())
         self.assertEqual(tq_data.get('answer'), self.tq_attempt.answer)
