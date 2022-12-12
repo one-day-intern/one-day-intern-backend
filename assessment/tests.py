@@ -4686,21 +4686,6 @@ class InteractiveQuizSubmissionTest(TestCase):
 
         self.text_question_answer = "I believe that pandas are the most adorable creatures"
 
-        self.request_data = {
-            "assessment-event-id": f"{self.assessment_event.event_id}",
-            "assessment-tool-id": f"{self.interactive_quiz.assessment_id}",
-            "answers": [
-                {
-                    "question-id": f"{self.mc_question.question_id}",
-                    "answer-option-id": f"{self.correct_answer_option.answer_option_id}"
-                },
-                {
-                    "question-id": f"{self.text_question.question_id}",
-                    "text-answer": self.text_question_answer
-                }
-            ]
-        }
-
         self.assessee_2 = Assessee.objects.create_user(
             email='assessee2060@email.com',
             password='Password1232061',
@@ -4730,48 +4715,20 @@ class InteractiveQuizSubmissionTest(TestCase):
             answer='an answer'
         )
 
-    def test_get_interactive_quiz_attempt_when_no_attempt_exist(self):
-        self.interactive_quiz_no_attempt = InteractiveQuiz.objects.create(
-            name="name",
-            description="description",
-            owning_company=self.company,
-            total_points=50,
-            duration_in_minutes=15
-        )
-
-        interactive_quiz_attempt = self.event_participation.get_interactive_quiz_attempt(self.interactive_quiz_no_attempt)
-        self.assertEquals(interactive_quiz_attempt, None)
-
-    def test_get_interactive_quiz_attempt_when_attempt_exists(self):
-        interactive_quiz_attempt = self.event_participation.get_interactive_quiz_attempt(self.interactive_quiz)
-        self.assertIsNotNone(interactive_quiz_attempt)
-        self.assertEquals(interactive_quiz_attempt, self.quiz_attempt)
-
-    def test_create_interactive_quiz_attempt(self):
-        interactive_quiz_attempt = self.event_participation.create_interactive_quiz_attempt(self.interactive_quiz)
-        self.assertTrue(isinstance(interactive_quiz_attempt, InteractiveQuizAttempt))
-        self.assertEqual(interactive_quiz_attempt.test_flow_attempt, self.event_participation.attempt)
-        self.assertEqual(interactive_quiz_attempt.assessment_tool_attempted, self.interactive_quiz)
-        del interactive_quiz_attempt
-
-    def test_set_selected_option(self):
-        interactive_quiz_attempt = InteractiveQuizAttempt.objects.create(
-            test_flow_attempt=self.event_participation.attempt,
-            assessment_tool_attempted=self.interactive_quiz
-        )
-
-        mc_answer_option_attempt = MultipleChoiceAnswerOptionAttempt.objects.create(
-            question=self.mc_question,
-            interactive_quiz_attempt=interactive_quiz_attempt,
-            is_answered=True,
-            selected_option=self.correct_answer_option
-        )
-
-        mc_answer_option_attempt.set_selected_option(self.incorrect_answer_option.answer_option_id)
-        found_mc_question_attempt = MultipleChoiceAnswerOptionAttempt.objects.get(
-            selected_option=self.incorrect_answer_option)
-        self.assertEqual(found_mc_question_attempt.get_selected_option_content(), self.incorrect_answer_option
-                         .get_content())
+        self.request_data = {
+            "assessment-event-id": f"{self.assessment_event.event_id}",
+            "assessment-tool-id": f"{self.interactive_quiz.assessment_id}",
+            "answers": [
+                {
+                    "question-attempt-id": f"{self.mcq_attempt.question_attempt_id}",
+                    "answer-option-id": f"{self.correct_answer_option.answer_option_id}"
+                },
+                {
+                    "question-attempt-id": f"{self.tq_attempt.question_attempt_id}",
+                    "text-answer": self.text_question_answer
+                }
+            ]
+        }
 
     def test_set_text_answer(self):
         new_answer = "This is the new answer"
@@ -6340,7 +6297,7 @@ class InteractiveQuizGradingTest(TestCase):
         self.assertEqual(response.status_code, HTTPStatus.OK)
 
         response_content = json.loads(response.content)
-        self.assertEqual(response_content.get('assessment-tool-attempted'), str(self.interactive_quiz.assessment_id))
+        self.assertEqual(response_content.get('assessment-tool-id'), str(self.interactive_quiz.assessment_id))
         self.assertEqual(response_content.get('grade'), self.quiz_attempt.grade)
         self.assertEqual(response_content.get('note'), self.quiz_attempt.note)
 
