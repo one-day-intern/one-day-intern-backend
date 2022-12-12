@@ -37,3 +37,15 @@ def get_assessee_report_on_assessment_event(request_data, user):
     assessee = utils.get_assessee_from_email(request_data.get('assessee-email'))
     validate_responsibility(event, assessor, assessee)
     return event.get_event_report_of_assessee(assessee)
+
+
+@catch_exception_and_convert_to_invalid_request_decorator(exception_types=ObjectDoesNotExist)
+def assessor_get_assessment_event_data(request_data, user):
+    try:
+        assessor = users_utils.get_assessor_from_user(user)
+    except ObjectDoesNotExist as exception:
+        raise RestrictedAccessException(str(exception))
+
+    event = utils.get_assessment_event_from_id(request_data.get('assessment-event-id'))
+    validate_assessor_participation(event, assessor)
+    return event

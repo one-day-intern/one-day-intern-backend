@@ -36,7 +36,8 @@ from .services.assessment_event_attempt import (
 )
 from .services.progress_review import (
     get_assessee_progress_on_assessment_event,
-    get_assessee_report_on_assessment_event
+    get_assessee_report_on_assessment_event,
+    assessor_get_assessment_event_data
 )
 from .services.grading import (
     grade_assessment_tool,
@@ -442,7 +443,10 @@ def serve_assessor_get_assessment_event_data(request):
     request-param must contain:
     assessment-event-id: string
     """
-    return Response(data=None)
+    request_data = request.GET
+    event = assessor_get_assessment_event_data(request_data, user=request.user)
+    response_data = AssessmentEventSerializer(event).data
+    return Response(data=response_data)
 
 
 
