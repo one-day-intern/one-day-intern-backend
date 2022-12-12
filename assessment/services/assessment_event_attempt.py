@@ -26,10 +26,11 @@ from ..models import (
     ResponseTest,
     ToolAttemptSerializer,
     MultipleChoiceAnswerOptionAttemptSerializer,
-    TextQuestionAttemptSerializer
+    TextQuestionAttemptSerializer,
+    MultipleChoiceQuestion
 )
 from .TaskGenerator import TaskGenerator
-from . import utils, google_storage, grading
+from . import utils, google_storage
 import mimetypes
 
 ASSOCIATED_TOOL_NOT_FOUND = 'Assessment tool associated with event does not exist'
@@ -94,6 +95,18 @@ def get_interactive_quiz_attempt(event: AssessmentEvent, quiz: InteractiveQuiz, 
     return found_attempt
 
 
+def get_answer_options_data_submission(question):
+    mc_question = MultipleChoiceQuestion.objects.get(question_id=question.question_id)
+    answer_options = mc_question.get_answer_options()
+    data = []
+
+    for ao in answer_options:
+        data.append({'answer-option-id': str(ao.get_answer_option_id()),
+                     'content': ao.get_content(),
+                     })
+    return data
+
+
 def combine_tool_attempt_data(tool_attempt):
     tool_attempt_data = ToolAttemptSerializer(tool_attempt).data
 
@@ -116,7 +129,7 @@ def combine_tool_attempt_data(tool_attempt):
             mcq_dict['is-answered'] = mc_answer_option_data.get('is_answered')
             mcq_dict['prompt'] = question.get_prompt()
             mcq_dict['question-type'] = question_type
-            mcq_dict['answer-options'] = grading.get_answer_options_data(question)
+            mcq_dict['answer-options'] = get_answer_options_data_submission(question)
             mcq_dict['selected-answer-option-id'] = str(mc_answer_option_data.get('selected_option'))
 
             combined_data['answer-attempts'].append(mcq_dict)
@@ -164,7 +177,7 @@ def get_question_attempt_data(qa):
         mcq_dict['is-answered'] = mc_answer_option_data.get('is_answered')
         mcq_dict['prompt'] = question.get_prompt()
         mcq_dict['question-type'] = question_type
-        mcq_dict['answer-options'] = grading.get_answer_options_data(question)
+        mcq_dict['answer-options'] = get_answer_options_data_submission(question)
         mcq_dict['selected-answer-option-id'] = str(mc_answer_option_data.get('selected_option'))
 
         question_data = mcq_dict

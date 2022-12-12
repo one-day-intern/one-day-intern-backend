@@ -4492,9 +4492,11 @@ class ActiveInteractiveQuizTest(TestCase):
         self.assertEqual(mc_question.get('question-type'), self.mcq_attempt.get_question_type())
 
         correct_ao = mc_question.get('answer-options')[0]
+        self.assertEqual(correct_ao.get('answer-option-id'), str(self.correct_answer_option.answer_option_id))
         self.assertEqual(correct_ao.get('content'), self.correct_answer_option_data.get('content'))
 
         incorrect_ao = mc_question.get('answer-options')[1]
+        self.assertEqual(incorrect_ao.get('answer-option-id'), str(self.incorrect_answer_option.answer_option_id))
         self.assertEqual(incorrect_ao.get('content'), self.incorrect_answer_option_data.get('content'))
 
         text_question = response_content.get('answer-attempts')[1]
@@ -4534,11 +4536,13 @@ class ActiveInteractiveQuizTest(TestCase):
         self.assertEqual(mcq_data.get('prompt'), self.mc_question.prompt)
         self.assertEqual(mcq_data.get('question-type'), self.mcq_attempt.get_question_type())
 
-        correct_ao = mcq_data.get('answer-options')[0]
-        self.assertEqual(correct_ao.get('content'), self.correct_answer_option_data.get('content'))
+        incorrect_ao_attempt = mcq_data.get('answer-options')[1]
+        self.assertEqual(incorrect_ao_attempt.get('answer-option-id'), str(self.incorrect_answer_option.answer_option_id))
+        self.assertEqual(incorrect_ao_attempt.get('content'), self.incorrect_answer_option_data.get('content'))
 
-        incorrect_ao = mcq_data.get('answer-options')[1]
-        self.assertEqual(incorrect_ao.get('content'), self.incorrect_answer_option_data.get('content'))
+        correct_ao_attempt = mcq_data.get('answer-options')[0]
+        self.assertEqual(correct_ao_attempt.get('answer-option-id'), str(self.correct_answer_option.answer_option_id))
+        self.assertEqual(correct_ao_attempt.get('content'), self.correct_answer_option_data.get('content'))
 
         response = get_response_for_individual_question_attempt_data(
             event_id=str(self.assessment_event.event_id),
@@ -6351,10 +6355,12 @@ class InteractiveQuizGradingTest(TestCase):
         self.assertEqual(mc_question.get('question-type'), self.mcq_attempt.get_question_type())
 
         correct_ao = mc_question.get('answer-options')[0]
+        self.assertEqual(correct_ao.get('answer-option-id'), str(self.correct_answer_option.answer_option_id))
         self.assertEqual(correct_ao.get('content'), self.correct_answer_option_data.get('content'))
         self.assertEqual(correct_ao.get('correct'), self.correct_answer_option_data.get('correct'))
 
         incorrect_ao = mc_question.get('answer-options')[1]
+        self.assertEqual(incorrect_ao.get('answer-option-id'), str(self.incorrect_answer_option.answer_option_id))
         self.assertEqual(incorrect_ao.get('content'), self.incorrect_answer_option_data.get('content'))
         self.assertEqual(incorrect_ao.get('correct'), self.incorrect_answer_option_data.get('correct'))
 
@@ -6368,6 +6374,7 @@ class InteractiveQuizGradingTest(TestCase):
         self.assertEqual(int(text_question.get('question-points')), self.text_question.points)
         self.assertEqual(text_question.get('question-type'), self.tq_attempt.get_question_type())
         self.assertEqual(text_question.get('answer'), self.tq_attempt.answer)
+        self.assertEqual(text_question.get('answer-key'), self.text_question.answer_key)
         self.assertEqual(text_question.get('is-graded'), self.tq_attempt.is_graded)
 
     def test_get_question_attempt_data_when_attempt_with_id_does_not_exist(self):
@@ -6443,11 +6450,13 @@ class InteractiveQuizGradingTest(TestCase):
         self.assertEqual(int(mcq_data.get('question-points')), self.mc_question.points)
         self.assertEqual(mcq_data.get('question-type'), self.mcq_attempt.get_question_type())
 
-        correct_ao = mcq_data.get('answer-options')[0]
-        self.assertEqual(correct_ao.get('content'), self.correct_answer_option_data.get('content'))
-        self.assertEqual(correct_ao.get('correct'), self.correct_answer_option_data.get('correct'))
+        correct_ao_attempt = mcq_data.get('answer-options')[0]
+        self.assertEqual(correct_ao_attempt.get('answer-option-id'), str(self.correct_answer_option.answer_option_id))
+        self.assertEqual(correct_ao_attempt.get('content'), self.correct_answer_option_data.get('content'))
+        self.assertEqual(correct_ao_attempt.get('correct'), self.correct_answer_option_data.get('correct'))
 
         incorrect_ao = mcq_data.get('answer-options')[1]
+        self.assertEqual(incorrect_ao.get('answer-option-id'), str(self.incorrect_answer_option.answer_option_id))
         self.assertEqual(incorrect_ao.get('content'), self.incorrect_answer_option_data.get('content'))
         self.assertEqual(incorrect_ao.get('correct'), self.incorrect_answer_option_data.get('correct'))
 
@@ -6467,6 +6476,7 @@ class InteractiveQuizGradingTest(TestCase):
         self.assertEqual(int(tq_data.get('question-points')), self.text_question.points)
         self.assertEqual(tq_data.get('question-type'), self.tq_attempt.get_question_type())
         self.assertEqual(tq_data.get('answer'), self.tq_attempt.answer)
+        self.assertEqual(tq_data.get('answer-key'), self.text_question.answer_key)
         self.assertEqual(tq_data.get('is-graded'), self.tq_attempt.is_graded)
 
 
