@@ -88,6 +88,9 @@ class InteractiveQuiz(AssessmentTool):
     duration_in_minutes = models.IntegerField(null=False)
     total_points = models.IntegerField(null=False)
 
+    def get_questions(self):
+        return self.questions.all()
+
     def get_tool_data(self) -> dict:
         tool_base_data = super().get_tool_data()
         tool_base_data['additional_info'] = {
@@ -785,6 +788,27 @@ class InteractiveQuizAttempt(ToolAttempt):
                     if mcq_attempt.get_is_correct():
                         self.accumulate_points(question_attempt.get_question().get_points())
 
+    def create_question_attempts(self, interactive_quiz: InteractiveQuiz):
+        questions = interactive_quiz.get_questions()
+
+        for question in questions:
+            question_type = question.question_type
+
+            if question_type == "multiple_choice":
+                MultipleChoiceAnswerOptionAttempt.objects.create(
+                    question=question,
+                    interactive_quiz_attempt=self,
+                    is_answered=False,
+                    selected_option=None
+                )
+            else:
+                TextQuestionAttempt.objects.create(
+                    question=question,
+                    interactive_quiz_attempt=self,
+                    is_answered=False,
+                    answer=None
+                )
+
 
 class QuestionAttempt(models.Model):
     question_attempt_id = models.UUIDField(default=uuid.uuid4, primary_key=True)
@@ -1006,6 +1030,7 @@ class AssessmentEventParticipation(models.Model):
             test_flow_attempt=self.attempt,
             assessment_tool_attempted=interactive_quiz
         )
+        interactive_quiz_attempt.create_question_attempts(interactive_quiz)
         return interactive_quiz_attempt
 
     def get_all_assessment_tool_attempts(self):

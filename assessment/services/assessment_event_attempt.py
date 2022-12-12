@@ -59,6 +59,17 @@ def get_all_active_assignment(request_data: dict, user: User):
     return event.get_released_assignments()
 
 
+def get_or_create_interactive_quiz_attempt(event: AssessmentEvent, interactive_quiz: InteractiveQuiz,
+                                           assessee: Assessee):
+    assessee_participation = event.get_assessment_event_participation_by_assessee(assessee)
+    found_attempt = assessee_participation.get_interactive_quiz_attempt(interactive_quiz)
+
+    if found_attempt:
+        return found_attempt
+    else:
+        return assessee_participation.create_interactive_quiz_attempt(interactive_quiz)
+
+
 @catch_exception_and_convert_to_invalid_request_decorator(exception_types=EventDoesNotExist)
 def get_all_active_interactive_quiz(request_data: dict, user: User):
     event = utils.get_active_assessment_event_from_id(request_data.get('assessment-event-id'))
@@ -134,7 +145,7 @@ def get_submitted_interactive_quiz(request_data, user):
     validate_user_participation(event, assessee)
     assessment_tool = event.get_assessment_tool_from_assessment_id(assessment_id=request_data.get('assessment-tool-id'))
     validate_is_interactive_quiz(assessment_tool)
-    quiz_attempt = get_interactive_quiz_attempt(event, quiz=assessment_tool, assessee=assessee)
+    quiz_attempt = get_or_create_interactive_quiz_attempt(event, interactive_quiz=assessment_tool, assessee=assessee)
     return combine_tool_attempt_data(quiz_attempt)
 
 
@@ -182,7 +193,7 @@ def get_submitted_individual_question(request_data, user):
     validate_user_participation(event, assessee)
     assessment_tool = event.get_assessment_tool_from_assessment_id(assessment_id=request_data.get('assessment-tool-id'))
     validate_is_interactive_quiz(assessment_tool)
-    quiz_attempt = get_interactive_quiz_attempt(event, quiz=assessment_tool, assessee=assessee)
+    quiz_attempt = get_or_create_interactive_quiz_attempt(event, assessment_tool, assessee=assessee)
     question_attempt = quiz_attempt.get_question_attempt_with_attempt_id(request_data.get('question-attempt-id'))
     return get_question_attempt_data(question_attempt)
 
@@ -356,67 +367,33 @@ def get_submitted_assignment(request_data, user):
     return downloaded_file
 
 
-def get_or_create_interactive_quiz_attempt(event: AssessmentEvent, interactive_quiz: InteractiveQuiz,
-                                           assessee: Assessee):
-    assessee_participation = event.get_assessment_event_participation_by_assessee(assessee)
-    found_attempt = assessee_participation.get_interactive_quiz_attempt(interactive_quiz)
-
-    if found_attempt:
-        return found_attempt
-    else:
-        return assessee_participation.create_interactive_quiz_attempt(interactive_quiz)
-
-
-def update_question_attempt(question, answer):
+def update_question_attempt(question, question_attempt, answer):
     question_type = question.question_type
     if question_type == "multiple_choice":
         answer_option_attempt = MultipleChoiceAnswerOptionAttempt.objects.get(
-            answer_option_id=answer['answer-option-id'])
-        answer_option_attempt.set_answer_option(answer['answer-option-id'])
+            question_attempt_id=question_attempt.question_attempt_id)
+        answer_option_attempt.set_selected_option(answer['answer-option-id'])
     else:
         text_question_attempt = TextQuestionAttempt.objects.get(question=question)
         text_question_attempt.set_answer(answer['text-answer'])
 
 
-def create_question_attempt(question, answer, interactive_quiz_attempt):
-    question_type = question.question_type
-
-    if question_type == "multiple_choice":
-        answer_option = MultipleChoiceAnswerOption.objects.get(answer_option_id=answer['answer-option-id'])
-        MultipleChoiceAnswerOptionAttempt.objects.create(
-            question=question,
-            interactive_quiz_attempt=interactive_quiz_attempt,
-            is_answered=True,
-            selected_option=answer_option
-        )
-    else:
-        text_answer = answer['text-answer']
-        if text_answer != '':
-            TextQuestionAttempt.objects.create(
-                question=question,
-                interactive_quiz_attempt=interactive_quiz_attempt,
-                is_answered=True,
-                answer=text_answer
-            )
-
-
+@catch_exception_and_convert_to_invalid_request_decorator(
+    exception_types=QuestionAttemptDoesNotExist)
 def save_answer_attempts(interactive_quiz_attempt, attempt):
     answer_attempts = attempt['answers']
     for answer in answer_attempts:
         question_attempt = interactive_quiz_attempt.get_question_attempt_with_question_id(answer['question-id'])
-        if question_attempt:
-            question = Question.objects.get(question_id=answer['question-id'])
-            update_question_attempt(question, answer)
-        else:
-            question = Question.objects.get(question_id=answer['question-id'])
-            create_question_attempt(question, answer, interactive_quiz_attempt)
+        question = Question.objects.get(question_id=answer['question-id'])
+        update_question_attempt(question, question_attempt, answer)
 
 
 def save_interactive_quiz_attempt(event: AssessmentEvent, interactive_quiz: InteractiveQuiz, assessee: Assessee,
                                   attempt):
-    interactive_quiz_attempt: InteractiveQuizAttempt = get_or_create_interactive_quiz_attempt(event,
-                                                                                              interactive_quiz,
-                                                                                              assessee)
+    interactive_quiz_attempt: InteractiveQuizAttempt = get_interactive_quiz_attempt(event,
+                                                                                    interactive_quiz,
+                                                                                    assessee)
+
     save_answer_attempts(interactive_quiz_attempt, attempt)
 
 
