@@ -19,7 +19,6 @@ from ..models import (
 )
 from .participation_validators import validate_assessor_participation
 from . import utils, google_storage
-from . import assessment_event_attempt
 import mimetypes
 
 
@@ -184,14 +183,16 @@ def grade_interactive_quiz(request_data, user):
     return grade, note
 
 
-def get_answer_options_data(question):
+def get_answer_options_data_grading(question):
     mc_question = MultipleChoiceQuestion.objects.get(question_id=question.question_id)
     answer_options = mc_question.get_answer_options()
     data = []
 
     for ao in answer_options:
-        data.append(MultipleChoiceAnswerOptionSerializer(ao).data)
-
+        data.append({'answer-option-id': str(ao.get_answer_option_id()),
+                     'content': ao.get_content(),
+                     'correct': ao.is_correct()
+                     })
     return data
 
 
@@ -222,7 +223,7 @@ def combine_tool_grading_data(tool_attempt):
             mcq_dict['grade'] = str(mc_answer_option_data.get('point'))
             mcq_dict['question-points'] = str(question.get_points())
             mcq_dict['question-type'] = question_type
-            mcq_dict['answer-options'] = get_answer_options_data(question)
+            mcq_dict['answer-options'] = get_answer_options_data_grading(question)
             mcq_dict['selected-answer-option-id'] = str(mc_answer_option_data.get('selected_option'))
             mcq_dict['is-correct'] = mc_answer_option_data.get('is_correct')
 
@@ -241,6 +242,7 @@ def combine_tool_grading_data(tool_attempt):
             tq_dict['note'] = qa.get_note()
             tq_dict['question-type'] = question_type
             tq_dict['answer'] = text_question_attempt_data.get('answer')
+            tq_dict['answer-key'] = text_question_attempt.get_answer_key()
             tq_dict['is-graded'] = text_question_attempt_data.get('is_graded')
 
             combined_data['answer-attempts'].append(tq_dict)
@@ -278,7 +280,7 @@ def get_question_data(qa):
         mcq_dict['grade'] = str(mc_answer_option_data.get('point'))
         mcq_dict['question-points'] = str(question.get_points())
         mcq_dict['question-type'] = question_type
-        mcq_dict['answer-options'] = get_answer_options_data(question)
+        mcq_dict['answer-options'] = get_answer_options_data_grading(question)
         mcq_dict['selected-answer-option-id'] = str(mc_answer_option_data.get('selected_option'))
         mcq_dict['is-correct'] = mc_answer_option_data.get('is_correct')
 
@@ -297,6 +299,7 @@ def get_question_data(qa):
         tq_dict['question-points'] = str(question.get_points())
         tq_dict['question-type'] = question_type
         tq_dict['answer'] = text_question_attempt_data.get('answer')
+        tq_dict['answer-key'] = text_question_attempt_data.get_answer_key()
         tq_dict['is-graded'] = text_question_attempt_data.get('is_graded')
 
         question_data = tq_dict

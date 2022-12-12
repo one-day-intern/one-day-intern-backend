@@ -164,6 +164,9 @@ class MultipleChoiceAnswerOption(models.Model):
     def get_content(self):
         return self.content
 
+    def get_answer_option_id(self):
+        return self.answer_option_id
+
     def is_correct(self):
         return self.correct
 
@@ -868,6 +871,10 @@ class TextQuestionAttempt(QuestionAttempt):
 
     def get_answer(self):
         return self.answer
+
+    def get_answer_key(self):
+        tq = TextQuestion.objects.get(question_id=self.get_question().question_id)
+        return tq.answer_key
 
 
 class MultipleChoiceAnswerOptionAttempt(QuestionAttempt):
