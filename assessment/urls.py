@@ -30,7 +30,8 @@ from .views import (
     serve_create_video_conference_notification,
     serve_get_submitted_response_test,
     serve_review_response_test_attempt_data,
-    serve_get_all_active_interactive_quizzes
+    serve_get_all_active_interactive_quizzes,
+    serve_assessor_get_assessment_event_data
 )
 
 urlpatterns = [
@@ -57,6 +58,7 @@ urlpatterns = [
     path('assessment-event/submit-answers/', serve_submit_answer, name='submit-interactive-quiz-answers'),
     path('assessment-event/submit-interactive-quiz/', serve_submit_interactive_quiz, name='submit-interactive-quiz'),
     path('assessment-event/progress/', serve_get_assessee_progress_on_event, name='get-assessee-progress'),
+    path('assessment-event/get-data/assessor/', serve_assessor_get_assessment_event_data, name='assessor-get-event-data'),
     path('grade/submit-grade-and-note/', serve_grade_assessment_tool_attempts, name='submit-grade-and-note'),
     path('grade/individual-question/', serve_grade_individual_question_attempts, name='grade-individual-question'),
     path('grade/interactive-quiz/', serve_save_graded_attempt, name='grade-interactive-quiz'),

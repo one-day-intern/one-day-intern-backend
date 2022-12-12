@@ -432,6 +432,20 @@ def serve_get_assessee_progress_on_event(request):
     return Response(data=progress_data)
 
 
+@require_GET
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def serve_assessor_get_assessment_event_data(request):
+    """
+    This view will serve as the end point for assessors to get assessment event data
+    ----------------------------------------------------------
+    request-param must contain:
+    assessment-event-id: string
+    """
+    return Response(data=None)
+
+
+
 @require_POST
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
