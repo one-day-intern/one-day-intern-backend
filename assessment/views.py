@@ -40,7 +40,8 @@ from .services.assessment_event_attempt import (
 )
 from .services.progress_review import (
     get_assessee_progress_on_assessment_event,
-    get_assessee_report_on_assessment_event
+    get_assessee_report_on_assessment_event,
+    assessor_get_assessment_event_data
 )
 from .services.grading import (
     grade_assessment_tool,
@@ -482,6 +483,22 @@ def serve_get_assessee_progress_on_event(request):
     request_data = request.GET
     progress_data = get_assessee_progress_on_assessment_event(request_data, user=request.user)
     return Response(data=progress_data)
+
+
+@require_GET
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def serve_assessor_get_assessment_event_data(request):
+    """
+    This view will serve as the end point for assessors to get assessment event data
+    ----------------------------------------------------------
+    request-param must contain:
+    assessment-event-id: string
+    """
+    request_data = request.GET
+    event = assessor_get_assessment_event_data(request_data, user=request.user)
+    response_data = AssessmentEventSerializer(event).data
+    return Response(data=response_data)
 
 
 @require_POST

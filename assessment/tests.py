@@ -127,6 +127,7 @@ GET_EVENT_DATA = reverse('get-event-data') + ASSESSMENT_EVENT_ID_PARAM_NAME
 GET_AND_DOWNLOAD_ATTEMPT_URL = reverse('get-submitted-assignment')
 CREATE_RESPONSE_TEST_URL = '/assessment/create/response-test/'
 GET_PROGRESS_URL = reverse('get-assessee-progress')
+ASSESSOR_GET_EVENT_DATA_URL = reverse('assessor-get-event-data')
 SUBMIT_GRADE_AND_NOTE_URL = reverse('submit-grade-and-note')
 SUBMIT_INDIVIDUAL_QUESTION_GRADE_AND_NOTE_URL = reverse('grade-individual-question')
 SUBMIT_INTERACTIVE_QUIZ_GRADE_AND_NOTE_URL = reverse('grade-interactive-quiz')
@@ -5032,6 +5033,55 @@ class ViewEventProgressTest(TestCase):
             'tool-data': self.assignment_1_data,
             'attempt-id': None
         }
+
+    def test_assessor_get_assessment_event_data_when_event_with_id_does_not_exist(self):
+        invalid_id = str(uuid.uuid4())
+        response = get_fetch_and_get_response(
+            ASSESSOR_GET_EVENT_DATA_URL,
+            request_param=f'?assessment-event-id={invalid_id}',
+            authenticated_user=self.assessor
+        )
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), EVENT_DOES_NOT_EXIST.format(invalid_id))
+
+    def test_assessor_get_assessment_event_data_when_user_is_not_an_assessor(self):
+        response = get_fetch_and_get_response(
+            ASSESSOR_GET_EVENT_DATA_URL,
+            request_param=f'?assessment-event-id={self.assessment_event.event_id}',
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), ASSESSOR_NOT_FOUND.format(self.assessee))
+
+    def test_assessor_get_assessment_event_data_when_assessor_does_not_participate_on_event(self):
+        response = get_fetch_and_get_response(
+            ASSESSOR_GET_EVENT_DATA_URL,
+            request_param=f'?assessment-event-id={self.assessment_event.event_id}',
+            authenticated_user=self.assessor_2
+        )
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            ASSESSOR_NOT_PART_OF_EVENT.format(self.assessor_2, self.assessment_event.event_id)
+        )
+
+    def test_assessor_get_assessment_event_data_when_request_is_valid(self):
+        response = get_fetch_and_get_response(
+            ASSESSOR_GET_EVENT_DATA_URL,
+            request_param=f'?assessment-event-id={self.assessment_event.event_id}',
+            authenticated_user=self.assessor
+        )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('event_id'), str(self.assessment_event.event_id))
+        self.assertEqual(response_content.get('name'), self.assessment_event.name)
+        self.assertEqual(response_content.get('start_date_time'), self.assessment_event.start_date_time.isoformat())
+        self.assertEqual(response_content.get('end_date_time'), self.assessment_event.get_event_end_date_time().isoformat())
+        self.assertEqual(response_content.get('owning_company_id'), str(self.company.company_id))
+        self.assertEqual(response_content.get('test_flow_id'), str(self.test_flow.test_flow_id))
 
     def test_get_assessment_tool_attempt_when_no_attempt_has_been_submitted(self):
         attempt = self.assessment_event_participation.get_assessment_tool_attempt(self.assignment_1)
