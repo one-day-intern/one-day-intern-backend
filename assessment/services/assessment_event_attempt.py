@@ -26,7 +26,8 @@ from ..models import (
     ResponseTest,
     ToolAttemptSerializer,
     MultipleChoiceAnswerOptionAttemptSerializer,
-    TextQuestionAttemptSerializer
+    TextQuestionAttemptSerializer,
+    MultipleChoiceQuestion
 )
 from .TaskGenerator import TaskGenerator
 from . import utils, google_storage
