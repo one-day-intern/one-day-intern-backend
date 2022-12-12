@@ -30,6 +30,7 @@ from .views import (
     serve_create_video_conference_notification,
     serve_get_submitted_response_test,
     serve_review_response_test_attempt_data,
+    serve_get_all_active_interactive_quizzes,
     serve_get_submitted_quiz,
     serve_get_submitted_question,
     serve_get_question_grading_data,

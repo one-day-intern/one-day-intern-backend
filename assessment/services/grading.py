@@ -125,7 +125,6 @@ def set_text_question_attempt_grade(tool_attempt, question_attempt, request_data
     if request_data.get('grade'):
         previous_points = question_attempt.get_point()
         question_attempt.set_point(request_data.get('grade'))
-
         if question_attempt.get_is_graded():
             tool_attempt.update_points(previous_points, request_data.get('grade'))
         else:

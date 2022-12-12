@@ -4,20 +4,8 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="59072675-333c-455e-996f-0fb16b259492" name="Changes" comment="[RED] create tests for getting all active interactive quizzes&#10;&#10;endpoint so assessees can view all the available interactive quizzes and select which one they want to do">
-      <change afterPath="$PROJECT_DIR$/one_day_intern/decorators.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.github/workflows/development-ci.yml" beforeDir="false" afterPath="$PROJECT_DIR$/.github/workflows/development-ci.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.github/workflows/production-cicd.yml" beforeDir="false" afterPath="$PROJECT_DIR$/.github/workflows/production-cicd.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.github/workflows/staging-cicd.yml" beforeDir="false" afterPath="$PROJECT_DIR$/.github/workflows/staging-cicd.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/inspectionProfiles/Project_Default.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/Project_Default.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/one-day-intern-backend.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/one-day-intern-backend.iml" afterDir="false" />
+    <list default="true" id="59072675-333c-455e-996f-0fb16b259492" name="Changes" comment="[GREEN] add get or create interactive quiz when submitting">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/assessment/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/assessment/models.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/assessment/services/assessment_event.py" beforeDir="false" afterPath="$PROJECT_DIR$/assessment/services/assessment_event.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/assessment/services/assessment_event_attempt.py" beforeDir="false" afterPath="$PROJECT_DIR$/assessment/services/assessment_event_attempt.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/assessment/services/progress_review.py" beforeDir="false" afterPath="$PROJECT_DIR$/assessment/services/progress_review.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/assessment/urls.py" beforeDir="false" afterPath="$PROJECT_DIR$/assessment/urls.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/assessment/views.py" beforeDir="false" afterPath="$PROJECT_DIR$/assessment/views.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -31,6 +19,7 @@
       </map>
     </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+    <option name="RESET_MODE" value="HARD" />
   </component>
   <component name="MarkdownSettingsMigration">
     <option name="stateVersion" value="1" />
@@ -287,7 +276,42 @@
       <option name="project" value="LOCAL" />
       <updated>1670570866023</updated>
     </task>
-    <option name="localTasksCounter" value="11" />
+    <task id="LOCAL-00011" summary="[CHORES] resolve merge conflicts from merge with staging">
+      <created>1670775467957</created>
+      <option name="number" value="00011" />
+      <option name="presentableId" value="LOCAL-00011" />
+      <option name="project" value="LOCAL" />
+      <updated>1670775467957</updated>
+    </task>
+    <task id="LOCAL-00012" summary="[REFACTOR] split tool_attempt's get_question_attempt method&#10;&#10;split into get_question_attempt_with_attempt_id and get_question_attempt_with_question_id">
+      <created>1670780142878</created>
+      <option name="number" value="00012" />
+      <option name="presentableId" value="LOCAL-00012" />
+      <option name="project" value="LOCAL" />
+      <updated>1670780142879</updated>
+    </task>
+    <task id="LOCAL-00013" summary="[REFACTOR] split tool_attempt's get_question_attempt method&#10;&#10;split into get_question_attempt_with_attempt_id and get_question_attempt_with_question_id">
+      <created>1670780510399</created>
+      <option name="number" value="00013" />
+      <option name="presentableId" value="LOCAL-00013" />
+      <option name="project" value="LOCAL" />
+      <updated>1670780510399</updated>
+    </task>
+    <task id="LOCAL-00014" summary="[RED] add tests for get or create interactive quiz when submitting">
+      <created>1670849480301</created>
+      <option name="number" value="00014" />
+      <option name="presentableId" value="LOCAL-00014" />
+      <option name="project" value="LOCAL" />
+      <updated>1670849480301</updated>
+    </task>
+    <task id="LOCAL-00015" summary="[GREEN] add get or create interactive quiz when submitting">
+      <created>1670849494366</created>
+      <option name="number" value="00015" />
+      <option name="presentableId" value="LOCAL-00015" />
+      <option name="project" value="LOCAL" />
+      <updated>1670849494366</updated>
+    </task>
+    <option name="localTasksCounter" value="16" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -314,6 +338,10 @@
     <MESSAGE value="[GREEN] implement interactive quiz submission" />
     <MESSAGE value="[CHORES] resolve conflicts from merging with staging" />
     <MESSAGE value="[RED] create tests for getting all active interactive quizzes&#10;&#10;endpoint so assessees can view all the available interactive quizzes and select which one they want to do" />
-    <option name="LAST_COMMIT_MESSAGE" value="[RED] create tests for getting all active interactive quizzes&#10;&#10;endpoint so assessees can view all the available interactive quizzes and select which one they want to do" />
+    <MESSAGE value="[CHORES] resolve merge conflicts from merge with staging" />
+    <MESSAGE value="[REFACTOR] split tool_attempt's get_question_attempt method&#10;&#10;split into get_question_attempt_with_attempt_id and get_question_attempt_with_question_id" />
+    <MESSAGE value="[RED] add tests for get or create interactive quiz when submitting" />
+    <MESSAGE value="[GREEN] add get or create interactive quiz when submitting" />
+    <option name="LAST_COMMIT_MESSAGE" value="[GREEN] add get or create interactive quiz when submitting" />
   </component>
 </project>
