@@ -6118,28 +6118,6 @@ class InteractiveQuizGradingTest(TestCase):
             )
         )
 
-    @patch.object(TextQuestionAttempt, 'set_point')
-    @patch.object(TextQuestionAttempt, 'set_note')
-    def test_grade_question_attempt_when_request_is_valid(self, mocked_set_note, mocked_set_point):
-        request_data = self.tq_request_data.copy()
-        response = fetch_and_get_response(
-            SUBMIT_INDIVIDUAL_QUESTION_GRADE_AND_NOTE_URL,
-            request_data,
-            authenticated_user=self.assessor_responsible_for_1
-        )
-
-        self.assertEqual(response.status_code, HTTPStatus.OK)
-
-        mocked_set_point.assert_called_with(request_data.get('grade'))
-        mocked_set_note.assert_called_with(request_data.get('note'))
-
-        response_content = json.loads(response.content)
-        self.assertEqual(response_content.get('grade'), request_data.get('grade'))
-        self.assertEqual(response_content.get('note'), request_data.get('note'))
-
-        changed_attempt = ToolAttempt.objects.get(tool_attempt_id=self.quiz_attempt.tool_attempt_id)
-        self.assertEqual(changed_attempt.grade, request_data.get('grade'))
-
     def test_grade_quiz_attempt_when_id_is_none(self):
         request_data = self.mcq_request_data.copy()
         del request_data['tool-attempt-id']

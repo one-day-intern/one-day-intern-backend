@@ -773,15 +773,27 @@ class InteractiveQuizAttempt(ToolAttempt):
         self.accumulate_points(new)
 
     def calculate_total_points(self):
+        points = 0
         for question_attempt in self.questionattempt_set.all():
             question_type = question_attempt.get_question().get_question_type()
-            if question_type == 'multiple_choice':
-                if question_attempt.is_answered:
+            if question_attempt.is_answered:
+                if question_type == 'multiple_choice':
                     mcq_attempt = MultipleChoiceAnswerOptionAttempt.objects.get(
                         question_attempt_id=question_attempt.question_attempt_id
                     )
                     if mcq_attempt.get_is_correct():
-                        self.accumulate_points(question_attempt.get_question().get_points())
+                        points += question_attempt.get_question().get_points()
+                elif question_type == "text":
+                    text_attempt = TextQuestionAttempt.objects.get(
+                        question_attempt_id=question_attempt.question_attempt_id
+                    )
+                    points += text_attempt.awarded_points
+        original_quiz: InteractiveQuiz = InteractiveQuiz.objects.get(assessment_id=self.assessment_tool_attempted.assessment_id)
+        total_quiz_points = original_quiz.total_points
+        percentage_grade = (points / total_quiz_points) * 100
+        self.grade = percentage_grade
+        self.save()
+        return percentage_grade
 
     def create_question_attempts(self, interactive_quiz: InteractiveQuiz):
         questions = interactive_quiz.get_questions()
@@ -849,9 +861,14 @@ class QuestionAttempt(models.Model):
 class TextQuestionAttempt(QuestionAttempt):
     answer = models.TextField(null=True)
     is_graded = models.BooleanField(default=False)
+    awarded_points = models.FloatField(default=0)
 
     def set_answer(self, answer):
         self.answer = answer
+        if answer:
+            self.is_answered = True
+        else:
+            self.is_answered = False
         self.save()
 
     def set_is_graded(self):
@@ -874,15 +891,14 @@ class MultipleChoiceAnswerOptionAttempt(QuestionAttempt):
                                         related_name='selected_option',
                                         on_delete=models.CASCADE,
                                         null=True)
-
-    @property
-    def is_correct(self):
-        return self.selected_option.is_correct()
+    is_correct = models.BooleanField(default=False)
 
     def set_selected_option(self, answer_option_id):
         matching_answer_option = MultipleChoiceAnswerOption.objects.filter(answer_option_id=answer_option_id)
         answer_option = matching_answer_option[0]
         self.selected_option = answer_option
+        self.is_correct = answer_option.is_correct()
+        self.is_answered = True
         self.save()
 
     def get_selected_option_content(self):
@@ -960,7 +976,11 @@ class AssessmentEventParticipation(models.Model):
             }
             if attempt:
                 data['is_attempted'] = True
-                data['grade'] = attempt.grade
+                if assessment_tool.get_type() == "interactivequiz":
+                    iq_attempt: InteractiveQuizAttempt = InteractiveQuizAttempt.objects.get(tool_attempt_id=attempt.tool_attempt_id)
+                    data['grade'] = iq_attempt.calculate_total_points() 
+                else:
+                    data['grade'] = attempt.grade
                 data['note'] = attempt.note
             else:
                 data['is_attempted'] = False

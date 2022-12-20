@@ -112,7 +112,7 @@ def validate_tool_attempt_is_for_interactive_quiz(tool_attempt):
         raise InvalidRequestException(f'Attempt with id {tool_attempt.tool_attempt_id} is not an interactive quiz')
 
 
-def set_multiple_choice_question_attempt_grade(mcq_attempt, request_data):
+def set_multiple_choice_question_attempt_grade(mcq_attempt: MultipleChoiceAnswerOptionAttempt, request_data):
     if isinstance(request_data.get('is_correct'), bool):
         mcq_attempt.set_is_correct(request_data.get('is_correct'))
 
@@ -120,7 +120,7 @@ def set_multiple_choice_question_attempt_grade(mcq_attempt, request_data):
         mcq_attempt.set_note(request_data.get('note'))
 
 
-def set_text_question_attempt_grade(tool_attempt, question_attempt, request_data):
+def set_text_question_attempt_grade(tool_attempt, question_attempt: TextQuestionAttempt, request_data):
     if request_data.get('grade'):
         previous_points = question_attempt.get_point()
         question_attempt.set_point(request_data.get('grade'))
@@ -129,6 +129,8 @@ def set_text_question_attempt_grade(tool_attempt, question_attempt, request_data
         else:
             tool_attempt.accumulate_points(request_data.get('grade'))
             question_attempt.set_is_graded()
+        question_attempt.awarded_points = request_data.get('grade')
+        question_attempt.save()
 
     if request_data.get('note'):
         question_attempt.set_note(request_data.get('note'))
@@ -159,6 +161,8 @@ def grade_interactive_quiz_individual_question(request_data, user):
     assessee = tool_attempt.get_user_of_attempt()
     validate_assessor_responsibility(event, assessor, assessee)
     set_question_attempt_grade(tool_attempt, request_data)
+    iq_attempt: InteractiveQuizAttempt = InteractiveQuizAttempt.objects.get(tool_attempt_id=tool_attempt.tool_attempt_id)
+    iq_attempt.calculate_total_points()
     return request_data.get('grade'), request_data.get('note')
 
 
@@ -244,6 +248,7 @@ def combine_tool_grading_data(tool_attempt):
             tq_dict['answer'] = text_question_attempt_data.get('answer')
             tq_dict['answer-key'] = text_question_attempt.get_answer_key()
             tq_dict['is-graded'] = text_question_attempt_data.get('is_graded')
+            tq_dict['awarded-points'] = text_question_attempt_data.get('awarded_points')
 
             combined_data['answer-attempts'].append(tq_dict)
 
