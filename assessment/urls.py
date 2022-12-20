@@ -20,16 +20,22 @@ from .views import (
     serve_submit_interactive_quiz,
     serve_submit_answer,
     serve_get_assessee_progress_on_event,
+    serve_get_assessee_report_on_assessment_event,
     serve_grade_assessment_tool_attempts,
     serve_get_assignment_attempt_data,
     serve_get_assignment_attempt_file,
     serve_grade_individual_question_attempts,
     serve_save_graded_attempt,
-    serve_get_interactive_quiz_attempt_data,
+    serve_get_interactive_quiz_grading_data,
     serve_create_video_conference_notification,
     serve_get_submitted_response_test,
     serve_review_response_test_attempt_data,
-    serve_get_all_active_interactive_quizzes
+    serve_get_all_active_interactive_quizzes,
+    serve_get_submitted_quiz,
+    serve_get_submitted_question,
+    serve_get_question_grading_data,
+    serve_get_all_active_interactive_quizzes,
+    serve_assessor_get_assessment_event_data
 )
 
 urlpatterns = [
@@ -53,14 +59,19 @@ urlpatterns = [
     path('assessment-event/submit-assignments/', serve_submit_assignment, name='submit-assignments'),
     path('assessment-event/get-submitted-assignment/', serve_get_submitted_assignment, name='get-submitted-assignment'),
     path('assessment-event/released-interactive-quizzes/', serve_get_all_active_interactive_quizzes, name='event-active-interactive-quizzes'),
+    path('assessment-event/get-submitted-quiz/', serve_get_submitted_quiz, name='get-submitted-quiz'),
+    path('assessment-event/get-submitted-question/', serve_get_submitted_question, name='get-submitted-question'),
     path('assessment-event/submit-answers/', serve_submit_answer, name='submit-interactive-quiz-answers'),
     path('assessment-event/submit-interactive-quiz/', serve_submit_interactive_quiz, name='submit-interactive-quiz'),
     path('assessment-event/progress/', serve_get_assessee_progress_on_event, name='get-assessee-progress'),
+    path('assessment-event/get-data/assessor/', serve_assessor_get_assessment_event_data, name='assessor-get-event-data'),
     path('grade/submit-grade-and-note/', serve_grade_assessment_tool_attempts, name='submit-grade-and-note'),
     path('grade/individual-question/', serve_grade_individual_question_attempts, name='grade-individual-question'),
     path('grade/interactive-quiz/', serve_save_graded_attempt, name='grade-interactive-quiz'),
-    path('review/interactive-quiz/', serve_get_interactive_quiz_attempt_data, name='review-interactive-quiz'),
+    path('review/interactive-quiz/', serve_get_interactive_quiz_grading_data, name='review-interactive-quiz'),
+    path('review/individual-question/', serve_get_question_grading_data, name='review-individual-question'),
     path('review/assignment/data/', serve_get_assignment_attempt_data, name='get-assignment-attempt-data'),
     path('review/assignment/file/', serve_get_assignment_attempt_file, name='get-assignment-attempt-file'),
+    path('assessment-event/report/', serve_get_assessee_report_on_assessment_event, name='get-asseessee-report'),
     path('assessment/review/response-test/', serve_review_response_test_attempt_data, name='review-response-test')
 ]
