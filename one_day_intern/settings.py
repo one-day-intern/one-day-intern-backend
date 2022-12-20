@@ -212,4 +212,4 @@ SERVER_EMAIL = os.getenv('SERVER_EMAIL')
 
 # Google Storage
 GOOGLE_BUCKET_BASE_DIRECTORY = '/submissions'
-GOOGLE_STORAGE_BUCKET_NAME = 'one-day-intern-bucket'
+GOOGLE_STORAGE_BUCKET_NAME = os.getenv('GOOGLE_STORAGE_BUCKET_NAME')
