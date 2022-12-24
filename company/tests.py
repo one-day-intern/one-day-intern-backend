@@ -23,6 +23,13 @@ import http
 
 EXCEPTION_NOT_RAISED = 'Exception not raised'
 SEND_ONE_TIME_CODE_URL = '/company/one-time-code/generate/'
+GET_COMPANY_ASSESSORS_URL = reverse('get-company-assessors')
+
+
+def get_fetch_company_assessors(authenticated_user):
+    client = APIClient()
+    client.force_authenticate(authenticated_user)
+    return client.get(GET_COMPANY_ASSESSORS_URL)
 
 
 class OneTimeCodeTest(TestCase):
@@ -348,3 +355,41 @@ class CompanyAssessorsTest(TestCase):
     def test_get_assessors_when_company_has_no_assessor(self):
         assessors = self.company_without_assessor.get_assessors()
         self.assertEqual(len(assessors), 0)
+
+    def test_get_company_assessors_when_user_is_assessee(self):
+        response = get_fetch_company_assessors(authenticated_user=self.assessee)
+        self.assertEqual(response.status_code, http.HTTPStatus.FORBIDDEN)
+        response_data = json.loads(response.content)
+        self.assertEqual(response_data.get('message'), f'User with email {self.assessee} is not a company or an assessor')
+
+    def test_get_company_assessors_when_user_is_company_with_assessors(self):
+        response = get_fetch_company_assessors(authenticated_user=self.company_with_assessor)
+        self.assertEqual(response.status_code, http.HTTPStatus.OK)
+        response_data = json.loads(response.content)
+        self.assertEqual(len(response_data), 1)
+        assessor_data = response_data[0]
+        self.assertEqual(assessor_data.get('email'), self.assessor.email)
+        self.assertEqual(assessor_data.get('company_id'), str(self.company_with_assessor.company_id))
+        self.assertEqual(assessor_data.get('first_name'), self.assessor.first_name)
+        self.assertEqual(assessor_data.get('last_name'), self.assessor.last_name)
+        self.assertEqual(assessor_data.get('phone_number'), self.assessor.phone_number)
+
+    def test_get_company_assessors_when_user_is_company_without_assessors(self):
+        response = get_fetch_company_assessors(authenticated_user=self.company_without_assessor)
+        self.assertEqual(response.status_code, http.HTTPStatus.OK)
+        response_data = json.loads(response.content)
+        self.assertEqual(type(response_data), list)
+        self.assertEqual(len(response_data), 0)
+
+    def test_get_company_assessors_when_user_is_assessor(self):
+        response = get_fetch_company_assessors(authenticated_user=self.assessor)
+        self.assertEqual(response.status_code, http.HTTPStatus.OK)
+        response_data = json.loads(response.content)
+        assessor_data = response_data[0]
+        self.assertEqual(len(response_data), 1)
+        self.assertEqual(assessor_data.get('company_id'), str(self.company_with_assessor.company_id))
+        self.assertEqual(assessor_data.get('first_name'), self.assessor.first_name)
+        self.assertEqual(assessor_data.get('email'), self.assessor.email)
+        self.assertEqual(assessor_data.get('last_name'), self.assessor.last_name)
+        self.assertEqual(assessor_data.get('phone_number'), self.assessor.phone_number)
+
