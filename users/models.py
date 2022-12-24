@@ -32,7 +32,7 @@ class Company(OdiUser):
     address = models.TextField(null=False)
 
     def get_assessors(self):
-        return None
+        return self.assessor_set.all()
 
 
 class CompanySerializer(serializers.ModelSerializer):
