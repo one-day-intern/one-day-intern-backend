@@ -1,3 +1,4 @@
+from assessment.services import utils as assessment_utils
 from django.contrib.auth.models import User
 from one_day_intern.exceptions import RestrictedAccessException
 from users.models import Company

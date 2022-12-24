@@ -1,6 +1,7 @@
 from django.test import TestCase
 from unittest.mock import patch
 from django.core import mail
+from django.shortcuts import reverse
 from django.core.mail.backends.smtp import EmailBackend
 from rest_framework.test import APIClient
 from .services import utils, one_time_code, company as company_service
@@ -9,6 +10,8 @@ from users.models import (
     CompanySerializer,
     CompanyOneTimeLinkCode,
     Assessor,
+    Assessee,
+    AssessorSerializer,
     AuthenticationService
 )
 from one_day_intern.exceptions import RestrictedAccessException, InvalidRequestException
@@ -297,3 +300,51 @@ class OneTimeCodeTest(TestCase):
             message=expected_message,
             mocked_send_mass_html_mail=mocked_send_mass_html_mail
         )
+
+
+class CompanyAssessorsTest(TestCase):
+    def setUp(self) -> None:
+        self.assessee = Assessee.objects.create_user(
+            email='assessee308@email.com',
+            password='Password309',
+            first_name='Assessee 310',
+            last_name='Assessee 311',
+            phone_number='+628231233312',
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.company_with_assessor = Company.objects.create_user(
+            email='company305@email.com',
+            password='Password306',
+            company_name='Company 305',
+            description='Description 308',
+            address='Address 309'
+        )
+
+        self.company_without_assessor = Company.objects.create_user(
+            email='company315@email.com',
+            password='Password316',
+            company_name='Company 315',
+            description='Description 318',
+            address='Address 319'
+        )
+
+        self.assessor = Assessor.objects.create_user(
+            email='Assessor334@email.com',
+            password='Password335',
+            first_name='Assessor 313',
+            last_name='Assessor 314',
+            phone_number='+628231234315',
+            employee_id='AEM19316',
+            associated_company=self.company_with_assessor,
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+    def test_get_assessors_when_company_has_assessor(self):
+        assessors = self.company_with_assessor.get_assessors()
+        self.assertEqual(len(assessors), 1)
+        self.assertEqual(assessors[0], self.assessor)
+
+    def test_get_assessors_when_company_has_no_assessor(self):
+        assessors = self.company_without_assessor.get_assessors()
+        self.assertEqual(len(assessors), 0)
