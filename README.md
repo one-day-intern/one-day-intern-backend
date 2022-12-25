@@ -20,6 +20,8 @@ We aim to provide means for:
 -   Client-side setup
 ### Release Notes 📝
 -   0.0.1 - Hello World Update
+-   0.1.0 - The first pieces of the puzzle are here! 🥳
+-   0.2.0 - Added tools, attempts, and grading 🤓
 
 ## Getting Started 🏃‍♂️🏃‍♀️
 To start the project locally, please follow the steps below.
@@ -197,3 +199,44 @@ Finish configuration of server-side and client-side repositories.
 1. Assessees can view their active assessment events
 2. Assessees can access their assessment event desktops
 3. Assessees can receive notifications from their desktop when they have a new assessment task
+
+
+## Release Notes 0.2.0 - Added tools, attempts, and grading 🤓
+
+### New Features
+#### General
+1. You can now either register and login as a `Company`, `Assessor`, 
+   or an `Assessee` using Google Login
+
+#### Assessor
+1. Assessors can view the progress of the Assessees they are in charge of
+2. Assessors can track the scores of every Assessee they are in charge of
+
+#### Test modules
+1. Companies and Assessors can create a fully customizable `Interactive Quiz`, including the number
+   of questions, the type of question, points of each question and the answer key
+2. Companies and Assessors can create `Response Tests` and specify the subject and prompt of the test
+
+#### Test Flows
+1. Companies and Assessors can create a fully customizable `Test Flow`, by selecting the Assessment 
+   Tools used and the order and when they are published
+2. Test Flows are assigned to Assessment Events
+
+#### Assessment Attempts 
+1. Assessees can now attempt their assigned assessments
+   1. They can upload and reupload files for `Assignments`
+   2. They can submit answers for `Interactive Quizzes`
+   3. They can send a response back for `Response Tests`
+2. Each assessment is set with a deadline, so they can only be done/accesses based on the deadline 
+   constraint
+
+#### Grading 
+1. Assessors can now grade their Assessees attempts
+   1. They can download files for `Assignments` and set their grade
+   2. They can manually grade each answer for each question of an `Interactive Quizzes`
+   3. They can manually grade `Response Tests`
+
+#### Video Conference
+1. Each pair of Assessors and Assessees are automatically assigned a video conference room
+2. The Assessor acts as the host of the video conference room, which gives them full control of the room
+3. Assessees can receive scheduled announcements for video conferences

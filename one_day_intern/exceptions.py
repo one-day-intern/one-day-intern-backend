@@ -1,3 +1,6 @@
+from re import L
+
+
 class RestrictedAccessException(Exception):
     pass
 
@@ -12,6 +15,7 @@ class InvalidAssignmentRegistration(InvalidRequestException):
 
 class InvalidInteractiveQuizRegistration(InvalidRequestException):
     pass
+
 
 class InvalidRegistrationException(Exception):
     pass
@@ -32,5 +36,14 @@ class InvalidGoogleIDTokenException(Exception):
 class InvalidGoogleLoginException(Exception):
     pass
 
+
 class InvalidResponseTestRegistration(Exception):
+    pass
+
+
+class InvalidLoginCredentialsException(Exception):
+    pass
+
+
+class InvalidVideoConferenceNotificationException(Exception):
     pass

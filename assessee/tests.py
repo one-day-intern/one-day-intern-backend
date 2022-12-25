@@ -92,7 +92,8 @@ class GetAssessmentEventTest(TestCase):
             'event_id': str(self.assessment_event.event_id),
             'name': self.assessment_event.name,
             'owning_company_id': str(self.company.company_id),
-            'start_date_time': '2022-12-12T08:00:00Z',
+            'start_date_time': '2022-12-12T08:00:00+00:00',
+            'end_date_time': '2022-12-12T14:00:00+00:00',
             'test_flow_id': str(self.test_flow.test_flow_id)
         }
 

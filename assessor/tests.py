@@ -1,18 +1,33 @@
-import uuid
-import datetime
-from http import HTTPStatus
-
+from assessment.models import (
+    AssessmentTool,
+    Assignment,
+    TestFlow,
+    AssessmentEvent,
+    AssessmentEventSerializer,
+    AssignmentAttempt,
+    PolymorphicAssessmentToolSerializer,
+    AssessmentEventParticipation
+)
 from django.test import TestCase
 from freezegun import freeze_time
+from http import HTTPStatus
+from users.models import OdiUser, Assessee, AuthenticationService, Company, Assessor, AssesseeSerializer
 from rest_framework.reverse import reverse
 from rest_framework.test import APIClient
-
-from assessment.models import AssessmentTool, Assignment, TestFlow, AssessmentEvent, AssessmentEventSerializer
-from users.models import OdiUser, Assessee, AuthenticationService, Company, Assessor, AssesseeSerializer
+import datetime
 import json
+import pytz
+import uuid
+
+ASSESSOR_NOT_FOUND = 'Assessor with email {} not found'
+ASSESSEE_NOT_FOUND = 'Assessee with email {} not found'
+ASSESSOR_NOT_PART_OF_EVENT = 'Assessor with email {} is not part of assessment with id {}'
+ASSESSEE_NOT_PART_OF_EVENT = 'Assessee with email {} is not part of assessment with id {}'
+ASSESSOR_NOT_RESPONSIBLE = '{} is not responsible for {} on event with id {}'
 
 GET_ACTIVE_ASSESSEES = reverse('assessee_list') + '?assessment-event-id='
 GET_ACTIVE_EVENT_PARTICIPATIONS = reverse('assessment_event_list')
+GET_PROGRESS_URL = reverse('get-assessee-progress')
 
 
 def fetch_all_active_assessees(event_id, authenticated_user):
@@ -26,13 +41,6 @@ def fetch_all_assessment_events(authenticated_user):
     client = APIClient()
     client.force_authenticate(user=authenticated_user)
     response = client.get(GET_ACTIVE_EVENT_PARTICIPATIONS)
-    return response
-
-
-def fetch_all_active_assessees(event_id, authenticated_user):
-    client = APIClient()
-    client.force_authenticate(user=authenticated_user)
-    response = client.get(GET_ACTIVE_ASSESSEES + event_id)
     return response
 
 
@@ -116,7 +124,7 @@ class ActiveAssessmentEventParticipationTest(TestCase):
 
         self.assessment_event = AssessmentEvent.objects.create(
             name='Assessment Event 1635',
-            start_date_time=datetime.datetime(2022, 3, 30),
+            start_date_time=datetime.datetime(2022, 3, 30, tzinfo=pytz.utc),
             owning_company=self.company,
             test_flow_used=self.test_flow
         )
@@ -136,28 +144,15 @@ class ActiveAssessmentEventParticipationTest(TestCase):
             AssesseeSerializer(self.assessee_2).data,
         ]
 
-    def test_get_all_active_assessees_when_event_id_is_invalid(self):
+    def test_get_all_assessees_when_event_id_is_invalid(self):
         invalid_event_id = str(uuid.uuid4())
         response = fetch_all_active_assessees(invalid_event_id, authenticated_user=self.assessor_1)
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
         self.assertEqual(response_content.get('message'), f'Assessment Event with ID {invalid_event_id} does not exist')
 
-    @freeze_time("2022-02-27")
-    def test_get_all_active_assessees_when_event_is_not_active(self):
-        response = fetch_all_active_assessees(
-            event_id=str(self.assessment_event.event_id),
-            authenticated_user=self.assessor_1
-        )
-        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
-        response_content = json.loads(response.content)
-        self.assertEqual(
-            response_content.get('message'),
-            f'Assessment Event with ID {str(self.assessment_event.event_id)} is not active'
-        )
-
     @freeze_time("2022-03-30 11:00:00")
-    def test_get_all_active_assessees_when_user_not_assessor(self):
+    def test_get_all_assessees_when_user_not_assessor(self):
         response = fetch_all_active_assessees(
             event_id=str(self.assessment_event.event_id),
             authenticated_user=self.assessee_1
@@ -170,7 +165,7 @@ class ActiveAssessmentEventParticipationTest(TestCase):
         )
 
     @freeze_time("2022-03-30 11:00:00")
-    def test_get_all_active_assessees_when_user_is_not_a_participant(self):
+    def test_get_all_assessees_when_user_is_not_a_participant(self):
         response = fetch_all_active_assessees(
             event_id=str(self.assessment_event.event_id),
             authenticated_user=self.assessor_2
@@ -178,7 +173,7 @@ class ActiveAssessmentEventParticipationTest(TestCase):
         self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
 
     @freeze_time("2022-03-30 11:00:00")
-    def test_get_all_active_assessees_when_request_is_valid(self):
+    def test_get_all_assessees_when_request_is_valid(self):
         response = fetch_all_active_assessees(
             event_id=str(self.assessment_event.event_id),
             authenticated_user=self.assessor_1
@@ -189,7 +184,7 @@ class ActiveAssessmentEventParticipationTest(TestCase):
         self.assertEqual(response_content, self.expected_assessees)
 
     @freeze_time("2022-03-30 11:00:00")
-    def test_get_all_active_assessment_events_when_user_not_assessor(self):
+    def test_get_all_assessment_events_when_user_not_assessor(self):
         response = fetch_all_assessment_events(
             authenticated_user=self.assessee_1
         )
@@ -200,7 +195,7 @@ class ActiveAssessmentEventParticipationTest(TestCase):
             f'User with email {self.assessee_1.email} is not an assessor'
         )
 
-    @freeze_time("2022-03-30 11:00:00")
+    @freeze_time("2022-03-30 11:00:00", tz_offset=0)
     def test_get_all_assessment_events_when_request_is_valid(self):
         response = fetch_all_assessment_events(
             authenticated_user=self.assessor_1
@@ -212,16 +207,6 @@ class ActiveAssessmentEventParticipationTest(TestCase):
         expected_assessment_event_data['owning_company_id'] = str(self.company.company_id)
         expected_assessment_event_data['test_flow_id'] = str(self.test_flow.test_flow_id)
         self.assertEqual(response_content, [expected_assessment_event_data])
-
-        response = fetch_all_assessment_events(
-            authenticated_user=self.company
-        )
-        self.assertEqual(response.status_code, HTTPStatus.OK)
-        response_content = json.loads(response.content)
-        self.assertTrue(isinstance(response_content, list))
-        expected_assessment_event_data = AssessmentEventSerializer(self.assessment_event).data
-        expected_assessment_event_data['owning_company_id'] = str(self.company.company_id)
-        expected_assessment_event_data['test_flow_id'] = str(self.test_flow.test_flow_id)
 
 
 class ViewsTestCase(TestCase):

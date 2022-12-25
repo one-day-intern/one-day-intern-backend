@@ -12,15 +12,21 @@ from .services.registration import (
 from .services.google_login import (
     google_get_profile_from_id_token,
     google_get_id_token_from_auth_code,
-    get_assessee_assessor_user_with_google_matching_data,
     get_tokens_for_user,
-    register_assessee_with_google_data
+    login_or_register_assessee_with_google_data,
+    register_assessor_with_google_data,
+    get_assessor_user_with_google_matching_data
 )
 from .services.user_info import get_user_info
+from .services import utils
+from .services.login import login_assessee, login_assessor_company
 from one_day_intern.settings import (
-    GOOGLE_AUTH_LOGIN_REDIRECT_URI,
-    GOOGLE_AUTH_REGISTER_ASSESSEE_REDIRECT_URI,
-    GOOGLE_AUTH_CLIENT_CALLBACK_URL
+    GOOGLE_AUTH_LOGIN_REGISTER_ASSESSEE_REDIRECT_URI,
+    GOOGLE_AUTH_LOGIN_ASSESSOR_REDIRECT_URI,
+    GOOGLE_AUTH_REGISTER_ASSESSOR_REDIRECT_URI,
+    GOOGLE_AUTH_CLIENT_ASSESSEE_CALLBACK_URL,
+    GOOGLE_AUTH_CLIENT_ASSESSOR_CALLBACK_URL,
+    GOOGLE_AUTH_CLIENT_ASSESSOR_REGISTER_CALLBACK_URL
 )
 from .models import (
     CompanySerializer,
@@ -29,6 +35,83 @@ from .models import (
     AssesseeSerializer
 )
 import json
+
+
+@require_GET
+@api_view(['GET'])
+def serve_google_register_assessor(request):
+    auth_code = request.GET.get('code')
+    otc_data = {'one_time_code': request.GET.get('state')}
+    try:
+        id_token = google_get_id_token_from_auth_code(auth_code, GOOGLE_AUTH_REGISTER_ASSESSOR_REDIRECT_URI)
+        user_profile = google_get_profile_from_id_token(id_token)
+        user = register_assessor_with_google_data(user_profile, otc_data)
+        tokens = get_tokens_for_user(user)
+        param_argument = {
+            'accessToken': tokens.get('access'),
+            'refreshToken': tokens.get('refresh')
+        }
+        parameterized_url = utils.parameterize_url(GOOGLE_AUTH_CLIENT_ASSESSOR_REGISTER_CALLBACK_URL + '/?', param_argument)
+        response = redirect(parameterized_url)
+    except Exception as exception:
+        param_argument = {'errorMessage': str(exception), 'code': otc_data['one_time_code']}
+        parameterized_url = utils.parameterize_url(GOOGLE_AUTH_CLIENT_ASSESSOR_REGISTER_CALLBACK_URL + '/?', param_argument)
+        response = redirect(parameterized_url)
+
+    return response
+
+
+@require_GET
+@api_view(['GET'])
+def serve_google_login_callback_for_assessor(request):
+    """
+    This view will serve as the callback for the Assessor Google login.
+    An authcode is expected to be present in the request argument.
+    ----------------------------------------------------------
+    request-param must contain:
+    code: string
+    """
+    auth_code = request.GET.get('code')
+    try:
+        id_token = google_get_id_token_from_auth_code(auth_code, GOOGLE_AUTH_LOGIN_ASSESSOR_REDIRECT_URI)
+        user_profile = google_get_profile_from_id_token(id_token)
+        user = get_assessor_user_with_google_matching_data(user_profile)
+        tokens = get_tokens_for_user(user)
+        param_argument = {
+            'accessToken': tokens.get('access'),
+            'refreshToken': tokens.get('refresh')
+        }
+        parameterized_url = utils.parameterize_url(GOOGLE_AUTH_CLIENT_ASSESSOR_CALLBACK_URL + '/?', param_argument)
+        response = redirect(parameterized_url)
+    except Exception as exception:
+        param_argument = {'errorMessage': str(exception)}
+        parameterized_url = utils.parameterize_url(GOOGLE_AUTH_CLIENT_ASSESSOR_CALLBACK_URL + '/?', param_argument)
+        response = redirect(parameterized_url)
+
+    return response
+
+
+@require_GET
+@api_view(['GET'])
+def serve_google_login_register_assessee(request):
+    auth_code = request.GET.get('code')
+    try:
+        id_token = google_get_id_token_from_auth_code(auth_code, GOOGLE_AUTH_LOGIN_REGISTER_ASSESSEE_REDIRECT_URI)
+        user_profile = google_get_profile_from_id_token(id_token)
+        user = login_or_register_assessee_with_google_data(user_profile)
+        tokens = get_tokens_for_user(user)
+        param_argument = {
+            'accessToken': tokens.get('access'),
+            'refreshToken': tokens.get('refresh')
+        }
+        parameterized_url = utils.parameterize_url(GOOGLE_AUTH_CLIENT_ASSESSEE_CALLBACK_URL + '/?', param_argument)
+        response = redirect(parameterized_url)
+    except Exception as exception:
+        param_argument = {'errorMessage': str(exception)}
+        parameterized_url = utils.parameterize_url(GOOGLE_AUTH_CLIENT_ASSESSEE_CALLBACK_URL + '/?', param_argument)
+        response = redirect(parameterized_url)
+
+    return response
 
 
 @require_POST
@@ -69,34 +152,24 @@ def serve_register_assessor(request):
     return Response(data=response_data)
 
 
-@require_GET
-@api_view(['GET'])
-def serve_google_login_callback(request):
-    auth_code = request.GET.get('code')
-    id_token = google_get_id_token_from_auth_code(auth_code, GOOGLE_AUTH_LOGIN_REDIRECT_URI)
-    user_profile = google_get_profile_from_id_token(id_token)
-    user = get_assessee_assessor_user_with_google_matching_data(user_profile)
-    tokens = get_tokens_for_user(user)
+@require_POST
+@api_view(['POST'])
+def serve_register_assessee(request):
+    """
+        request_data must contain
+        email,
+        password,
+        confirmed_password,
+        first_name,
+        last_name,
+        phone_number,
+        date_of_birth,
+    """
+    request_data = json.loads(request.body.decode('utf-8'))
+    assessee = register_assessee(request_data)
+    response_data = AssesseeSerializer(assessee).data
+    return Response(data=response_data)
 
-    response = redirect(GOOGLE_AUTH_CLIENT_CALLBACK_URL)
-    response.set_cookie('accessToken', tokens.get('access'))
-    response.set_cookie('refreshToken', tokens.get('refresh'))
-    return response
-
-
-@require_GET
-@api_view(['GET'])
-def serve_google_register_assessee(request):
-    auth_code = request.GET.get('code')
-    id_token = google_get_id_token_from_auth_code(auth_code, GOOGLE_AUTH_REGISTER_ASSESSEE_REDIRECT_URI)
-    user_profile = google_get_profile_from_id_token(id_token)
-    user = register_assessee_with_google_data(user_profile)
-    tokens = get_tokens_for_user(user)
-
-    response = redirect(GOOGLE_AUTH_CLIENT_CALLBACK_URL)
-    response.set_cookie('accessToken', tokens.get('access'))
-    response.set_cookie('refreshToken', tokens.get('refresh'))
-    return response
 
 @require_POST
 @api_view(['POST'])
@@ -116,23 +189,20 @@ def serve_register_assessee(request):
     response_data = AssesseeSerializer(assessee).data
     return Response(data=response_data)
 
+
 @require_POST
 @api_view(['POST'])
-def serve_register_assessee(request):
+def serve_login_assessor_company(request):
     """
-        request_data must contain
-        email,
-        password,
-        confirmed_password,
-        first_name,
-        last_name,
-        phone_number,
-        date_of_birth,
+    This view will return the refresh and access token for an assessor or company.
+    ----------------------------------------------------------
+    request-data must contain:
+    email: string
+    password: string
     """
     request_data = json.loads(request.body.decode('utf-8'))
-    assessee = register_assessee(request_data)
-    response_data = AssesseeSerializer(assessee).data
-    return Response(data=response_data)
+    token = login_assessor_company(request_data)
+    return Response(data=token, status=200)
 
 
 @require_POST
@@ -150,3 +220,33 @@ def generate_assessor_one_time_code(request):
 def serve_get_user_info(request):
     response_data = get_user_info(request.user)
     return Response(data=response_data)
+
+
+@require_POST
+@api_view(['POST'])
+def serve_login_assessor_company(request):
+    """
+    This view will return the refresh and access token for an assessor or company.
+    ----------------------------------------------------------
+    request-data must contain:
+    email: string
+    password: string
+    """
+    request_data = json.loads(request.body.decode('utf-8'))
+    token = login_assessor_company(request_data)
+    return Response(data=token, status=200)
+
+
+@require_POST
+@api_view(['POST'])
+def serve_login_assessee(request):
+    """
+    This view will return the refresh and access token for an assessee.
+    ----------------------------------------------------------
+    request-data must contain:
+    email: string
+    password: string
+    """
+    request_data = json.loads(request.body.decode('utf-8'))
+    token = login_assessee(request_data)
+    return Response(data=token, status=200)
