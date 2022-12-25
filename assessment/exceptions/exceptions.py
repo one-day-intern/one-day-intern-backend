@@ -24,3 +24,11 @@ class EventDoesNotExist(ObjectDoesNotExist):
 
 class AssessmentToolDoesNotExist(ObjectDoesNotExist):
     pass
+
+
+class QuestionDoesNotExist(ObjectDoesNotExist):
+    pass
+
+
+class QuestionAttemptDoesNotExist(ObjectDoesNotExist):
+    pass

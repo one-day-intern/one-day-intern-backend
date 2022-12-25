@@ -16,6 +16,7 @@ class InvalidAssignmentRegistration(InvalidRequestException):
 class InvalidInteractiveQuizRegistration(InvalidRequestException):
     pass
 
+
 class InvalidRegistrationException(Exception):
     pass
 
@@ -42,6 +43,7 @@ class InvalidResponseTestRegistration(Exception):
 
 class InvalidLoginCredentialsException(Exception):
     pass
+
 
 class InvalidVideoConferenceNotificationException(Exception):
     pass

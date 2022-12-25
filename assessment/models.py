@@ -88,6 +88,9 @@ class InteractiveQuiz(AssessmentTool):
     duration_in_minutes = models.IntegerField(null=False)
     total_points = models.IntegerField(null=False)
 
+    def get_questions(self):
+        return self.questions.all()
+
     def get_tool_data(self) -> dict:
         tool_base_data = super().get_tool_data()
         tool_base_data['additional_info'] = {
@@ -160,6 +163,9 @@ class MultipleChoiceAnswerOption(models.Model):
 
     def get_content(self):
         return self.content
+
+    def get_answer_option_id(self):
+        return self.answer_option_id
 
     def is_correct(self):
         return self.correct
@@ -493,6 +499,10 @@ class AssessmentEvent(models.Model):
     def get_assessment_event_participation_by_assessee(self, assessee):
         return self.assessmenteventparticipation_set.get(assessee=assessee)
 
+    def get_event_report_of_assessee(self, assessee):
+        event_participation: AssessmentEventParticipation = self.get_assessment_event_participation_by_assessee(assessee)
+        return event_participation.generate_assessee_report()
+
     def get_assessment_tool_from_assessment_id(self, assessment_id):
         found_assessment_tools = self.test_flow_used.tools.filter(
             assessment_id=assessment_id
@@ -606,9 +616,19 @@ class ResponseTestSerializer(serializers.ModelSerializer):
             'owning_company_name',
         ]
 
+
 class VideoConferenceNotification(AssessmentTool):
     subject = models.TextField(null=False)
     message = models.TextField(null=False)
+
+    def get_tool_data(self) -> dict:
+        tool_base_data = super().get_tool_data()
+        tool_base_data['additional_info'] = {
+            'subject': self.subject,
+            'message': self.message
+        }
+        return tool_base_data
+
 
 class VideoConferenceNotificationSerializer(serializers.ModelSerializer):
     owning_company_name = serializers.ReadOnlyField(source=OWNING_COMPANY_COMPANY_NAME)
@@ -729,9 +749,8 @@ class InteractiveQuizAttempt(ToolAttempt):
     def get_all_question_attempts(self):
         return self.questionattempt_set.all()
 
-    def get_question_attempt(self, question_id):
-        question = Question.objects.get(question_id=question_id)
-        matching_question_attempts = self.questionattempt_set.filter(question=question)
+    def get_question_attempt(self, question_attempt_id):
+        matching_question_attempts = self.questionattempt_set.filter(question_attempt_id=question_attempt_id)
         if matching_question_attempts:
             return matching_question_attempts[0]
         else:
@@ -748,16 +767,54 @@ class InteractiveQuizAttempt(ToolAttempt):
         self.grade += points
         self.save()
 
+    def update_points(self, old, new):
+        self.grade -= old
+        self.save()
+        self.accumulate_points(new)
+
     def calculate_total_points(self):
+        points = 0
         for question_attempt in self.questionattempt_set.all():
             question_type = question_attempt.get_question().get_question_type()
-            if question_type == 'multiple_choice':
-                if question_attempt.is_answered:
+            if question_attempt.is_answered:
+                if question_type == 'multiple_choice':
                     mcq_attempt = MultipleChoiceAnswerOptionAttempt.objects.get(
                         question_attempt_id=question_attempt.question_attempt_id
                     )
                     if mcq_attempt.get_is_correct():
-                        self.accumulate_points(question_attempt.get_question().get_points())
+                        points += question_attempt.get_question().get_points()
+                elif question_type == "text":
+                    text_attempt = TextQuestionAttempt.objects.get(
+                        question_attempt_id=question_attempt.question_attempt_id
+                    )
+                    points += text_attempt.awarded_points
+        original_quiz: InteractiveQuiz = InteractiveQuiz.objects.get(assessment_id=self.assessment_tool_attempted.assessment_id)
+        total_quiz_points = original_quiz.total_points
+        percentage_grade = (points / total_quiz_points) * 100
+        self.grade = percentage_grade
+        self.save()
+        return percentage_grade
+
+    def create_question_attempts(self, interactive_quiz: InteractiveQuiz):
+        questions = interactive_quiz.get_questions()
+
+        for question in questions:
+            question_type = question.question_type
+
+            if question_type == "multiple_choice":
+                MultipleChoiceAnswerOptionAttempt.objects.create(
+                    question=question,
+                    interactive_quiz_attempt=self,
+                    is_answered=False,
+                    selected_option=None
+                )
+            else:
+                TextQuestionAttempt.objects.create(
+                    question=question,
+                    interactive_quiz_attempt=self,
+                    is_answered=False,
+                    answer=None
+                )
 
 
 class QuestionAttempt(models.Model):
@@ -804,26 +861,44 @@ class QuestionAttempt(models.Model):
 class TextQuestionAttempt(QuestionAttempt):
     answer = models.TextField(null=True)
     is_graded = models.BooleanField(default=False)
+    awarded_points = models.FloatField(default=0)
 
     def set_answer(self, answer):
         self.answer = answer
+        if answer:
+            self.is_answered = True
+        else:
+            self.is_answered = False
         self.save()
+
+    def set_is_graded(self):
+        self.is_graded = True
+        self.save()
+
+    def get_is_graded(self):
+        return self.is_graded
 
     def get_answer(self):
         return self.answer
 
+    def get_answer_key(self):
+        tq = TextQuestion.objects.get(question_id=self.get_question().question_id)
+        return tq.answer_key
+
 
 class MultipleChoiceAnswerOptionAttempt(QuestionAttempt):
-    selected_option = models.ForeignKey('MultipleChoiceAnswerOption', related_name='selected_option', on_delete=models.CASCADE)
-
-    @property
-    def is_correct(self):
-        return self.selected_option.is_correct()
+    selected_option = models.ForeignKey('MultipleChoiceAnswerOption',
+                                        related_name='selected_option',
+                                        on_delete=models.CASCADE,
+                                        null=True)
+    is_correct = models.BooleanField(default=False)
 
     def set_selected_option(self, answer_option_id):
         matching_answer_option = MultipleChoiceAnswerOption.objects.filter(answer_option_id=answer_option_id)
         answer_option = matching_answer_option[0]
         self.selected_option = answer_option
+        self.is_correct = answer_option.is_correct()
+        self.is_answered = True
         self.save()
 
     def get_selected_option_content(self):
@@ -887,6 +962,35 @@ class AssessmentEventParticipation(models.Model):
     assessor = models.ForeignKey(USERS_ASSESSOR, on_delete=models.RESTRICT)
     attempt = models.OneToOneField('assessment.TestFlowAttempt', on_delete=models.CASCADE, null=True)
 
+    def generate_assessee_report(self):
+        event_test_flow = self.assessment_event.get_test_flow()
+        event_tools: List[TestFlowTool] = event_test_flow.get_tools()
+        grade_and_note_data = []
+        for event_tool in event_tools:
+            assessment_tool = event_tool.assessment_tool
+            attempt = self.get_assessment_tool_attempt(assessment_tool)
+            data = {
+                'tool_name': assessment_tool.name,
+                'tool_description': assessment_tool.description,
+                'type': assessment_tool.get_type()
+            }
+            if attempt:
+                data['is_attempted'] = True
+                if assessment_tool.get_type() == "interactivequiz":
+                    iq_attempt: InteractiveQuizAttempt = InteractiveQuizAttempt.objects.get(tool_attempt_id=attempt.tool_attempt_id)
+                    data['grade'] = iq_attempt.calculate_total_points() 
+                else:
+                    data['grade'] = attempt.grade
+                data['note'] = attempt.note
+            else:
+                data['is_attempted'] = False
+                data['grade'] = 0
+                data['note'] = None
+
+            grade_and_note_data.append(data)
+
+        return grade_and_note_data
+
     def get_all_response_test_attempts(self):
         return self.attempt.toolattempt_set.instance_of(ResponseTestAttempt)
 
@@ -945,6 +1049,7 @@ class AssessmentEventParticipation(models.Model):
             test_flow_attempt=self.attempt,
             assessment_tool_attempted=interactive_quiz
         )
+        interactive_quiz_attempt.create_question_attempts(interactive_quiz)
         return interactive_quiz_attempt
 
     def get_all_assessment_tool_attempts(self):

@@ -28,7 +28,9 @@ from users.models import (
 from .exceptions.exceptions import (
     AssessmentToolDoesNotExist,
     InvalidTestFlowRegistration,
-    InvalidAssessmentEventRegistration
+    InvalidAssessmentEventRegistration,
+    QuestionDoesNotExist,
+    QuestionAttemptDoesNotExist
 )
 from .models import (
     AssessmentTool,
@@ -125,10 +127,12 @@ GET_EVENT_DATA = reverse('get-event-data') + ASSESSMENT_EVENT_ID_PARAM_NAME
 GET_AND_DOWNLOAD_ATTEMPT_URL = reverse('get-submitted-assignment')
 CREATE_RESPONSE_TEST_URL = '/assessment/create/response-test/'
 GET_PROGRESS_URL = reverse('get-assessee-progress')
+ASSESSOR_GET_EVENT_DATA_URL = reverse('assessor-get-event-data')
 SUBMIT_GRADE_AND_NOTE_URL = reverse('submit-grade-and-note')
 SUBMIT_INDIVIDUAL_QUESTION_GRADE_AND_NOTE_URL = reverse('grade-individual-question')
 SUBMIT_INTERACTIVE_QUIZ_GRADE_AND_NOTE_URL = reverse('grade-interactive-quiz')
 GET_QUIZ_ATTEMPT_DATA_URL = reverse('review-interactive-quiz') + TOOL_ATTEMPT_ID_PARAM_NAME
+GET_INDIVIDUAL_QUESTION_ATTEMPT_DATA_URL = reverse('review-individual-question') + TOOL_ATTEMPT_ID_PARAM_NAME
 GET_ASSIGNMENT_ATTEMPT_DATA_URL = reverse('get-assignment-attempt-data') + TOOL_ATTEMPT_ID_PARAM_NAME
 GET_ASSIGNMENT_ATTEMPT_DATA_FILE = reverse('get-assignment-attempt-file') + TOOL_ATTEMPT_ID_PARAM_NAME
 UPDATE_ASSESSMENT_EVENT_URL = reverse('assessment-event-update')
@@ -136,7 +140,10 @@ DELETE_ASSESSMENT_EVENT_URL = reverse('assessment-event-delete')
 CREATE_VIDEO_CONFERENCE_NOTIFICATION_URL = reverse('create-video-conference-notification')
 SUBMIT_RESPONSE_TEST_URL = reverse('submit-response-test')
 GET_SUBMITTED_RESPONSE_TEST = reverse('get-submitted-response')
-REVIEW_RESPONSE_TEST_ATTEMPT_DATA_URL = reverse('review-response-test') + '?tool-attempt-id='
+REVIEW_RESPONSE_TEST_ATTEMPT_DATA_URL = reverse('review-response-test') + TOOL_ATTEMPT_ID_PARAM_NAME
+GET_QUIZ_SUBMISSION_DATA_URL = reverse('get-submitted-quiz') + ASSESSMENT_EVENT_ID_PARAM_NAME
+GET_QUESTION_SUBMISSION_DATA_URL = reverse('get-submitted-question') + ASSESSMENT_EVENT_ID_PARAM_NAME
+GET_ASSESSEE_REPORT_URL = reverse('get-asseessee-report')
 
 GET_TOOLS_URL = "/assessment/tools/"
 REQUEST_CONTENT_TYPE = 'application/json'
@@ -173,6 +180,14 @@ INTERACTIVE_QUIZ_DATA = {
         }
     ]
 }
+
+
+def fetch_and_get_response(path, request_data, authenticated_user):
+    client = APIClient()
+    client.force_authenticate(user=authenticated_user)
+    request_data_json = json.dumps(request_data)
+    response = client.post(path, data=request_data_json, content_type=REQUEST_CONTENT_TYPE)
+    return response
 
 
 class AssessmentTest(TestCase):
@@ -552,14 +567,6 @@ class InteractiveQuizTest(TestCase):
         )
         self.assertEqual(response_content.get('owning_company_id'), self.company.id)
         self.assertEqual(response_content.get('owning_company_name'), self.company.company_name)
-
-
-def fetch_and_get_response(path, request_data, authenticated_user):
-    client = APIClient()
-    client.force_authenticate(user=authenticated_user)
-    request_data_json = json.dumps(request_data)
-    response = client.post(path, data=request_data_json, content_type=REQUEST_CONTENT_TYPE)
-    return response
 
 
 class TestFlowTest(TestCase):
@@ -2603,6 +2610,7 @@ def get_fetch_and_get_response(base_url, request_param, authenticated_user):
     return response
 
 
+
 class GetEventDataTest(TestCase):
     def setUp(self) -> None:
         self.assessee = Assessee.objects.create_user(
@@ -2903,6 +2911,116 @@ class ResponseTestTest(TestCase):
         self.assertEqual(response_content.get('subject'), self.expected_response_test_data.get('subject'))
         self.assertEqual(response_content.get('prompt'), self.expected_response_test_data.get('prompt'))
         self.assertEqual(response_content.get('sender'), self.expected_response_test_data.get('sender'))
+        self.assertEqual(response_content.get('owning_company_id'), self.company.id)
+        self.assertEqual(response_content.get('owning_company_name'), self.company.company_name)
+
+
+class VideoConferenceNotificationTest(TestCase):
+    def setUp(self) -> None:
+        self.company = Company.objects.create_user(
+            email='company123@company.com',
+            password='password123',
+            company_name='Company123',
+            description='Company123 Description',
+            address='JL. Company Levinson Durbin 123'
+        )
+
+        self.assessor = Assessor.objects.create_user(
+            email='vandermonde@assessor.com',
+            password='password',
+            first_name='VanDer',
+            last_name='Monde',
+            phone_number='+6282312345673',
+            employee_id='A&EX4NDER3',
+            associated_company=self.company,
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+        self.request_data = {
+            'name': 'Conference Task 2',
+            'description': 'Conference call about sales',
+            'subject': 'Sales conference',
+            'message': 'Hey! our conference on 11:50 is still on ya!',
+        }
+
+        self.expected_video_conference_notification = VideoConferenceNotification(
+            name=self.request_data.get('name'),
+            description=self.request_data.get('description'),
+            subject=self.request_data.get('subject'),
+            message=self.request_data.get('message'),
+            owning_company=self.assessor.associated_company
+        )
+
+        self.expected_video_conference_notification_data = VideoConferenceNotificationSerializer(
+            self.expected_video_conference_notification).data
+
+    def test_validate_video_conference_notification_is_valid(self):
+        valid_request_data = self.request_data.copy()
+        try:
+            self.assertEqual(type(valid_request_data), dict)
+            assessment.validate_video_coference_notification(valid_request_data)
+        except InvalidVideoConferenceNotificationException as exception:
+            self.fail(f'{exception} is raised')
+
+    def test_validate_video_conference_notification_when_subject_is_invalid(self):
+        request_data_with_no_subject = self.request_data.copy()
+        request_data_with_no_subject['subject'] = ''
+        expected_message = 'Subject Should Not Be Empty'
+        try:
+            assessment.validate_video_coference_notification(request_data_with_no_subject)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidVideoConferenceNotificationException as exception:
+            self.assertEqual(str(exception), expected_message)
+
+    def test_validate_video_conference_notification_when_message_is_invalid(self):
+        request_data_with_no_message = self.request_data.copy()
+        request_data_with_no_message['message'] = ''
+        expected_message = 'Message Should Not Be Empty'
+        try:
+            assessment.validate_video_coference_notification(request_data_with_no_message)
+            self.fail(EXCEPTION_NOT_RAISED)
+        except InvalidVideoConferenceNotificationException as exception:
+            self.assertEqual(str(exception), expected_message)
+
+    @patch.object(VideoConferenceNotification.objects, 'create')
+    def test_save_video_conference_notification_to_database(self, mocked_create):
+        mocked_create.return_value = self.expected_video_conference_notification
+        returned_assignment = assessment.save_video_conference_notification_to_database(self.request_data,
+                                                                                        self.assessor)
+        returned_assignment_data = VideoConferenceNotificationSerializer(returned_assignment).data
+        mocked_create.assert_called_once()
+        self.assertDictEqual(returned_assignment_data, self.expected_video_conference_notification_data)
+
+    @patch.object(assessment, 'save_video_conference_notification_to_database')
+    @patch.object(assessment, 'validate_video_coference_notification')
+    @patch.object(assessment, 'validate_assessment_tool')
+    @patch.object(assessment, 'get_assessor_or_raise_exception')
+    def test_create_assignment(self, mocked_get_assessor, mocked_validate_assessment_tool,
+                               mocked_validate_video_coference_notification, mocked_video_coference_notification):
+        mocked_get_assessor.return_value = self.assessor
+        mocked_validate_assessment_tool.return_value = None
+        mocked_validate_video_coference_notification.return_value = None
+        mocked_video_coference_notification.return_value = self.expected_video_conference_notification
+        returned_assignment = assessment.create_video_conference_notification(self.request_data, self.assessor)
+        returned_assignment_data = VideoConferenceNotificationSerializer(returned_assignment).data
+        self.assertDictEqual(returned_assignment_data, self.expected_video_conference_notification_data)
+
+    def test_create_video_conference_notification_when_complete_status_200(self):
+        vidcon_data = json.dumps(self.request_data.copy())
+        client = APIClient()
+        client.force_authenticate(user=self.assessor)
+        response = client.post(CREATE_VIDEO_CONFERENCE_NOTIFICATION_URL, data=vidcon_data,
+                               content_type=REQUEST_CONTENT_TYPE)
+        response_content = json.loads(response.content)
+        self.assertEqual(response.status_code, OK_RESPONSE_STATUS_CODE)
+        self.assertTrue(len(response_content) > 0)
+        self.assertIsNotNone(response_content.get('assessment_id'))
+        self.assertEqual(response_content.get('name'), self.expected_video_conference_notification_data.get('name'))
+        self.assertEqual(response_content.get('description'),
+                         self.expected_video_conference_notification_data.get('description'))
+        self.assertEqual(response_content.get('subject'),
+                         self.expected_video_conference_notification_data.get('subject'))
+        self.assertEqual(response_content.get('message'),
+                         self.expected_video_conference_notification_data.get('message'))
         self.assertEqual(response_content.get('owning_company_id'), self.company.id)
         self.assertEqual(response_content.get('owning_company_name'), self.company.company_name)
 
@@ -3587,8 +3705,7 @@ class AssignmentSubmissionTest(TestCase):
 
     @freeze_time('2022-11-25 11:49:59')
     @patch.object(google_storage, 'upload_file_to_google_bucket')
-    def test_serve_submit_assignment_when_assignment_has_not_been_released_and_deadline_has_not_passed(self,
-                                                                                                       mock_upload):
+    def test_serve_submit_assignment_when_assignment_has_not_been_released_and_deadline_has_not_passed(self,                                                                                              mock_upload):
         response = submit_file_and_get_request(self.request_data, authenticated_user=self.assessee)
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
         response_content = json.loads(response.content)
@@ -3934,6 +4051,25 @@ class AssessmentToolDeadlineTest(TestCase):
             mocked_check.assert_called_with(self.assignment)
 
 
+def get_response_for_all_quiz_attempt_data(event_id, tool_id, authenticated_user):
+    client = APIClient()
+    client.force_authenticate(user=authenticated_user)
+    response = client.get(GET_QUIZ_SUBMISSION_DATA_URL + event_id
+                          + '&assessment-tool-id=' + tool_id
+)
+    return response
+
+
+def get_response_for_individual_question_attempt_data(event_id, tool_id, question_attempt_id, authenticated_user):
+    client = APIClient()
+    client.force_authenticate(user=authenticated_user)
+    response = client.get(GET_QUESTION_SUBMISSION_DATA_URL + event_id
+                          + '&assessment-tool-id=' + tool_id
+                          + '&question-attempt-id=' + question_attempt_id
+    )
+    return response
+
+
 class ActiveInteractiveQuizTest(TestCase):
     def setUp(self) -> None:
         self.assessee = Assessee.objects.create_user(
@@ -3961,6 +4097,16 @@ class ActiveInteractiveQuizTest(TestCase):
             last_name='Assessor 5172',
             phone_number='+628231235173',
             associated_company=self.company,
+            authentication_service=AuthenticationService.DEFAULT.value
+        )
+
+        self.assessee_2 = Assessee.objects.create_user(
+            email='assessor5289@gmail.com',
+            password='Password5170',
+            first_name='Assessor 5171',
+            last_name='Assessor 5172',
+            phone_number='+628231935155',
+            date_of_birth=datetime.datetime(2002, 11, 2),
             authentication_service=AuthenticationService.DEFAULT.value
         )
 
@@ -3995,6 +4141,9 @@ class ActiveInteractiveQuizTest(TestCase):
             assessor=self.assessor
         )
 
+        self.event_participation = AssessmentEventParticipation.objects.get(assessee=self.assessee,
+                                                                            assessment_event=self.assessment_event)
+
         self.non_participating_assessee = Assessee.objects.create_user(
             email='assessee5213@gmail.com',
             password='Password5214',
@@ -4016,6 +4165,99 @@ class ActiveInteractiveQuizTest(TestCase):
             'id': str(self.interactive_quiz.assessment_id),
             'released_time': '2022-12-05T10:00:00'
         }
+
+        self.request_data = INTERACTIVE_QUIZ_DATA
+
+        self.mc_question_data = self.request_data.get('questions')[0]
+        self.mc_question = MultipleChoiceQuestion.objects.create(
+            interactive_quiz=self.interactive_quiz,
+            prompt=self.mc_question_data.get('prompt'),
+            points=self.mc_question_data.get('points'),
+            question_type=self.mc_question_data.get('question_type')
+        )
+
+        self.correct_answer_option_data = self.mc_question_data.get('answer_options')[0]
+        self.correct_answer_option = MultipleChoiceAnswerOption.objects.create(
+            question=self.mc_question,
+            content=self.correct_answer_option_data.get('content'),
+            correct=self.correct_answer_option_data.get('correct'),
+        )
+
+        self.incorrect_answer_option_data = self.mc_question_data.get('answer_options')[1]
+        self.incorrect_answer_option = MultipleChoiceAnswerOption.objects.create(
+            question=self.mc_question,
+            content=self.incorrect_answer_option_data.get('content'),
+            correct=self.incorrect_answer_option_data.get('correct'),
+        )
+
+        self.text_question_data = self.request_data.get('questions')[1]
+        self.text_question = TextQuestion.objects.create(
+            interactive_quiz=self.interactive_quiz,
+            prompt=self.text_question_data.get('prompt'),
+            points=self.text_question_data.get('points'),
+            question_type=self.text_question_data.get('question_type'),
+            answer_key=self.text_question_data.get('answer_key')
+        )
+
+        self.interactive_quiz_attempt = self.event_participation.create_interactive_quiz_attempt(self.interactive_quiz)
+
+        question_attempts = self.interactive_quiz_attempt.get_all_question_attempts()
+        self.mcq_attempt = MultipleChoiceAnswerOptionAttempt.objects.get(
+            question_attempt_id=question_attempts[0].question_attempt_id
+        )
+        self.tq_attempt = TextQuestionAttempt.objects.get(
+            question_attempt_id=question_attempts[1].question_attempt_id
+        )
+
+        self.assignment = Assignment.objects.create(
+            name='Esai Singkat: Memilih Data atau ML',
+            description='Kerjakan sesuai pemahaman Anda yaaa',
+            owning_company=self.company,
+            expected_file_format='ppt',
+            duration_in_minutes=180
+        )
+
+        self.interactive_quiz_no_attempt: InteractiveQuiz = InteractiveQuiz.objects.create(
+            name='InteractiveQuiz no attempt',
+            description='InteractiveQuiz no attempt',
+            owning_company=self.company,
+            duration_in_minutes=20,
+            total_points=20,
+        )
+
+        self.text_question_no_attempt = TextQuestion.objects.create(
+            interactive_quiz=self.interactive_quiz_no_attempt,
+            prompt="test text question",
+            points=10,
+            question_type='text',
+            answer_key='yes'
+        )
+
+        self.test_flow_no_attempt = TestFlow.objects.create(
+            name='TestFlow 5188',
+            owning_company=self.company
+        )
+
+        self.test_flow_no_attempt.add_tool(
+            assessment_tool=self.interactive_quiz_no_attempt,
+            release_time=datetime.time(10, 0),
+            start_working_time=datetime.time(10, 0)
+        )
+
+        self.assessment_event_no_attempt = AssessmentEvent.objects.create(
+            name='Assessment Event 5199',
+            start_date_time=datetime.datetime(2022, 12, 5),
+            owning_company=self.company,
+            test_flow_used=self.test_flow_no_attempt
+        )
+
+        self.assessment_event_no_attempt.add_participant(
+            assessee=self.assessee,
+            assessor=self.assessor
+        )
+
+        self.event_participation_no_attempt = AssessmentEventParticipation.objects.get(assessee=self.assessee,
+                                                                            assessment_event=self.assessment_event_no_attempt)
 
     @freeze_time('2022-12-05 09:00:00')
     def test_get_released_interactive_quizzes_when_its_event_day_but_no_interactive_quiz_is_released(self):
@@ -4106,6 +4348,216 @@ class ActiveInteractiveQuizTest(TestCase):
         self.assertEqual(len(response_content), 1)
         self.assertEqual(response_content, [self.expected_tool_data])
 
+    @freeze_time('2022-12-05 09:00:00')
+    def test_get_released_get_interactive_quiz_attempt_data_when_its_event_day_but_no_interactive_quiz_is_released(self):
+        released_interactive_quizzes = self.assessment_event.get_released_interactive_quizzes()
+        self.assertEqual(len(released_interactive_quizzes), 0)
+
+    @freeze_time('2022-12-05 10:00:00')
+    def test_get_released_interactive_quiz_attempt_data_when_its_event_day_and_interactive_quiz_has_been_released(self):
+        released_interactive_quizzes = self.assessment_event.get_released_interactive_quizzes()
+        self.assertEqual(len(released_interactive_quizzes), 1)
+
+        released_tool = released_interactive_quizzes[0]
+        self.assertEqual(released_tool.get('type'), 'interactivequiz')
+        self.assertEqual(released_tool.get('name'), self.interactive_quiz.name)
+        self.assertEqual(released_tool.get('description'), self.interactive_quiz.description)
+        self.assertEqual(released_tool.get('released_time'), '2022-12-05T10:00:00')
+
+        response_test_data = released_tool.get('additional_info')
+        self.assertEqual(response_test_data.get('duration_in_minutes'), self.interactive_quiz.duration_in_minutes)
+
+    @freeze_time('2022-12-06 10:00:00')
+    def test_get_released_interactive_quiz_attempt_data_when_its_not_event_day_but_time_has_passed(self):
+        released_interactive_quizzes = self.assessment_event.get_released_interactive_quizzes()
+        self.assertEqual(len(released_interactive_quizzes), 0)
+
+    @freeze_time('2022-12-04 10:00:00')
+    def test_get_released_interactive_quiz_attempt_data_when_its_not_event_day_and_time_has_not_passed(self):
+        released_interactive_quizzes = self.assessment_event.get_released_interactive_quizzes()
+        self.assertEqual(len(released_interactive_quizzes), 0)
+
+    @freeze_time('2022-12-05 10:00:00')
+    def test_serve_get_interactive_quiz_attempt_data_when_event_with_id_does_not_exist(self):
+        invalid_id = str(uuid.uuid4())
+        response = get_fetch_and_get_response(
+            GET_RELEASED_INTERACTIVE_QUIZZES,
+            request_param=invalid_id,
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), EVENT_DOES_NOT_EXIST.format(invalid_id))
+
+    @freeze_time('2022-12-05 10:00:00')
+    def test_serve_get_interactive_quiz_attempt_data_when_user_is_not_an_assessee(self):
+        response = get_fetch_and_get_response(
+            GET_RELEASED_INTERACTIVE_QUIZZES,
+            request_param=str(self.assessment_event.event_id),
+            authenticated_user=self.assessor
+        )
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), USER_IS_NOT_ASSESSEE.format(self.assessor))
+
+    @freeze_time('2022-12-05 10:00:00')
+    def test_serve_get_interactive_quiz_attempt_data_when_assessee_does_not_participate_in_event(self):
+        response = get_fetch_and_get_response(
+            GET_RELEASED_INTERACTIVE_QUIZZES,
+            request_param=str(self.assessment_event.event_id),
+            authenticated_user=self.non_participating_assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            NOT_PART_OF_EVENT.format(self.non_participating_assessee, self.assessment_event.event_id)
+        )
+
+    @freeze_time('2022-12-05 08:00:00')
+    def test_serve_get_interactive_quiz_attempt_data_when_quiz_has_not_been_released(self):
+        response = get_fetch_and_get_response(
+            GET_RELEASED_INTERACTIVE_QUIZZES,
+            request_param=str(self.assessment_event.event_id),
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertEqual(len(response_content), 0)
+
+    @freeze_time('2022-12-05 10:00:00')
+    def test_serve_get_interactive_quiz_attempt_data_when_interactive_quiz_has_been_released(self):
+        response = get_fetch_and_get_response(
+            GET_RELEASED_INTERACTIVE_QUIZZES,
+            request_param=str(self.assessment_event.event_id),
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertEqual(len(response_content), 1)
+        self.assertEqual(response_content, [self.expected_tool_data])
+
+    @freeze_time('2022-12-05 10:00:00')
+    def test_get_interactive_quiz_attempt_data_when_request_is_valid_no_attempt(self):
+        response = get_response_for_all_quiz_attempt_data(
+            event_id=str(self.assessment_event_no_attempt.event_id),
+            tool_id=str(self.interactive_quiz_no_attempt.assessment_id),
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('assessment-tool-id'), str(self.interactive_quiz_no_attempt.assessment_id))
+
+        self.assertEqual(len(response_content.get('answer-attempts')), 1)
+        text_question = response_content.get('answer-attempts')[0]
+
+        self.assertEqual(text_question.get('is-answered'), False)
+        self.assertEqual(text_question.get('prompt'), self.text_question_no_attempt.prompt)
+        self.assertEqual(text_question.get('question-type'), self.text_question_no_attempt.get_question_type())
+        self.assertEqual(text_question.get('answer'), None)
+
+
+    @freeze_time('2022-12-05 10:00:00')
+    def test_get_interactive_quiz_attempt_data_when_user_is_not_an_assessee(self):
+        response = get_response_for_all_quiz_attempt_data(
+            event_id=str(self.assessment_event.event_id),
+            tool_id=str(self.interactive_quiz.assessment_id),
+            authenticated_user=self.assessor
+        )
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), USER_IS_NOT_ASSESSEE.format(self.assessor))
+
+    @freeze_time('2022-12-05 10:00:00')
+    def test_get_interactive_quiz_attempt_data_when_request_is_valid(self):
+        response = get_response_for_all_quiz_attempt_data(
+            event_id=str(self.assessment_event.event_id),
+            tool_id=str(self.interactive_quiz.assessment_id),
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('assessment-tool-id'), str(self.interactive_quiz.assessment_id))
+
+        self.assertEqual(len(response_content.get('answer-attempts')), 2)
+        mc_question = response_content.get('answer-attempts')[0]
+
+        self.assertEqual(mc_question.get('question-attempt-id'), str(self.mcq_attempt.question_attempt_id))
+        self.assertEqual(mc_question.get('selected-answer-option-id'), str(self.mcq_attempt.selected_option_id))
+        self.assertEqual(mc_question.get('is-answered'), self.mcq_attempt.is_answered)
+        self.assertEqual(mc_question.get('prompt'), self.mc_question.prompt)
+        self.assertEqual(mc_question.get('question-type'), self.mcq_attempt.get_question_type())
+
+        correct_ao = mc_question.get('answer-options')[0]
+        self.assertEqual(correct_ao.get('answer-option-id'), str(self.correct_answer_option.answer_option_id))
+        self.assertEqual(correct_ao.get('content'), self.correct_answer_option_data.get('content'))
+
+        incorrect_ao = mc_question.get('answer-options')[1]
+        self.assertEqual(incorrect_ao.get('answer-option-id'), str(self.incorrect_answer_option.answer_option_id))
+        self.assertEqual(incorrect_ao.get('content'), self.incorrect_answer_option_data.get('content'))
+
+        text_question = response_content.get('answer-attempts')[1]
+
+        self.assertEqual(text_question.get('question-attempt-id'), str(self.tq_attempt.question_attempt_id))
+        self.assertEqual(text_question.get('is-answered'), self.tq_attempt.is_answered)
+        self.assertEqual(text_question.get('prompt'), self.text_question.prompt)
+        self.assertEqual(text_question.get('question-type'), self.tq_attempt.get_question_type())
+        self.assertEqual(text_question.get('answer'), self.tq_attempt.answer)
+
+    @freeze_time('2022-12-05 10:00:00')
+    def test_get_question_attempt_data_when_user_is_not_an_assessee(self):
+        response = get_response_for_individual_question_attempt_data(
+            event_id=str(self.assessment_event.event_id),
+            tool_id=str(self.interactive_quiz.assessment_id),
+            question_attempt_id=str(self.mcq_attempt.question_attempt_id),
+            authenticated_user=self.assessor
+        )
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), USER_IS_NOT_ASSESSEE.format(self.assessor))
+
+    @freeze_time('2022-12-05 10:00:00')
+    def test_get_individual_question_attempt_data_when_request_is_valid(self):
+        response = get_response_for_individual_question_attempt_data(
+            event_id=str(self.assessment_event.event_id),
+            tool_id=str(self.interactive_quiz.assessment_id),
+            question_attempt_id=str(self.mcq_attempt.question_attempt_id),
+            authenticated_user=self.assessee
+        )
+        mcq_data = json.loads(response.content)
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+
+        self.assertEqual(mcq_data.get('question-attempt-id'), str(self.mcq_attempt.question_attempt_id))
+        self.assertEqual(mcq_data.get('selected-answer-option-id'), str(self.mcq_attempt.selected_option_id))
+        self.assertEqual(mcq_data.get('is-answered'), self.mcq_attempt.is_answered)
+        self.assertEqual(mcq_data.get('prompt'), self.mc_question.prompt)
+        self.assertEqual(mcq_data.get('question-type'), self.mcq_attempt.get_question_type())
+
+        incorrect_ao_attempt = mcq_data.get('answer-options')[1]
+        self.assertEqual(incorrect_ao_attempt.get('answer-option-id'), str(self.incorrect_answer_option.answer_option_id))
+        self.assertEqual(incorrect_ao_attempt.get('content'), self.incorrect_answer_option_data.get('content'))
+
+        correct_ao_attempt = mcq_data.get('answer-options')[0]
+        self.assertEqual(correct_ao_attempt.get('answer-option-id'), str(self.correct_answer_option.answer_option_id))
+        self.assertEqual(correct_ao_attempt.get('content'), self.correct_answer_option_data.get('content'))
+
+        response = get_response_for_individual_question_attempt_data(
+            event_id=str(self.assessment_event.event_id),
+            tool_id=str(self.interactive_quiz.assessment_id),
+            question_attempt_id=str(self.tq_attempt.question_attempt_id),
+            authenticated_user=self.assessee
+        )
+        tq_data = json.loads(response.content)
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+
+        self.assertEqual(tq_data.get('question-attempt-id'), str(self.tq_attempt.question_attempt_id))
+        self.assertEqual(tq_data.get('is-answered'), self.tq_attempt.is_answered)
+        self.assertEqual(tq_data.get('prompt'), self.text_question.prompt)
+        self.assertEqual(tq_data.get('question-type'), self.tq_attempt.get_question_type())
+        self.assertEqual(tq_data.get('answer'), self.tq_attempt.answer)
+
 
 def submit_answers_and_get_request(request_data, authenticated_user):
     client = APIClient()
@@ -4143,17 +4595,16 @@ class InteractiveQuizSubmissionTest(TestCase):
             authentication_service=AuthenticationService.DEFAULT.value
         )
 
-        self.request_data = INTERACTIVE_QUIZ_DATA
-
+        self.quiz_data = INTERACTIVE_QUIZ_DATA
         self.interactive_quiz = InteractiveQuiz.objects.create(
-            name=self.request_data.get('name'),
-            description=self.request_data.get('description'),
+            name=self.quiz_data.get('name'),
+            description=self.quiz_data.get('description'),
             owning_company=self.assessor.associated_company,
-            total_points=self.request_data.get('total_points'),
-            duration_in_minutes=self.request_data.get('duration_in_minutes')
+            total_points=self.quiz_data.get('total_points'),
+            duration_in_minutes=self.quiz_data.get('duration_in_minutes')
         )
 
-        self.mc_question_data = self.request_data.get('questions')[0]
+        self.mc_question_data = self.quiz_data.get('questions')[0]
         self.mc_question = MultipleChoiceQuestion.objects.create(
             interactive_quiz=self.interactive_quiz,
             prompt=self.mc_question_data.get('prompt'),
@@ -4175,7 +4626,7 @@ class InteractiveQuizSubmissionTest(TestCase):
             correct=self.correct_answer_option_data.get('correct'),
         )
 
-        self.text_question_data = self.request_data.get('questions')[1]
+        self.text_question_data = self.quiz_data.get('questions')[1]
         self.text_question = TextQuestion.objects.create(
             interactive_quiz=self.interactive_quiz,
             prompt=self.text_question_data.get('prompt'),
@@ -4234,21 +4685,6 @@ class InteractiveQuizSubmissionTest(TestCase):
 
         self.text_question_answer = "I believe that pandas are the most adorable creatures"
 
-        self.request_data = {
-            "assessment-event-id": f"{self.assessment_event.event_id}",
-            "assessment-tool-id": f"{self.interactive_quiz.assessment_id}",
-            "answers": [
-                {
-                    "question-id": f"{self.mc_question.question_id}",
-                    "answer-option-id": f"{self.correct_answer_option.answer_option_id}"
-                },
-                {
-                    "question-id": f"{self.text_question.question_id}",
-                    "text-answer": self.text_question_answer
-                }
-            ]
-        }
-
         self.assessee_2 = Assessee.objects.create_user(
             email='assessee2060@email.com',
             password='Password1232061',
@@ -4259,67 +4695,49 @@ class InteractiveQuizSubmissionTest(TestCase):
             authentication_service=AuthenticationService.DEFAULT.value
         )
 
-    def test_get_interactive_quiz_attempt_when_no_attempt_exist(self):
-        interactive_quiz_attempt = self.event_participation.get_interactive_quiz_attempt(self.interactive_quiz)
-        self.assertEquals(interactive_quiz_attempt, None)
-
-    def test_get_interactive_quiz_attempt_when_attempt_exists(self):
-        self.expected_attempt = InteractiveQuizAttempt.objects.create(
+        self.quiz_attempt = InteractiveQuizAttempt.objects.create(
             test_flow_attempt=self.event_participation.attempt,
             assessment_tool_attempted=self.interactive_quiz
         )
 
-        interactive_quiz_attempt = self.event_participation.get_interactive_quiz_attempt(self.interactive_quiz)
-        self.assertIsNotNone(interactive_quiz_attempt)
-        self.assertEquals(interactive_quiz_attempt, self.expected_attempt)
-        del interactive_quiz_attempt
-
-    def test_create_interactive_quiz_attempt(self):
-        interactive_quiz_attempt = self.event_participation.create_interactive_quiz_attempt(self.interactive_quiz)
-        self.assertTrue(isinstance(interactive_quiz_attempt, InteractiveQuizAttempt))
-        self.assertEqual(interactive_quiz_attempt.test_flow_attempt, self.event_participation.attempt)
-        self.assertEqual(interactive_quiz_attempt.assessment_tool_attempted, self.interactive_quiz)
-        del interactive_quiz_attempt
-
-    def test_set_selected_option(self):
-        interactive_quiz_attempt = InteractiveQuizAttempt.objects.create(
-            test_flow_attempt=self.event_participation.attempt,
-            assessment_tool_attempted=self.interactive_quiz
-        )
-
-        mc_answer_option_attempt = MultipleChoiceAnswerOptionAttempt.objects.create(
+        self.mcq_attempt = MultipleChoiceAnswerOptionAttempt.objects.create(
             question=self.mc_question,
-            interactive_quiz_attempt=interactive_quiz_attempt,
+            interactive_quiz_attempt=self.quiz_attempt,
             is_answered=True,
             selected_option=self.correct_answer_option
         )
 
-        mc_answer_option_attempt.set_selected_option(self.incorrect_answer_option.answer_option_id)
-        found_mc_question_attempt = MultipleChoiceAnswerOptionAttempt.objects.get(
-            selected_option=self.incorrect_answer_option)
-        self.assertEqual(found_mc_question_attempt.get_selected_option_content(), self.incorrect_answer_option
-                         .get_content())
+        self.tq_attempt = TextQuestionAttempt.objects.create(
+            question=self.text_question,
+            interactive_quiz_attempt=self.quiz_attempt,
+            is_answered=True,
+            answer='an answer'
+        )
+
+        self.request_data = {
+            "assessment-event-id": f"{self.assessment_event.event_id}",
+            "assessment-tool-id": f"{self.interactive_quiz.assessment_id}",
+            "answers": [
+                {
+                    "question-attempt-id": f"{self.mcq_attempt.question_attempt_id}",
+                    "answer-option-id": f"{self.correct_answer_option.answer_option_id}"
+                },
+                {
+                    "question-attempt-id": f"{self.tq_attempt.question_attempt_id}",
+                    "text-answer": self.text_question_answer
+                }
+            ]
+        }
 
     def test_set_text_answer(self):
-        interactive_quiz_attempt = InteractiveQuizAttempt.objects.create(
-            test_flow_attempt=self.event_participation.attempt,
-            assessment_tool_attempted=self.interactive_quiz
-        )
-
-        text_question_attempt = TextQuestionAttempt.objects.create(
-            question=self.text_question,
-            interactive_quiz_attempt=interactive_quiz_attempt,
-            is_answered=True,
-            answer=self.text_question_answer
-        )
         new_answer = "This is the new answer"
-        text_question_attempt.set_answer(new_answer)
+        self.tq_attempt.set_answer(new_answer)
 
         found_question_attempt = TextQuestionAttempt.objects.get(question=self.text_question)
         self.assertEqual(found_question_attempt.get_answer(), new_answer)
 
     @patch.object(assessment_event_attempt, 'save_answer_attempts')
-    @patch.object(assessment_event_attempt, 'get_or_create_interactive_quiz_attempt')
+    @patch.object(assessment_event_attempt, 'get_interactive_quiz_attempt')
     def test_save_assignment_attempt(self, mocked_create_attempt, mocked_save_answer_attempts):
         assessment_event_attempt.save_interactive_quiz_attempt(
             event=self.assessment_event,
@@ -4353,21 +4771,21 @@ class InteractiveQuizSubmissionTest(TestCase):
 
     def test_validate_interactive_quiz_submission_when_assessment_tool_does_not_exist(self):
         try:
-            assessment_event_attempt.validate_interactive_quiz_submission(None)
+            assessment_event_attempt.validate_is_interactive_quiz(None)
             self.fail(EXCEPTION_NOT_RAISED)
         except InvalidRequestException as exception:
             self.assertEqual(str(exception), 'Assessment tool associated with event does not exist')
 
     def test_validate_submission_when_assessment_tool_is_not_an_interactive_quiz(self):
         try:
-            assessment_event_attempt.validate_interactive_quiz_submission(self.assessment_tool)
+            assessment_event_attempt.validate_is_interactive_quiz(self.assessment_tool)
             self.fail(EXCEPTION_NOT_RAISED)
         except InvalidRequestException as exception:
             self.assertEqual(str(exception), TOOL_IS_NOT_INTERACTIVE_QUIZ.format(self.assessment_tool.assessment_id))
 
     def test_validate_submission_when_valid(self):
         try:
-            assessment_event_attempt.validate_interactive_quiz_submission(self.interactive_quiz)
+            assessment_event_attempt.validate_is_interactive_quiz(self.interactive_quiz)
         except Exception as exception:
             self.fail(f'{exception} is raised')
 
@@ -4426,8 +4844,11 @@ class InteractiveQuizSubmissionTest(TestCase):
 
     @freeze_time("2022-11-25 12:00:00")
     def test_serve_submit_interactive_quiz_answers_when_request_is_valid(self):
+
         response = submit_answers_and_get_request(self.request_data,
                                                   authenticated_user=self.assessee)
+
+        response_content = json.loads(response.content)
         self.assertEqual(response.status_code, HTTPStatus.OK)
         response_content = json.loads(response.content)
         self.assertEqual(response_content.get('message'), 'Answers saved successfully')
@@ -4573,6 +4994,55 @@ class ViewEventProgressTest(TestCase):
             'attempt-id': None
         }
 
+    def test_assessor_get_assessment_event_data_when_event_with_id_does_not_exist(self):
+        invalid_id = str(uuid.uuid4())
+        response = get_fetch_and_get_response(
+            ASSESSOR_GET_EVENT_DATA_URL,
+            request_param=f'?assessment-event-id={invalid_id}',
+            authenticated_user=self.assessor
+        )
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), EVENT_DOES_NOT_EXIST.format(invalid_id))
+
+    def test_assessor_get_assessment_event_data_when_user_is_not_an_assessor(self):
+        response = get_fetch_and_get_response(
+            ASSESSOR_GET_EVENT_DATA_URL,
+            request_param=f'?assessment-event-id={self.assessment_event.event_id}',
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), ASSESSOR_NOT_FOUND.format(self.assessee))
+
+    def test_assessor_get_assessment_event_data_when_assessor_does_not_participate_on_event(self):
+        response = get_fetch_and_get_response(
+            ASSESSOR_GET_EVENT_DATA_URL,
+            request_param=f'?assessment-event-id={self.assessment_event.event_id}',
+            authenticated_user=self.assessor_2
+        )
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            ASSESSOR_NOT_PART_OF_EVENT.format(self.assessor_2, self.assessment_event.event_id)
+        )
+
+    def test_assessor_get_assessment_event_data_when_request_is_valid(self):
+        response = get_fetch_and_get_response(
+            ASSESSOR_GET_EVENT_DATA_URL,
+            request_param=f'?assessment-event-id={self.assessment_event.event_id}',
+            authenticated_user=self.assessor
+        )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('event_id'), str(self.assessment_event.event_id))
+        self.assertEqual(response_content.get('name'), self.assessment_event.name)
+        self.assertEqual(response_content.get('start_date_time'), self.assessment_event.start_date_time.isoformat())
+        self.assertEqual(response_content.get('end_date_time'), self.assessment_event.get_event_end_date_time().isoformat())
+        self.assertEqual(response_content.get('owning_company_id'), str(self.company.company_id))
+        self.assertEqual(response_content.get('test_flow_id'), str(self.test_flow.test_flow_id))
+
     def test_get_assessment_tool_attempt_when_no_attempt_has_been_submitted(self):
         attempt = self.assessment_event_participation.get_assessment_tool_attempt(self.assignment_1)
         self.assertIsNone(attempt)
@@ -4584,6 +5054,41 @@ class ViewEventProgressTest(TestCase):
         self.assertTrue(isinstance(attempt, AssignmentAttempt))
         self.assertEqual(attempt.tool_attempt_id, assignment_attempt.tool_attempt_id)
         assignment_attempt.delete()
+
+    @patch.object(AssessmentEventParticipation, 'get_assessment_tool_attempt')
+    def test_generate_assessee_report_when_no_attempt_has_been_submitted(self, mock_get_attempt):
+        mock_get_attempt.return_value = None
+        assessee_report = self.assessment_event_participation.generate_assessee_report()
+        mock_get_attempt.assert_called_with(self.assignment_1)
+        self.assertEqual(len(assessee_report), 1)
+        tool_report = assessee_report[0]
+        self.assertEqual(tool_report['tool_name'], self.assignment_1.name)
+        self.assertEqual(tool_report['tool_description'], self.assignment_1.description)
+        self.assertEqual(tool_report['type'], 'assignment')
+        self.assertFalse(tool_report['is_attempted'])
+        self.assertEqual(tool_report['grade'], 0)
+        self.assertIsNone(tool_report['note'])
+
+    @patch.object(AssessmentEventParticipation, 'get_assessment_tool_attempt')
+    def test_generate_assessee_report_when_an_attempt_has_been_submitted(self, mock_get_attempt):
+        temporary_attempt = AssignmentAttempt.objects.create(
+            test_flow_attempt=self.assessment_event_participation.attempt,
+            assessment_tool_attempted=self.assignment_1,
+            grade=98,
+            note='Need a little bit more explanation'
+        )
+        mock_get_attempt.return_value = temporary_attempt
+        assessee_report = self.assessment_event_participation.generate_assessee_report()
+        mock_get_attempt.assert_called_with(self.assignment_1)
+        self.assertEqual(len(assessee_report), 1)
+        tool_report = assessee_report[0]
+        self.assertEqual(tool_report['tool_name'], self.assignment_1.name)
+        self.assertEqual(tool_report['tool_description'], self.assignment_1.description)
+        self.assertEqual(tool_report['type'], 'assignment')
+        self.assertTrue(tool_report['is_attempted'])
+        self.assertEqual(tool_report['grade'], 98)
+        self.assertEqual(tool_report['note'], temporary_attempt.note)
+        temporary_attempt.delete()
 
     @patch.object(AssessmentEventParticipation, 'get_assessment_tool_attempt')
     def test_get_event_progress_when_no_attempt_has_been_submitted(self, mock_get_attempt):
@@ -4715,6 +5220,92 @@ class ViewEventProgressTest(TestCase):
         self.assertEqual(response.status_code, HTTPStatus.OK)
         response_content = json.loads(response.content)
         self.assertEqual(response_content, [attempt_data])
+        temporary_attempt.delete()
+
+    def test_get_assessee_report_on_assessment_event_when_user_is_not_assessor(self):
+        response = get_fetch_and_get_response(
+            GET_ASSESSEE_REPORT_URL,
+            request_param=f'?assessment-event-id={self.assessment_event.event_id}&assessee-email={self.assessee.email}',
+            authenticated_user=self.assessee
+        )
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), ASSESSOR_NOT_FOUND.format(self.assessee))
+
+    def test_get_assessee_report_on_assessment_event_when_event_with_id_does_not_exist(self):
+        invalid_id = str(uuid.uuid4())
+        response = get_fetch_and_get_response(
+            GET_ASSESSEE_REPORT_URL,
+            request_param=f'?assessment-event-id={invalid_id}&assessee-email={self.assessee.email}',
+            authenticated_user=self.assessor
+        )
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), EVENT_DOES_NOT_EXIST.format(invalid_id))
+
+    def test_get_assessee_report_on_assessment_event_when_assessee_with_email_does_not_exist(self):
+        invalid_email = 'invalidemail4881@gmail.com'
+        response = get_fetch_and_get_response(
+            GET_ASSESSEE_REPORT_URL,
+            request_param=f'?assessment-event-id={self.assessment_event.event_id}&assessee-email={invalid_email}',
+            authenticated_user=self.assessor
+        )
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), ASSESSEE_NOT_FOUND.format(invalid_email))
+
+    def test_get_assessee_report_on_assessment_event_when_assessor_is_not_responsible_for_assessee(self):
+        response = get_fetch_and_get_response(
+            GET_ASSESSEE_REPORT_URL,
+            request_param=f'?assessment-event-id={self.assessment_event.event_id}&assessee-email={self.assessee_2}',
+            authenticated_user=self.assessor
+        )
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(
+            response_content.get('message'),
+            ASSESSOR_NOT_RESPONSIBLE_FOR_ASSESSEE.format(self.assessor, self.assessee_2, self.assessment_event.event_id)
+        )
+
+    def test_get_assessee_report_on_assessment_event_when_no_attempt_has_been_submitted(self):
+        response = get_fetch_and_get_response(
+            GET_ASSESSEE_REPORT_URL,
+            request_param=f'?assessment-event-id={self.assessment_event.event_id}&assessee-email={self.assessee}',
+            authenticated_user=self.assessor
+        )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertEqual(len(response_content), 1)
+        tool_report = response_content[0]
+        self.assertEqual(tool_report['tool_name'], self.assignment_1.name)
+        self.assertEqual(tool_report['tool_description'], self.assignment_1.description)
+        self.assertEqual(tool_report['type'], 'assignment')
+        self.assertFalse(tool_report['is_attempted'])
+        self.assertEqual(tool_report['grade'], 0)
+        self.assertIsNone(tool_report['note'])
+
+    def test_get_assessee_report_on_assessment_event_when_attempt_has_been_submitted_and_graded(self):
+        temporary_attempt = AssignmentAttempt.objects.create(
+            test_flow_attempt=self.assessment_event_participation.attempt,
+            assessment_tool_attempted=self.assignment_1,
+            grade=98,
+            note='Need a little bit more explanation'
+        )
+        response = get_fetch_and_get_response(
+            GET_ASSESSEE_REPORT_URL,
+            request_param=f'?assessment-event-id={self.assessment_event.event_id}&assessee-email={self.assessee}',
+            authenticated_user=self.assessor
+        )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        response_content = json.loads(response.content)
+        self.assertEqual(len(response_content), 1)
+        tool_report = response_content[0]
+        self.assertEqual(tool_report['tool_name'], self.assignment_1.name)
+        self.assertEqual(tool_report['tool_description'], self.assignment_1.description)
+        self.assertEqual(tool_report['type'], 'assignment')
+        self.assertTrue(tool_report['is_attempted'])
+        self.assertEqual(tool_report['grade'],98)
+        self.assertEqual(tool_report['note'], temporary_attempt.note)
         temporary_attempt.delete()
 
 
@@ -5191,17 +5782,25 @@ class GradingTest(TestCase):
         self.assertEqual(response.headers.get('Content-Disposition'), f'attachment; filename="{dummy_file.name}"')
 
 
-def get_response_for_quiz_attempt_data(attempt_id, authenticated_user):
+def get_response_for_active_quiz_data(attempt_id, authenticated_user):
     client = APIClient()
     client.force_authenticate(user=authenticated_user)
     response = client.get(GET_QUIZ_ATTEMPT_DATA_URL + attempt_id)
     return response
 
 
+def get_response_for_question_attempt_data(attempt_id, question_attempt_id, authenticated_user):
+    client = APIClient()
+    client.force_authenticate(user=authenticated_user)
+    response = client.get(GET_INDIVIDUAL_QUESTION_ATTEMPT_DATA_URL + attempt_id
+                          + '&question-attempt-id=' + question_attempt_id)
+    return response
+
+
 class InteractiveQuizGradingTest(TestCase):
     def setUp(self) -> None:
         self.assessee_1 = Assessee.objects.create_user(
-            email='assessee_mail@email.com',
+            email='assessee_mail02@email.com',
             password='Password5432',
             first_name='Mister',
             last_name='Assessee',
@@ -5211,7 +5810,7 @@ class InteractiveQuizGradingTest(TestCase):
         )
 
         self.assessee_2 = Assessee.objects.create_user(
-            email='assessee_mail02@email.com',
+            email='assessee_mail03@email.com',
             password='Password2345',
             first_name='Assessee 2904',
             last_name='Last',
@@ -5340,24 +5939,14 @@ class InteractiveQuizGradingTest(TestCase):
             assessee=self.assessee_2,
             assessor=self.assessor_responsible_for_2
         )
-
         self.event_participation = AssessmentEventParticipation.objects.get(assessee=self.assessee_1,
                                                                             assessment_event=self.event)
         self.quiz_attempt = self.event_participation.create_interactive_quiz_attempt(self.interactive_quiz)
-        self.mcq_attempt = MultipleChoiceAnswerOptionAttempt.objects.create(
-            question=self.mc_question,
-            interactive_quiz_attempt=self.quiz_attempt,
-            is_answered=True,
-            selected_option=self.correct_answer_option
-        )
 
-        self.tq_attempt = TextQuestionAttempt.objects.create(
-            question=self.text_question,
-            interactive_quiz_attempt=self.quiz_attempt,
-            is_answered=True,
-            answer='an answer'
+        question_attempts = self.quiz_attempt.get_all_question_attempts()
+        self.mcq_attempt = MultipleChoiceAnswerOptionAttempt.objects.get(
+            question_attempt_id=question_attempts[0].question_attempt_id
         )
-
         self.mcq_request_data = {'tool-attempt-id': str(self.quiz_attempt.tool_attempt_id),
                                  'question-attempt-id': str(self.mcq_attempt.question_attempt_id),
                                  'selected-option-id': str(self.correct_answer_option.answer_option_id),
@@ -5365,6 +5954,12 @@ class InteractiveQuizGradingTest(TestCase):
                                  'grade': 0,
                                  'note': 'You missed something'
                                  }
+
+        self.tq_attempt = TextQuestionAttempt.objects.get(
+            question_attempt_id=question_attempts[1].question_attempt_id
+        )
+        self.tq_attempt.point = 5.0
+        self.tq_attempt.save()
 
         self.tq_request_data = {'tool-attempt-id': str(self.quiz_attempt.tool_attempt_id),
                                 'question-attempt-id': str(self.tq_attempt.question_attempt_id),
@@ -5398,7 +5993,7 @@ class InteractiveQuizGradingTest(TestCase):
         grading.set_text_question_attempt_grade(self.quiz_attempt, self.tq_attempt, request_data)
 
         self.assertEqual(self.quiz_attempt.grade, 0)
-        self.assertEqual(self.tq_attempt.point, 0)
+        self.assertEqual(self.tq_attempt.point, 5.0)
         self.assertEqual(self.tq_attempt.question_note, request_data.get('note'))
 
     def test_set_grade_and_note_of_question_attempts_when_note_does_not_exist(self):
@@ -5427,6 +6022,21 @@ class InteractiveQuizGradingTest(TestCase):
 
         self.assertEqual(self.quiz_attempt.grade, self.tq_request_data.get('grade'))
         self.assertEqual(self.tq_attempt.point, self.tq_request_data.get('grade'))
+        self.assertEqual(self.tq_attempt.question_note, self.tq_request_data.get('note'))
+
+    def test_update_grade(self):
+        grading.set_text_question_attempt_grade(self.quiz_attempt, self.tq_attempt, self.tq_request_data)
+
+        self.assertEqual(self.quiz_attempt.grade, self.tq_request_data.get('grade'))
+        self.assertEqual(self.tq_attempt.point, self.tq_request_data.get('grade'))
+        self.assertEqual(self.tq_attempt.question_note, self.tq_request_data.get('note'))
+
+        request_data = self.tq_request_data.copy()
+        request_data['grade'] = 2
+        grading.set_text_question_attempt_grade(self.quiz_attempt, self.tq_attempt, request_data)
+
+        self.assertEqual(self.quiz_attempt.grade, request_data.get('grade'))
+        self.assertEqual(self.tq_attempt.point, request_data.get('grade'))
         self.assertEqual(self.tq_attempt.question_note, self.tq_request_data.get('note'))
 
     def test_grade_question_attempt_when_id_is_none(self):
@@ -5507,22 +6117,6 @@ class InteractiveQuizGradingTest(TestCase):
                 str(self.event.event_id)
             )
         )
-
-    def test_grade_question_attempt_when_request_is_valid(self):
-        request_data = self.tq_request_data.copy()
-        response = fetch_and_get_response(
-            SUBMIT_INDIVIDUAL_QUESTION_GRADE_AND_NOTE_URL,
-            request_data,
-            authenticated_user=self.assessor_responsible_for_1
-        )
-        self.assertEqual(response.status_code, HTTPStatus.OK)
-
-        response_content = json.loads(response.content)
-        self.assertEqual(response_content.get('grade'), request_data.get('grade'))
-        self.assertEqual(response_content.get('note'), request_data.get('note'))
-
-        changed_attempt = ToolAttempt.objects.get(tool_attempt_id=self.quiz_attempt.tool_attempt_id)
-        self.assertEqual(changed_attempt.grade, request_data.get('grade'))
 
     def test_grade_quiz_attempt_when_id_is_none(self):
         request_data = self.mcq_request_data.copy()
@@ -5615,16 +6209,16 @@ class InteractiveQuizGradingTest(TestCase):
         self.assertEqual(response.status_code, HTTPStatus.OK)
 
         response_content = json.loads(response.content)
-        self.assertEqual(float(response_content.get('grade')), 5.0)
+        self.assertEqual(float(response_content.get('grade')), 0.0)
         self.assertEqual(response_content.get('note'), request_data.get('note'))
 
         changed_attempt = ToolAttempt.objects.get(tool_attempt_id=self.quiz_attempt.tool_attempt_id)
-        self.assertEqual(changed_attempt.grade, 5.0)
+        self.assertEqual(changed_attempt.grade, 0.0)
         self.assertEqual(changed_attempt.note, request_data.get('note'))
 
     def test_get_interactive_quiz_attempt_data_when_attempt_with_id_does_not_exist(self):
         invalid_tool_attempt_id = str(uuid.uuid4())
-        response = get_response_for_quiz_attempt_data(
+        response = get_response_for_active_quiz_data(
             attempt_id=invalid_tool_attempt_id,
             authenticated_user=self.assessor_responsible_for_1
         )
@@ -5634,7 +6228,7 @@ class InteractiveQuizGradingTest(TestCase):
 
     def test_get_interactive_quiz_attempt_data_when_attempt_id_corresponds_to_non_quiz_tool(self):
         non_quiz_attempt_id = str(self.assignment_attempt.tool_attempt_id)
-        response = get_response_for_quiz_attempt_data(
+        response = get_response_for_active_quiz_data(
             attempt_id=non_quiz_attempt_id,
             authenticated_user=self.assessor_responsible_for_1
         )
@@ -5644,9 +6238,9 @@ class InteractiveQuizGradingTest(TestCase):
                          ATTEMPT_IS_NOT_AN_INTERACTIVE_QUIZ.format(non_quiz_attempt_id))
 
     def test_get_interactive_quiz_attempt_data_when_user_is_not_an_assessor(self):
-        assignment_attempt_id = str(self.quiz_attempt.tool_attempt_id)
-        response = get_response_for_quiz_attempt_data(
-            attempt_id=assignment_attempt_id,
+        quiz_attempt_id = str(self.quiz_attempt.tool_attempt_id)
+        response = get_response_for_active_quiz_data(
+            attempt_id=quiz_attempt_id,
             authenticated_user=self.assessee_1
         )
         self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
@@ -5654,9 +6248,9 @@ class InteractiveQuizGradingTest(TestCase):
         self.assertEqual(response_content.get('message'), ASSESSOR_NOT_FOUND.format(self.assessee_1))
 
     def test_get_interactive_quiz_attempt_data_when_assessor_is_not_responsible_for_event(self):
-        assignment_attempt_id = str(self.quiz_attempt.tool_attempt_id)
-        response = get_response_for_quiz_attempt_data(
-            attempt_id=assignment_attempt_id,
+        quiz_attempt_id = str(self.quiz_attempt.tool_attempt_id)
+        response = get_response_for_active_quiz_data(
+            attempt_id=quiz_attempt_id,
             authenticated_user=self.assessor_responsible_for_2
         )
         self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
@@ -5672,47 +6266,152 @@ class InteractiveQuizGradingTest(TestCase):
         )
 
     def test_get_interactive_quiz_attempt_data_when_request_is_valid(self):
-        assignment_attempt_id = str(self.quiz_attempt.tool_attempt_id)
-        response = get_response_for_quiz_attempt_data(
-            attempt_id=assignment_attempt_id,
+        quiz_attempt_id = str(self.quiz_attempt.tool_attempt_id)
+        response = get_response_for_active_quiz_data(
+            attempt_id=quiz_attempt_id,
             authenticated_user=self.assessor_responsible_for_1,
         )
         self.assertEqual(response.status_code, HTTPStatus.OK)
 
         response_content = json.loads(response.content)
-        # self.assertEqual(response_content.get('assessment_tool_attempted'), str(self.quiz_attempt.tool_attempt_id))
+        self.assertEqual(response_content.get('assessment-tool-id'), str(self.interactive_quiz.assessment_id))
         self.assertEqual(response_content.get('grade'), self.quiz_attempt.grade)
         self.assertEqual(response_content.get('note'), self.quiz_attempt.note)
 
-        mc_question = response_content.get('answer_attempts')[0]
-        self.assertEqual(mc_question.get('question_attempt_id'), str(self.mcq_attempt.question_attempt_id))
-        self.assertEqual(mc_question.get('selected_answer_option_id'), str(self.mcq_attempt.selected_option_id))
-        self.assertEqual(mc_question.get('is_answered'), self.mcq_attempt.is_answered)
+        mc_question = response_content.get('answer-attempts')[0]
+        self.assertEqual(mc_question.get('question-attempt-id'), str(self.mcq_attempt.question_attempt_id))
+        self.assertEqual(mc_question.get('selected-answer-option-id'), str(self.mcq_attempt.selected_option_id))
+        self.assertEqual(mc_question.get('is-answered'), self.mcq_attempt.is_answered)
         self.assertEqual(mc_question.get('prompt'), self.mc_question.prompt)
         self.assertEqual(mc_question.get('note'), self.mcq_attempt.question_note)
         self.assertEqual(float(mc_question.get('grade')), 0.0)
-        self.assertEqual(int(mc_question.get('question_points')), self.mc_question.points)
-        self.assertEqual(mc_question.get('question_type'), self.mcq_attempt.get_question_type())
+        self.assertEqual(int(mc_question.get('question-points')), self.mc_question.points)
+        self.assertEqual(mc_question.get('question-type'), self.mcq_attempt.get_question_type())
 
-        correct_ao = mc_question.get('answer_options')[0]
+        correct_ao = mc_question.get('answer-options')[0]
+        self.assertEqual(correct_ao.get('answer-option-id'), str(self.correct_answer_option.answer_option_id))
         self.assertEqual(correct_ao.get('content'), self.correct_answer_option_data.get('content'))
         self.assertEqual(correct_ao.get('correct'), self.correct_answer_option_data.get('correct'))
 
-        incorrect_ao = mc_question.get('answer_options')[1]
+        incorrect_ao = mc_question.get('answer-options')[1]
+        self.assertEqual(incorrect_ao.get('answer-option-id'), str(self.incorrect_answer_option.answer_option_id))
         self.assertEqual(incorrect_ao.get('content'), self.incorrect_answer_option_data.get('content'))
         self.assertEqual(incorrect_ao.get('correct'), self.incorrect_answer_option_data.get('correct'))
 
-        text_question = response_content.get('answer_attempts')[1]
+        text_question = response_content.get('answer-attempts')[1]
 
-        self.assertEqual(text_question.get('question_attempt_id'), str(self.tq_attempt.question_attempt_id))
-        self.assertEqual(text_question.get('is_answered'), self.tq_attempt.is_answered)
+        self.assertEqual(text_question.get('question-attempt-id'), str(self.tq_attempt.question_attempt_id))
+        self.assertEqual(text_question.get('is-answered'), self.tq_attempt.is_answered)
         self.assertEqual(text_question.get('prompt'), self.text_question.prompt)
         self.assertEqual(text_question.get('note'), self.tq_attempt.question_note)
-        self.assertEqual(float(text_question.get('grade')), 0.0)
-        self.assertEqual(int(text_question.get('question_points')), self.text_question.points)
-        self.assertEqual(text_question.get('question_type'), self.tq_attempt.get_question_type())
+        self.assertEqual(float(text_question.get('grade')), 5.0)
+        self.assertEqual(int(text_question.get('question-points')), self.text_question.points)
+        self.assertEqual(text_question.get('question-type'), self.tq_attempt.get_question_type())
         self.assertEqual(text_question.get('answer'), self.tq_attempt.answer)
-        self.assertEqual(text_question.get('is_graded'), self.tq_attempt.is_graded)
+        self.assertEqual(text_question.get('answer-key'), self.text_question.answer_key)
+        self.assertEqual(text_question.get('is-graded'), self.tq_attempt.is_graded)
+
+    def test_get_question_attempt_data_when_attempt_with_id_does_not_exist(self):
+        invalid_tool_attempt_id = str(uuid.uuid4())
+        response = get_response_for_question_attempt_data(
+            attempt_id=invalid_tool_attempt_id,
+            question_attempt_id=str(self.mcq_attempt.question_attempt_id),
+            authenticated_user=self.assessor_responsible_for_1
+        )
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), TOOL_ATTEMPT_DOES_NOT_EXIST.format(invalid_tool_attempt_id))
+
+    def test_get_question_attempt_data_when_attempt_id_corresponds_to_non_quiz_tool(self):
+        non_quiz_attempt_id = str(self.assignment_attempt.tool_attempt_id)
+        response = get_response_for_question_attempt_data(
+            attempt_id=non_quiz_attempt_id,
+            question_attempt_id=str(self.mcq_attempt.question_attempt_id),
+            authenticated_user=self.assessor_responsible_for_1
+        )
+        self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'),
+                         ATTEMPT_IS_NOT_AN_INTERACTIVE_QUIZ.format(non_quiz_attempt_id))
+
+    def test_get_question_attempt_data_when_user_is_not_an_assessor(self):
+        quiz_attempt_id = str(self.quiz_attempt.tool_attempt_id)
+        response = get_response_for_question_attempt_data(
+            attempt_id=quiz_attempt_id,
+            question_attempt_id=str(self.mcq_attempt.question_attempt_id),
+            authenticated_user=self.assessee_1
+        )
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+        self.assertEqual(response_content.get('message'), ASSESSOR_NOT_FOUND.format(self.assessee_1))
+
+    def test_get_question_attempt_data_when_assessor_is_not_responsible_for_event(self):
+        quiz_attempt_id = str(self.quiz_attempt.tool_attempt_id)
+        response = get_response_for_question_attempt_data(
+            attempt_id=quiz_attempt_id,
+            question_attempt_id=str(self.mcq_attempt.question_attempt_id),
+            authenticated_user=self.assessor_responsible_for_2
+        )
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        response_content = json.loads(response.content)
+
+        self.assertEqual(
+            response_content.get('message'),
+            ASSESSOR_NOT_RESPONSIBLE_FOR_ASSESSEE.format(
+                self.assessor_responsible_for_2,
+                self.assessee_1,
+                str(self.event.event_id)
+            )
+        )
+
+    def test_get_question_attempt_data_when_request_is_valid(self):
+        quiz_attempt_id = str(self.quiz_attempt.tool_attempt_id)
+        question_attempt_id = str(self.mcq_attempt.question_attempt_id)
+        response = get_response_for_question_attempt_data(
+            attempt_id=quiz_attempt_id,
+            question_attempt_id=question_attempt_id,
+            authenticated_user=self.assessor_responsible_for_1,
+        )
+        mcq_data = json.loads(response.content)
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+
+        self.assertEqual(mcq_data.get('question-attempt-id'), str(self.mcq_attempt.question_attempt_id))
+        self.assertEqual(mcq_data.get('selected-answer-option-id'), str(self.mcq_attempt.selected_option_id))
+        self.assertEqual(mcq_data.get('is-answered'), self.mcq_attempt.is_answered)
+        self.assertEqual(mcq_data.get('prompt'), self.mc_question.prompt)
+        self.assertEqual(mcq_data.get('note'), self.mcq_attempt.question_note)
+        self.assertEqual(float(mcq_data.get('grade')), 0.0)
+        self.assertEqual(int(mcq_data.get('question-points')), self.mc_question.points)
+        self.assertEqual(mcq_data.get('question-type'), self.mcq_attempt.get_question_type())
+
+        correct_ao_attempt = mcq_data.get('answer-options')[0]
+        self.assertEqual(correct_ao_attempt.get('answer-option-id'), str(self.correct_answer_option.answer_option_id))
+        self.assertEqual(correct_ao_attempt.get('content'), self.correct_answer_option_data.get('content'))
+        self.assertEqual(correct_ao_attempt.get('correct'), self.correct_answer_option_data.get('correct'))
+
+        incorrect_ao = mcq_data.get('answer-options')[1]
+        self.assertEqual(incorrect_ao.get('answer-option-id'), str(self.incorrect_answer_option.answer_option_id))
+        self.assertEqual(incorrect_ao.get('content'), self.incorrect_answer_option_data.get('content'))
+        self.assertEqual(incorrect_ao.get('correct'), self.incorrect_answer_option_data.get('correct'))
+
+        response = get_response_for_question_attempt_data(
+            attempt_id=quiz_attempt_id,
+            question_attempt_id=str(self.tq_attempt.question_attempt_id),
+            authenticated_user=self.assessor_responsible_for_1,
+        )
+        tq_data = json.loads(response.content)
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+
+        self.assertEqual(tq_data.get('question-attempt-id'), str(self.tq_attempt.question_attempt_id))
+        self.assertEqual(tq_data.get('is-answered'), self.tq_attempt.is_answered)
+        self.assertEqual(tq_data.get('prompt'), self.text_question.prompt)
+        self.assertEqual(tq_data.get('note'), self.tq_attempt.question_note)
+        self.assertEqual(float(tq_data.get('grade')), self.tq_attempt.point)
+        self.assertEqual(int(tq_data.get('question-points')), self.text_question.points)
+        self.assertEqual(tq_data.get('question-type'), self.tq_attempt.get_question_type())
+        self.assertEqual(tq_data.get('answer'), self.tq_attempt.answer)
+        self.assertEqual(tq_data.get('answer-key'), self.text_question.answer_key)
+        self.assertEqual(tq_data.get('is-graded'), self.tq_attempt.is_graded)
 
 
 class ActiveResponseTest(TestCase):

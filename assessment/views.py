@@ -10,7 +10,8 @@ from assessment.services.assessment_tool import (
     serialize_assignment_list_using_serializer,
     serialize_test_flow_list
 )
-from .services.assessment import create_assignment, create_interactive_quiz, create_response_test, create_video_conference_notification
+from .services.assessment import create_assignment, create_interactive_quiz, create_response_test, \
+    create_video_conference_notification
 from one_day_intern.exceptions import RestrictedAccessException
 from users.services import utils as user_utils
 from .services import utils
@@ -32,9 +33,16 @@ from .services.assessment_event_attempt import (
     get_submitted_assignment,
     submit_interactive_quiz,
     submit_interactive_quiz_answers,
-    get_all_active_interactive_quiz
+    get_all_active_interactive_quiz,
+    get_submitted_individual_question,
+    get_submitted_interactive_quiz
+
 )
-from .services.progress_review import get_assessee_progress_on_assessment_event
+from .services.progress_review import (
+    get_assessee_progress_on_assessment_event,
+    get_assessee_report_on_assessment_event,
+    assessor_get_assessment_event_data
+)
 from .services.grading import (
     grade_assessment_tool,
     get_assignment_attempt_data,
@@ -42,7 +50,8 @@ from .services.grading import (
     get_response_test_attempt_data,
     grade_interactive_quiz_individual_question,
     grade_interactive_quiz,
-    get_interactive_quiz_attempt_data
+    get_interactive_quiz_grading_data,
+    get_question_grading_data
 )
 from .models import (
     AssignmentSerializer,
@@ -262,7 +271,7 @@ def serve_get_all_active_response_test(request):
 def serve_submit_response_test(request):
     """
     This view will serve as the end-point for assessees to submit their response test
-    attempt to an interactive quiz tool that they currently undergo in an assessment event.
+    attempt to an response test tool that they currently undergo in an assessment event.
     ----------------------------------------------------------
     request-data must contain:
     assessment-event-id: string
@@ -364,6 +373,7 @@ def serve_get_submitted_assignment(request):
     else:
         return Response(data={'message': 'No attempt found'}, status=200)
 
+
 @require_GET
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -377,6 +387,52 @@ def serve_get_all_active_interactive_quizzes(request):
     active_quizzes = get_all_active_interactive_quiz(request_data, user=request.user)
     return Response(data=active_quizzes)
 
+
+@require_GET
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def serve_get_submitted_quiz(request):
+    """
+        This view will serve as the end-point for assessees to view their quiz
+        ----------------------------------------------------------
+        request-data must contain:
+        assessment-event-id: string
+        assessment-tool-id: string
+        Format:
+        assessment-event/get-submitted-quiz/?assessment-event-id=<EventId>&quiz-tool-id=<InteractiveQuizId>
+    """
+    request_data = request.GET
+    quiz_data = get_submitted_interactive_quiz(request_data, user=request.user)
+    if quiz_data:
+        return Response(data=quiz_data, status=200)
+    else:
+        return Response(data={'message': 'No attempt found'}, status=200)
+
+
+@require_GET
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def serve_get_submitted_question(request):
+    """
+        This view will serve as the end-point for assessees to view their submitted quiz
+        ----------------------------------------------------------
+        request-data must contain:
+        assessment-event-id: string
+        assessment-tool-id: string
+        question-attempt-id: string
+        Format:
+        assessment-event/get-submitted-question/?assessment-event-id=<EventId>
+        &assessment-tool-id=<InteractiveQuizId>
+        &question-attempt-id=<QuestionAttemptId>
+    """
+    request_data = request.GET
+    question_data = get_submitted_individual_question(request_data, user=request.user)
+    if question_data:
+        return Response(data=question_data, status=200)
+    else:
+        return Response(data={'message': 'No attempt found'}, status=200)
+
+
 @require_POST
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -388,7 +444,7 @@ def serve_submit_answer(request):
     request-data must contain:
     assessment-event-id: string
     assessment-tool-id: string
-    file: file
+    question-attempt-id: string
     """
     request_data = json.loads(request.body.decode('utf-8'))
     submit_interactive_quiz_answers(request_data, user=request.user)
@@ -406,7 +462,6 @@ def serve_submit_interactive_quiz(request):
     request-data must contain:
     assessment-event-id: string
     assessment-tool-id: string
-    file: file
     """
     request_data = json.loads(request.body.decode('utf-8'))
     submit_interactive_quiz(request_data, user=request.user)
@@ -427,6 +482,22 @@ def serve_get_assessee_progress_on_event(request):
     request_data = request.GET
     progress_data = get_assessee_progress_on_assessment_event(request_data, user=request.user)
     return Response(data=progress_data)
+
+
+@require_GET
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def serve_assessor_get_assessment_event_data(request):
+    """
+    This view will serve as the end point for assessors to get assessment event data
+    ----------------------------------------------------------
+    request-param must contain:
+    assessment-event-id: string
+    """
+    request_data = request.GET
+    event = assessor_get_assessment_event_data(request_data, user=request.user)
+    response_data = AssessmentEventSerializer(event).data
+    return Response(data=response_data)
 
 
 @require_POST
@@ -567,17 +638,35 @@ def serve_save_graded_attempt(request):
 @require_GET
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def serve_get_interactive_quiz_attempt_data(request):
+def serve_get_interactive_quiz_grading_data(request):
     """
-    This view will serve as the end-point for assessor to view the assessee submitted assignment data
+    This view will serve as the end-point for assessor to view the assessee submitted quiz data
     ----------------------------------------------------------
     request-data must contain:
     tool-attempt-id: string
     Format:
-    assessment/review/interactive-quiz/data?tool-attempt-id=<ToolAttemptId>
+    assessment/review/interactive-quiz/?tool-attempt-id=<ToolAttemptId>
     """
     request_data = request.GET
-    response_data = get_interactive_quiz_attempt_data(request_data, user=request.user)
+    response_data = get_interactive_quiz_grading_data(request_data, user=request.user)
+    return Response(data=response_data, status=200)
+
+
+@require_GET
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def serve_get_question_grading_data(request):
+    """
+        This view will serve as the end-point for assessor to view the assessee submitted individual question data
+        ----------------------------------------------------------
+        request-data must contain:
+        tool-attempt-id: string
+        question-attempt-id: string
+        Format:
+        assessment/review/individual-question/?tool-attempt-id=<ToolAttemptId>&question-attempt-id=<QuestionAttemptId>
+        """
+    request_data = request.GET
+    response_data = get_question_grading_data(request_data, user=request.user)
     return Response(data=response_data, status=200)
 
 
@@ -598,3 +687,22 @@ def serve_review_response_test_attempt_data(request):
     response_test_attempt = get_response_test_attempt_data(request_data, user=request.user)
     response_data = GradedResponseTestAttemptSerializer(response_test_attempt).data
     return Response(data=response_data, status=200)
+
+
+@require_GET
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def serve_get_assessee_report_on_assessment_event(request):
+    """
+    This view will serve as the end-point for assessor to view the assessee report
+    on assessment event.
+    ----------------------------------------------------------
+    request-data must contain:
+    assessment-event-id: string
+    assessee-email: string
+    Format:
+    assessment/review/response-test/?assessment-event-id=<AssessmentEventId>&assessee-email=<AssesseeEmail>
+    """
+    request_data = request.GET
+    assessee_report = get_assessee_report_on_assessment_event(request_data, user=request.user)
+    return Response(data=assessee_report, status=200)

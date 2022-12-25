@@ -31,6 +31,9 @@ class Company(OdiUser):
     description = models.TextField()
     address = models.TextField(null=False)
 
+    def get_assessors(self):
+        return self.assessor_set.all()
+
 
 class CompanySerializer(serializers.ModelSerializer):
     class Meta:
@@ -61,7 +64,7 @@ class AssessorSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Assessor
-        fields = ['first_name', 'last_name', 'phone_number', 'employee_id', 'company_id']
+        fields = ['email', 'first_name', 'last_name', 'phone_number', 'employee_id', 'company_id']
 
 
 class Assessee(OdiUser):
@@ -75,13 +78,9 @@ class Assessee(OdiUser):
         default=AuthenticationService.DEFAULT.value
     )
 
-class AssesseeSerializer(serializers.ModelSerializer):
-
-    class Meta:
-        model = Assessee
-        fields = ['email','first_name', 'last_name', 'phone_number', 'date_of_birth']
 
 class AssesseeSerializer(serializers.ModelSerializer):
+
     class Meta:
         model = Assessee
         fields = ['email', 'first_name', 'last_name', 'phone_number', 'date_of_birth']
