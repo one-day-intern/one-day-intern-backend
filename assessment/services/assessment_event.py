@@ -1,8 +1,10 @@
 from django.core.exceptions import ObjectDoesNotExist
+from company.services import utils as company_utils
 from one_day_intern import utils as odi_utils
 from one_day_intern.decorators import catch_exception_and_convert_to_invalid_request_decorator
 from one_day_intern.exceptions import RestrictedAccessException, InvalidRequestException
-from users.models import Company
+from one_day_intern.settings import EMAIL_HOST_USER
+from users.models import Company, Assessee
 from ..exceptions.exceptions import TestFlowDoesNotExist, InvalidAssessmentEventRegistration, EventDoesNotExist
 from ..models import AssessmentEvent
 from . import utils
@@ -97,6 +99,42 @@ def add_list_of_participants_to_event(event: AssessmentEvent, list_of_participan
         event.add_participant(assessee=assessee, assessor=assessor)
 
 
+def generate_invitation_to_assessee(event: AssessmentEvent, assessee: Assessee):
+    message = (
+        'ODI Assessment Event Invitation',
+        '',
+        f"""
+        <h2>Hello, {assessee.first_name}!</h2>
+        <span>You have been invited to join <b>{event.name}</b> assessment event by {event.owning_company.company_name}.</span><br/>
+        <span>
+            The event will be held on {event.start_date_time.strftime('%d %B %Y')} through the One Day Intern assessment platform.
+        </span><br/>
+        <p>You can access the list of assessment events assigned to you through https://onedayintern.asia/dashboard</p>
+        <img src="https://i.ibb.co/CzmHtCB/image.png" alt="One Day Intern" style="height:70px; width:auto">
+        <div>
+            <span style="font-size:0.8rem;font-weight:bold;">One Day Intern</span><br/>
+            <span style="font-size:0.6rem">
+                One Day Intern is an open-source project that aims in making fairer and more practical assessments.
+            </span><br/>
+            <span style="font-size:0.6rem">
+                For further information, please contact us through onedayintern@gmail.com
+            </span>
+        </div>
+        """,
+        EMAIL_HOST_USER,
+        [assessee.email]
+    )
+    return message
+
+
+def email_invitations_to_assessees(event: AssessmentEvent, list_of_participants: list):
+    messages_to_sent = []
+    for assessee, _ in list_of_participants:
+        message = generate_invitation_to_assessee(event, assessee)
+        messages_to_sent.append(message)
+    company_utils.send_mass_html_mail(messages_to_sent)
+
+
 def add_assessment_event_participation(request_data, user):
     validate_add_assessment_participant(request_data)
     company = utils.get_company_or_assessor_associated_company_from_user(user)
@@ -105,6 +143,7 @@ def add_assessment_event_participation(request_data, user):
     converted_list_of_participants = \
         convert_list_of_participants_emails_to_user_objects(request_data.get('list_of_participants'), company)
     add_list_of_participants_to_event(event, converted_list_of_participants)
+    email_invitations_to_assessees(event, converted_list_of_participants)
 
 
 def validate_update_assessment_event(request_data, event: AssessmentEvent, creating_company):

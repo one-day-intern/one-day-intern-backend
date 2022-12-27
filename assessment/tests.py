@@ -1,3 +1,4 @@
+from company.services import utils as company_utils
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, Client
@@ -2219,13 +2220,21 @@ class AssessmentEventParticipationTest(TestCase):
             expected_message=f'User with email {self.assessee.email} is not a company or an assessor'
         )
 
-    def test_add_assessment_event_participation_when_request_is_valid(self):
+    @patch.object(company_utils, 'send_mass_html_mail')
+    def test_add_assessment_event_participation_when_request_is_valid(self, mocked_send_mass_mail):
         request_data = self.base_request_data.copy()
         response = fetch_and_get_response(
             path=ADD_PARTICIPANT_URL,
             request_data=request_data,
             authenticated_user=self.company_1
         )
+
+        call_arguments = list(mocked_send_mass_mail.call_args)[0][0]
+        self.assertEqual(len(call_arguments), 1)
+
+        actual_message_1 = call_arguments
+        actual_destination_email = actual_message_1[0][-1][0]
+        self.assertEqual(actual_destination_email, self.assessee.email)
 
         self.assertEqual(response.status_code, HTTPStatus.OK)
         response_content = json.loads(response.content)
