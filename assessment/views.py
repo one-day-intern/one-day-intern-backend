@@ -67,6 +67,8 @@ from .models import (
 )
 import json
 
+NO_ATTEMPT_FOUND = 'No attempt found'
+
 
 @require_GET
 @api_view(["GET"])
@@ -371,7 +373,7 @@ def serve_get_submitted_assignment(request):
     if downloaded_file:
         return utils.generate_file_response(downloaded_file)
     else:
-        return Response(data={'message': 'No attempt found'}, status=200)
+        return Response(data={'message': NO_ATTEMPT_FOUND}, status=200)
 
 
 @require_GET
@@ -406,7 +408,7 @@ def serve_get_submitted_quiz(request):
     if quiz_data:
         return Response(data=quiz_data, status=200)
     else:
-        return Response(data={'message': 'No attempt found'}, status=200)
+        return Response(data={'message': NO_ATTEMPT_FOUND}, status=200)
 
 
 @require_GET
@@ -430,7 +432,7 @@ def serve_get_submitted_question(request):
     if question_data:
         return Response(data=question_data, status=200)
     else:
-        return Response(data={'message': 'No attempt found'}, status=200)
+        return Response(data={'message': NO_ATTEMPT_FOUND}, status=200)
 
 
 @require_POST
@@ -555,7 +557,7 @@ def serve_get_assignment_attempt_file(request):
     if downloaded_file:
         return utils.generate_file_response(downloaded_file)
     else:
-        return Response(data={'message': 'No attempt found'}, status=200)
+        return Response(data={'message': NO_ATTEMPT_FOUND}, status=200)
 
 
 @require_POST
