@@ -941,13 +941,34 @@ class ResponseTestAttempt(ToolAttempt):
 
 class GradedResponseTestAttemptSerializer(serializers.ModelSerializer):
     submitted_time = serializers.SerializerMethodField(method_name='get_submitted_time_iso')
+    response_test_sender = serializers.SerializerMethodField(method_name='get_response_test_sender')
+    response_test_subject = serializers.SerializerMethodField(method_name='get_response_test_subject')
+    response_test_prompt = serializers.SerializerMethodField(method_name='get_response_test_prompt')
+
+    def get_response_test_sender(obj, self):
+        return self.assessment_tool_attempted.sender
+
+    def get_response_test_subject(obj, self):
+        return self.assessment_tool_attempted.subject
+
+    def get_response_test_prompt(obj, self):
+        return self.assessment_tool_attempted.prompt
 
     def get_submitted_time_iso(obj, self):
         return self.submitted_time.isoformat()
 
     class Meta:
         model = ResponseTestAttempt
-        fields = ['submitted_time', 'subject', 'response', 'grade', 'note']
+        fields = [
+            'response_test_sender',
+            'response_test_subject',
+            'response_test_prompt',
+            'submitted_time',
+            'subject',
+            'response',
+            'grade',
+            'note'
+        ]
 
 
 class ResponseTestAttemptSerializer(serializers.ModelSerializer):
